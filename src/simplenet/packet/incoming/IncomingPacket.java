@@ -4,6 +4,7 @@ import simplenet.packet.*;
 
 import java.nio.*;
 
+@FunctionalInterface
 public interface IncomingPacket extends Packet {
 
 	/**

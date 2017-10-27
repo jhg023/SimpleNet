@@ -4,7 +4,7 @@ import simplenet.packet.*;
 
 import java.nio.*;
 
-public abstract class OutgoingPacket implements Packet {
+public final class OutgoingPacket implements Packet {
 
 	/**
 	 * The payload of the {@link Packet}
@@ -42,17 +42,6 @@ public abstract class OutgoingPacket implements Packet {
 	public OutgoingPacket(int size, int opcode) {
 		payload = ByteBuffer.allocate(size).put((byte) opcode);
 	}
-
-	/**
-	 * A method that allows each {@link Packet}
-	 * implementation to determine how its data
-	 * should be written to form its payload.
-	 *
-	 * @param payload
-	 *      A {@link ByteBuffer} that will hold the
-	 *      data belonging to this {@link Packet}.
-	 */
-	public abstract void write(ByteBuffer payload);
 
 	/**
 	 * Writes a single {@code byte} to this
