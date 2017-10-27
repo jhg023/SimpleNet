@@ -1,5 +1,6 @@
 module SimpleNet {
-
-	exports simplenet.packet;
-
+	exports simplenet.client;
+	exports simplenet.server;
+	exports simplenet.packet.incoming;
+	exports simplenet.packet.outgoing;
 }
