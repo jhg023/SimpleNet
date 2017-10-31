@@ -45,29 +45,52 @@ public final class ServerListener implements CompletionHandler<AsynchronousSocke
 		client.read(buffer, buffer, new CompletionHandler<>() {
 			@Override
 			public void completed(Integer result, ByteBuffer buffer) {
+				/*
+				 * The server is ready to read a new packet
+				 * at this point.  Therefore, if at least 1 byte
+				 * arrives, we know that an opcode is present.
+				 */
 				if (currentOpcode == -1 && buffer.hasRemaining()) {
 					currentOpcode = buffer.get() & 0xFF;
 
 					buffer.compact().clear();
 				}
 
+				/*
+				 * The server now knows which packet it will be
+				 * reading, but it first needs to read its length.
+				 */
 				if (currentLength == -1 && buffer.hasRemaining()) {
 					currentLength = buffer.get() & 0xFF;
 
+					/*
+					 * If the length of the incoming packet is longer
+				     * than any packet we've seen previously, then
+				     * allocate a larger buffer, passing in any
+				     * data left over from the smaller buffer.
+					 */
 					if (currentLength > buffer.capacity()) {
 						buffer = ByteBuffer.allocateDirect(currentLength).put(buffer);
 					}
 				}
 
+				/*
+				 * If the amount of data
+				 */
 				if (buffer.remaining() >= currentLength) {
 					tuple.getLeft().getPackets()[currentOpcode].read(buffer);
 
 					currentOpcode = currentLength = -1;
 
 					buffer.compact().clear();
-
-					client.read(buffer, buffer, this);
 				}
+
+				/*
+				 * Attempt to read more information into
+				 * this buffer at a later time, eventually
+				 * returning to this handler.
+				 */
+				client.read(buffer, buffer, this);
 			}
 
 			@Override

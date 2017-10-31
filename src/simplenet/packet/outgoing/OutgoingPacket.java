@@ -1,46 +1,43 @@
 package simplenet.packet.outgoing;
 
+import simplenet.client.*;
 import simplenet.packet.*;
 
 import java.nio.*;
+import java.nio.channels.*;
+import java.util.*;
+import java.util.function.*;
 
 public final class OutgoingPacket implements Packet {
 
 	/**
-	 * The payload of the {@link Packet}
-	 * containing data sent to/from the
-	 * server.
+	 * An {@code int} representing the amount
+	 * of bytes that this {@link OutgoingPacket}
+	 * will send.
 	 */
-	private ByteBuffer payload;
+	private int size;
+
+	/**
+	 * A unique identifier of an {@link OutgoingPacket}.
+	 */
+	private int opcode;
+
+	/**
+	 * A {@link Queue} that lazily writes data to the
+	 * backing {@link ByteBuffer}.
+	 */
+	private final Queue<Consumer<ByteBuffer>> queue = new ArrayDeque<>();
 
 	/**
 	 * Instantiates a raw {@link Packet}
 	 * with a specific opcode.
-	 * <p>
-	 * The backing {@link ByteBuffer} is pre-allocated
-	 * with 16 bytes by default.
 	 *
 	 * @param opcode
 	 *      This {@link Packet}'s identifier;
 	 *      Must range from {@code 0} to {@code 255}.
 	 */
 	public OutgoingPacket(int opcode) {
-		this(16, opcode);
-	}
-
-	/**
-	 * Instantiates a raw {@link Packet}
-	 * with a specific opcode.
-	 *
-	 * @param size
-	 *      The number of bytes to preallocate
-	 *      the backing {@link ByteBuffer} with.
-	 * @param opcode
-	 *      This {@link Packet}'s identifier;
-	 *      Must range from {@code 0} to {@code 255}.
-	 */
-	public OutgoingPacket(int size, int opcode) {
-		payload = ByteBuffer.allocate(size).put((byte) opcode);
+		this.opcode = opcode;
 	}
 
 	/**
@@ -56,7 +53,9 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putByte(int b) {
-		payload.put((byte) b);
+		size++;
+
+		queue.offer(payload -> payload.put((byte) b));
 		return this;
 	}
 
@@ -74,9 +73,13 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putBytes(int... src) {
-		for (int b : src) {
-			payload.put((byte) b);
-		}
+		size += src.length;
+
+		queue.offer(payload -> {
+			for (int b : src) {
+				payload.put((byte) b);
+			}
+		});
 
 		return this;
 	}
@@ -92,7 +95,9 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putChar(char c) {
-		payload.putChar(c);
+		size += 2;
+
+		queue.offer(payload -> payload.putChar(c));
 		return this;
 	}
 
@@ -107,10 +112,11 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putDouble(double d) {
-		payload.putDouble(d);
+		size += 8;
+
+		queue.offer(payload -> payload.putDouble(d));
 		return this;
 	}
-
 
 	/**
 	 * Writes a single {@code float} to this
@@ -123,7 +129,9 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putFloat(float f) {
-		payload.putFloat(f);
+		size += 4;
+
+		queue.offer(payload -> payload.putFloat(f));
 		return this;
 	}
 
@@ -138,7 +146,9 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putInt(int i) {
-		payload.putInt(i);
+		size += 4;
+
+		queue.offer(payload -> payload.putInt(i));
 		return this;
 	}
 
@@ -153,7 +163,9 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putLong(long l) {
-		payload.putLong(l);
+		size += 8;
+
+		queue.offer(payload -> payload.putLong(l));
 		return this;
 	}
 
@@ -168,19 +180,56 @@ public final class OutgoingPacket implements Packet {
 	 *      chained writes.
 	 */
 	public OutgoingPacket putShort(short s) {
-		payload.putShort(s);
+		size += 2;
+
+		queue.offer(payload -> payload.putShort(s));
 		return this;
 	}
 
 	/**
-	 * Gets the payload of this {@link Packet}.
+	 * Transmits this {@link OutgoingPacket} to
+	 * a specific client.
 	 *
-	 * @return
-	 *      A {@link ByteBuffer} that holds the
-	 *      data.
+	 * @param channels
+	 *      A variable amount of {@link AsynchronousSocketChannel}s.
+	 *
+	 * TODO: Send to {@link Client} instead.
 	 */
-	protected ByteBuffer getPayload() {
-		return payload;
+	public void send(AsynchronousSocketChannel... channels) {
+		/*
+		 * Allocate a new buffer with the size of
+		 * the data being added, as well as an extra
+		 * two bytes to account for the opcode and the length.
+		 */
+		ByteBuffer payload = ByteBuffer.allocate(size + 2);
+
+		/*
+		 * Write the opcode to the buffer.
+		 */
+		payload.put((byte) opcode);
+
+		/*
+		 * Write the length to the buffer.
+		 */
+		payload.put((byte) size);
+
+		/*
+		 * Add the rest of the data to the buffer.
+		 */
+		queue.forEach(consumer -> consumer.accept(payload));
+
+		/*
+		 * Flip the buffer so the client can immediately
+		 * read it on arrival.
+		 */
+		payload.flip();
+
+		/*
+		 * Write the buffer to the channels.
+		 */
+		for (AsynchronousSocketChannel channel : channels) {
+			channel.write(payload);
+		}
 	}
 
 }

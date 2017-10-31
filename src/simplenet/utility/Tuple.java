@@ -1,22 +1,22 @@
 package simplenet.utility;
 
-public final class Tuple<T, U> {
+public final class Tuple<Left, Right> {
 
-	private T t;
+	private Left left;
 
-	private U u;
+	private Right right;
 
-	public Tuple(T t, U u) {
-		this.t = t;
-		this.u = u;
+	public Tuple(Left left, Right right) {
+		this.left = left;
+		this.right = right;
 	}
 
-	public T getLeft() {
-		return t;
+	public Left getLeft() {
+		return left;
 	}
 
-	public U getRight() {
-		return u;
+	public Right getRight() {
+		return right;
 	}
 
 }
