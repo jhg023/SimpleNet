@@ -1,10 +1,11 @@
 package simplenet.server.listener;
 
+import simplenet.*;
 import simplenet.client.*;
+import simplenet.packet.incoming.*;
 import simplenet.server.*;
 import simplenet.utility.*;
 
-import java.nio.*;
 import java.nio.channels.*;
 
 /**
@@ -17,94 +18,21 @@ import java.nio.channels.*;
  * @author Jacob G.
  * @since October 22, 2017
  */
-public final class ServerListener implements CompletionHandler<AsynchronousSocketChannel, Tuple<Server, AsynchronousServerSocketChannel>> {
-
-	private int currentOpcode = -1;
-
-	private int currentLength = -1;
-
-	/**
-	 * Allocate a new {@link ByteBuffer} for the opcode
-	 * and length, each being {@code 1} byte.
-	 */
-	private ByteBuffer buffer = ByteBuffer.allocate(2);
+public final class ServerListener extends Listener<AsynchronousSocketChannel, Tuple<Server, AsynchronousServerSocketChannel>> {
 
 	@Override
-	public void completed(AsynchronousSocketChannel client, Tuple<Server, AsynchronousServerSocketChannel> tuple) {
-		AsynchronousServerSocketChannel channel = tuple.getRight();
-
-		/*
-		 * Asynchronously accept the next connection.
-		 */
-		channel.accept(new Tuple<>(tuple.getLeft(), channel), this);
-
-		/*
-		 * Handle this connection by continuously attempting
-		 * to asynchronously read from the channel.
-		 */
-		client.read(buffer, buffer, new CompletionHandler<>() {
-			@Override
-			public void completed(Integer result, ByteBuffer buffer) {
-				/*
-				 * The server is ready to read a new packet
-				 * at this point.  Therefore, if at least 1 byte
-				 * arrives, we know that an opcode is present.
-				 */
-				if (currentOpcode == -1 && buffer.hasRemaining()) {
-					currentOpcode = buffer.get() & 0xFF;
-
-					buffer.compact().clear();
-				}
-
-				/*
-				 * The server now knows which packet it will be
-				 * reading, but it first needs to read its length.
-				 */
-				if (currentLength == -1 && buffer.hasRemaining()) {
-					currentLength = buffer.get() & 0xFF;
-
-					/*
-					 * If the length of the incoming packet is longer
-				     * than any packet we've seen previously, then
-				     * allocate a larger buffer, passing in any
-				     * data left over from the smaller buffer.
-					 */
-					if (currentLength > buffer.capacity()) {
-						buffer = ByteBuffer.allocateDirect(currentLength).put(buffer);
-					}
-				}
-
-				/*
-				 * If the amount of data
-				 */
-				if (buffer.remaining() >= currentLength) {
-					tuple.getLeft().getPackets()[currentOpcode].read(buffer);
-
-					currentOpcode = currentLength = -1;
-
-					buffer.compact().clear();
-				}
-
-				/*
-				 * Attempt to read more information into
-				 * this buffer at a later time, eventually
-				 * returning to this handler.
-				 */
-				client.read(buffer, buffer, this);
-			}
-
-			@Override
-			public void failed(Throwable t, ByteBuffer buffer) {
-				t.printStackTrace();
-
-				buffer.reset();
-			}
-		});
+	protected void onCompletion(Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+		tuple.getRight().accept(tuple, this);
 	}
 
 	@Override
-	public void failed(Throwable t, Tuple<Server, AsynchronousServerSocketChannel> pair) {
-		t.printStackTrace();
+	protected AsynchronousSocketChannel getChannel(AsynchronousSocketChannel channel, Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+		return channel;
+	}
+
+	@Override
+	protected Packetable getPacketable(Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+		return tuple.getLeft();
 	}
 
 }

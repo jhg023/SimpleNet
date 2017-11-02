@@ -7,7 +7,6 @@ import simplenet.utility.*;
 
 import java.io.*;
 import java.net.*;
-import java.nio.*;
 import java.nio.channels.*;
 import java.util.*;
 
@@ -16,18 +15,12 @@ import java.util.*;
  *
  * @since November 1, 2017
  */
-public final class Server {
+public final class Server extends Packetable {
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
 	 */
 	private AsynchronousServerSocketChannel server;
-
-	/**
-	 * An array of {@link IncomingPacket}s received by
-	 * the {@link Server}.
-	 */
-	private final IncomingPacket[] packets = new IncomingPacket[256];
 
 	/**
 	 * Instantiates a new {@link Server} by attempting
@@ -80,50 +73,6 @@ public final class Server {
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to bind the server!");
 		}
-	}
-
-	/**
-	 * Registers an {@link IncomingPacket} to the {@link Server}.
-	 * <p>
-	 * If an {@link IncomingPacket} with {@code opcode} is received,
-	 * then {@link IncomingPacket#read(ByteBuffer)} will be called
-	 * for {@code packet}.
-	 *
-	 * @param opcode
-	 *      The opcode to register {@code packet} to.
-	 * @param packet
-	 *      The packet to register.
-	 * @return
-	 *      The instance of this {@link Server} to
-	 *      allow for method chaining.
-	 * @throws IllegalArgumentException
-	 *      If {@code opcode} is less than 0 or greater
-	 *      than or equal to {@code packets.length}.
-	 * @throws IllegalStateException
-	 *      If {@code opcode} has already been registered.
-	 */
-	public Server register(int opcode, IncomingPacket packet) {
-		if (opcode < 0 || opcode >= packets.length) {
-			throw new IllegalArgumentException(String.format("opcode must be between 0 and %d (inclusive)", packets.length - 1));
-		}
-
-		if (packets[opcode] != null) {
-			throw new IllegalStateException(String.format("opcode %d has already been registered!", opcode));
-		}
-
-		packets[opcode] = packet;
-		return this;
-	}
-
-	/**
-	 * Gets the array of {@link IncomingPacket}s where
-	 * packets are registered to.
-	 *
-	 * @return
-	 *      An array of {@link IncomingPacket}s.
-	 */
-	public IncomingPacket[] getPackets() {
-		return packets;
 	}
 
 }
