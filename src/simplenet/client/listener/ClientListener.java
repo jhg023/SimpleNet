@@ -2,7 +2,7 @@ package simplenet.client.listener;
 
 import simplenet.*;
 import simplenet.client.*;
-import simplenet.packet.incoming.*;
+import simplenet.packet.*;
 import simplenet.server.*;
 import simplenet.utility.*;
 
@@ -22,7 +22,7 @@ public final class ClientListener extends Listener<Void, Tuple<Client, Asynchron
 
 	@Override
 	protected void onCompletion(Tuple<Client, AsynchronousSocketChannel> tuple) {
-
+		System.out.println("\nClient connected successfully!");
 	}
 
 	@Override

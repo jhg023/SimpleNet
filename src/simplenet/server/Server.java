@@ -1,7 +1,7 @@
 package simplenet.server;
 
 import simplenet.client.*;
-import simplenet.packet.incoming.*;
+import simplenet.packet.*;
 import simplenet.server.listener.*;
 import simplenet.utility.*;
 

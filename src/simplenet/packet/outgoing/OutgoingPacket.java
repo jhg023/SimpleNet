@@ -2,12 +2,17 @@ package simplenet.packet.outgoing;
 
 import simplenet.client.*;
 import simplenet.packet.*;
+import simplenet.server.*;
 
 import java.nio.*;
-import java.nio.channels.*;
 import java.util.*;
 import java.util.function.*;
 
+/**
+ * A {@link Packet} that will be sent from a
+ * {@link Client} to the {@link Server} or
+ * vice versa.
+ */
 public final class OutgoingPacket implements Packet {
 
 	/**
@@ -179,23 +184,21 @@ public final class OutgoingPacket implements Packet {
 	 *      The {@link Packet} to allow for
 	 *      chained writes.
 	 */
-	public OutgoingPacket putShort(short s) {
+	public OutgoingPacket putShort(int s) {
 		size += 2;
 
-		queue.offer(payload -> payload.putShort(s));
+		queue.offer(payload -> payload.putShort((short) s));
 		return this;
 	}
 
 	/**
 	 * Transmits this {@link OutgoingPacket} to
-	 * a specific client.
+	 * one (or more) {@link Client}(s).
 	 *
-	 * @param channels
-	 *      A variable amount of {@link AsynchronousSocketChannel}s.
-	 *
-	 * TODO: Send to {@link Client} instead.
+	 * @param clients
+	 *      A variable amount of {@link Client}s.
 	 */
-	public void send(AsynchronousSocketChannel... channels) {
+	public void send(Client... clients) {
 		/*
 		 * Allocate a new buffer with the size of
 		 * the data being added, as well as an extra
@@ -227,8 +230,8 @@ public final class OutgoingPacket implements Packet {
 		/*
 		 * Write the buffer to the channels.
 		 */
-		for (AsynchronousSocketChannel channel : channels) {
-			channel.write(payload);
+		for (Client client : clients) {
+			client.getChannel().write(payload);
 		}
 	}
 

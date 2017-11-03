@@ -1,9 +1,19 @@
-package simplenet.packet.incoming;
+package simplenet.packet;
 
+import simplenet.packet.incoming.*;
 import simplenet.utility.*;
 
 import java.nio.*;
 
+/**
+ * An {@code abstract} class representing an entity that
+ * can receive {@link IncomingPacket}s and store them for
+ * processing.
+ * <p>
+ * Each individual {@link IncomingPacket} must be registered
+ * with this {@link Packetable} for it to be processed
+ * immediately on arrival.
+ */
 public abstract class Packetable {
 
 	/**
@@ -12,6 +22,9 @@ public abstract class Packetable {
 	 */
 	private final IncomingPacket[] packets;
 
+	/**
+	 * Instantiates a new {@link Packetable}.
+	 */
 	protected Packetable() {
 		packets = new IncomingPacket[Constants.PACKET_LIMIT];
 	}

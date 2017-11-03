@@ -1,6 +1,6 @@
 package simplenet.client;
 
-import simplenet.packet.incoming.*;
+import simplenet.packet.*;
 import simplenet.server.*;
 import simplenet.utility.*;
 
@@ -19,7 +19,7 @@ public final class Client extends Packetable {
 	/**
 	 * The backing {@link Channel} of a {@link Client}.
 	 */
-	private AsynchronousSocketChannel client;
+	private final AsynchronousSocketChannel channel;
 
 	/**
 	 * Instantiates a new {@link Client} by attempting
@@ -27,7 +27,8 @@ public final class Client extends Packetable {
 	 */
 	public Client() {
 		try {
-			client = AsynchronousSocketChannel.open();
+			channel = AsynchronousSocketChannel.open();
+			channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");
 		}
@@ -54,10 +55,20 @@ public final class Client extends Packetable {
 		}
 
 		try {
-			client.connect(new InetSocketAddress(address, port), new Tuple<>(this, client), Constants.CLIENT_LISTENER);
+			channel.connect(new InetSocketAddress(address, port), new Tuple<>(this, channel), Constants.CLIENT_LISTENER);
 		} catch (AlreadyConnectedException e) {
 			throw new IllegalStateException("This client is already connected!");
 		}
+	}
+
+	/**
+	 * Gets the backing {@link Channel} of this {@link Client}.
+	 *
+	 * @return
+	 *      This {@link Client}'s backing {@link Channel}.
+	 */
+	public AsynchronousSocketChannel getChannel() {
+		return channel;
 	}
 
 }

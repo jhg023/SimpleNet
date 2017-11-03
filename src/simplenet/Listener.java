@@ -39,6 +39,14 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	private int currentLength = -1;
 
 	/**
+	 * An {@code int} representing the amount
+	 * of payload data (excluding the header)
+	 * within the backing {@link ByteBuffer}
+	 * at any given time.
+	 */
+	private int currentSize;
+
+	/**
 	 * Allocate a new {@link ByteBuffer} for the opcode
 	 * and length, each being {@code 1} byte.
 	 */
@@ -88,19 +96,42 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 		 * to asynchronously read from the channel.
 		 */
 		channel.read(buffer, attachment, new CompletionHandler<>() {
+			private boolean needToFlip = true;
+
 			@Override
 			public void completed(Integer result, A attachment) {
-				attemptReadOpcode();
-				attemptReadLength();
-				attemptProcessPacket(getPacketable(attachment));
-				resetCurrentAttributes();
-
 				/*
-				 * Because we're going to write more
-				 * information to the same buffer,
-				 * flip it.
+				 * Because we're about to read from a buffer
+				 * that was just written to, flip it.
 				 */
-				buffer.flip();
+				if (needToFlip) {
+					currentSize += result;
+
+					buffer.flip();
+				} else {
+					needToFlip = true;
+				}
+
+				attemptReadOpcode();
+				attemptReadLength(result - 1);
+
+				if (attemptProcessPacket(getPacketable(attachment))) {
+					needToFlip = false;
+
+					completed(buffer.remaining(), attachment);
+					return;
+				}
+
+				if (currentSize > 0) {
+					buffer.compact();
+				} else {
+				   /*
+				    * Because the buffer does not
+				    * have any data left over, flip
+				    * it for writing.
+				    */
+					buffer.flip();
+				}
 
 				/*
 				 * Attempt to read more information into
@@ -113,8 +144,6 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 			@Override
 			public void failed(Throwable t, A a) {
 				t.printStackTrace();
-
-				buffer.clear();
 			}
 		});
 	}
@@ -130,11 +159,15 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 * representing an opcode of an {@link IncomingPacket}.
 	 */
 	private void attemptReadOpcode() {
-		if (currentOpcode == -1 && buffer.hasRemaining()) {
-			currentOpcode = buffer.get() & 0xFF;
-
-			buffer.compact();
+		if (currentOpcode != -1) {
+			return;
 		}
+
+		currentOpcode = buffer.get() & 0xFF;
+
+		currentSize--;
+
+		// System.out.println("OPCODE: " + currentOpcode + " SIZE: " + currentSize);
 	}
 
 	/**
@@ -147,15 +180,21 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 * allocate a larger buffer, passing in any
 	 * data left over from the original buffer.
 	 */
-	private void attemptReadLength() {
-		if (currentLength == -1 && buffer.hasRemaining()) {
+	private void attemptReadLength(int result) {
+		if (currentOpcode == -1) {
+			return;
+		}
+
+		if (currentLength == -1 && result >= 1) {
 			currentLength = buffer.get() & 0xFF;
 
 			if (currentLength > buffer.capacity()) {
 				buffer = ByteBuffer.allocateDirect(currentLength).put(buffer).flip();
-			} else {
-				buffer.compact();
 			}
+
+			currentSize--;
+
+			//System.out.println("LENGTH: " + currentLength + " SIZE: " + currentSize + " " + buffer);
 		}
 	}
 
@@ -168,12 +207,22 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 *      depending on which entity is attempting to
 	 *      process the {@link IncomingPacket}.
 	 */
-	private void attemptProcessPacket(Packetable packetable) {
-		if (buffer.remaining() >= currentLength) {
+	private boolean attemptProcessPacket(Packetable packetable) {
+		if (currentOpcode == -1 || currentLength == -1) {
+			return false;
+		}
+
+		if (currentSize >= currentLength) {
+			currentSize -= currentLength;
+
 			packetable.getPackets()[currentOpcode].read(buffer);
 
-			buffer.compact();
+			resetCurrentAttributes();
+
+			return buffer.hasRemaining();
 		}
+
+		return false;
 	}
 
 	/**
