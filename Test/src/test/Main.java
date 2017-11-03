@@ -5,10 +5,19 @@ import simplenet.client.*;
 import simplenet.packet.outgoing.*;
 import simplenet.server.*;
 
+import java.io.*;
+
 public class Main {
 
 	public static void main(String[] args) {
-		Server server = new Server();
+		Server server = new Server(channel -> {
+			try {
+				System.out.println(channel.getRemoteAddress() + " connected successfully!");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		});
+
 		server.bind("localhost", 43594);
 		server.register(0, new BytePacket());
 		server.register(1, new ShortPacket());

@@ -10,6 +10,7 @@ import java.net.*;
 import java.nio.channels.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.*;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -23,6 +24,8 @@ public final class Server extends Packetable {
 	 */
 	private AsynchronousServerSocketChannel server;
 
+	private final Consumer<AsynchronousSocketChannel> consumer;
+
 	/**
 	 * Instantiates a new {@link Server} by attempting
 	 * to open the backing {@link AsynchronousServerSocketChannel}.
@@ -30,7 +33,7 @@ public final class Server extends Packetable {
 	 * @throws IllegalStateException
 	 *      If multiple {@link Server} instances are created.
 	 */
-	public Server() {
+	public Server(Consumer<AsynchronousSocketChannel> consumer) {
 		if (server != null) {
 			throw new IllegalStateException("Multiple server instances are not allowed!");
 		}
@@ -42,6 +45,8 @@ public final class Server extends Packetable {
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");
 		}
+
+		this.consumer = consumer;
 	}
 
 	/**
@@ -76,6 +81,10 @@ public final class Server extends Packetable {
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to bind the server!");
 		}
+	}
+
+	public Consumer<AsynchronousSocketChannel> getConsumer() {
+		return consumer;
 	}
 
 }

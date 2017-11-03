@@ -21,7 +21,12 @@ import java.nio.channels.*;
 public final class ServerListener extends Listener<AsynchronousSocketChannel, Tuple<Server, AsynchronousServerSocketChannel>> {
 
 	@Override
-	protected void onCompletion(Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+	protected void onCompletion(AsynchronousSocketChannel channel, Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+		tuple.getLeft().getConsumer().accept(channel);
+
+		/*
+		 * Asynchronously accept future connections.
+		 */
 		tuple.getRight().accept(tuple, this);
 	}
 

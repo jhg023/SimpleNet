@@ -48,10 +48,12 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 * The method that will be called when the
 	 * {@link CompletionHandler} succeeds.
 	 *
-	 * @param a
+	 * @param result
+	 *      The result of the {@link CompletionHandler}.
+	 * @param attachment
 	 *      The attachment that must hold a {@link Packetable}.
 	 */
-	protected abstract void onCompletion(A a);
+	protected abstract void onCompletion(R result, A attachment);
 
 	/**
 	 * Gets the {@link AsynchronousSocketChannel} from either the
@@ -79,7 +81,7 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 
 	@Override
 	public void completed(R result, A attachment) {
-		onCompletion(attachment);
+		onCompletion(result, attachment);
 
 		AsynchronousSocketChannel channel = getChannel(result, attachment);
 
@@ -178,7 +180,7 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 			return;
 		}
 
-		if (buffer.position() > 0) {
+		if (!buffer.hasRemaining()) {
 			return;
 		}
 

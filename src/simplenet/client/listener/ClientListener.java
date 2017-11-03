@@ -21,7 +21,7 @@ import java.nio.channels.*;
 public final class ClientListener extends Listener<Void, Tuple<Client, AsynchronousSocketChannel>> {
 
 	@Override
-	protected void onCompletion(Tuple<Client, AsynchronousSocketChannel> tuple) {
+	protected void onCompletion(Void result, Tuple<Client, AsynchronousSocketChannel> tuple) {
 		System.out.println("\nClient connected successfully!");
 	}
 
