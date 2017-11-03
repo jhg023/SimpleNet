@@ -9,6 +9,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.channels.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -35,7 +36,9 @@ public final class Server extends Packetable {
 		}
 
 		try {
-			server = AsynchronousServerSocketChannel.open();
+			AsynchronousChannelGroup group = AsynchronousChannelGroup.withThreadPool(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()));
+
+			server = AsynchronousServerSocketChannel.open(group);
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");
 		}

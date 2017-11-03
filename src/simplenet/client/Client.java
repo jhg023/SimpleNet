@@ -28,6 +28,7 @@ public final class Client extends Packetable {
 	public Client() {
 		try {
 			channel = AsynchronousSocketChannel.open();
+			channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
 			channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");

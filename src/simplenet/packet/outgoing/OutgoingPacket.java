@@ -25,7 +25,7 @@ public final class OutgoingPacket implements Packet {
 	/**
 	 * A unique identifier of an {@link OutgoingPacket}.
 	 */
-	private int opcode;
+	private final int opcode;
 
 	/**
 	 * A {@link Queue} that lazily writes data to the
