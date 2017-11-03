@@ -41,7 +41,7 @@ public final class Server extends Packetable {
 		try {
 			AsynchronousChannelGroup group = AsynchronousChannelGroup.withThreadPool(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()));
 
-			server = AsynchronousServerSocketChannel.open(group);
+			server = AsynchronousServerSocketChannel.open();
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");
 		}
