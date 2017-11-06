@@ -77,12 +77,12 @@ public final class OutgoingPacket implements Packet {
 	 *      The {@link Packet} to allow for
 	 *      chained writes.
 	 */
-	public OutgoingPacket putBytes(int... src) {
+	public OutgoingPacket putBytes(byte... src) {
 		size += src.length;
 
 		queue.offer(payload -> {
-			for (int b : src) {
-				payload.put((byte) b);
+			for (byte b : src) {
+				payload.put(b);
 			}
 		});
 
@@ -188,6 +188,28 @@ public final class OutgoingPacket implements Packet {
 		size += 2;
 
 		queue.offer(payload -> payload.putShort((short) s));
+		return this;
+	}
+
+	/**
+	 * Writes a {@link String} to this
+	 * {@link Packet}'s payload.
+	 * <p>
+	 * A single {@code byte} is written
+	 * first with the length of {@link String}.
+	 * <p>
+	 * Finally, the backing {@code byte[]} of
+	 * the {@link String} is written.
+	 *
+	 * @param s
+	 *      A {@code String}.
+	 * @return
+	 *      The {@link Packet} to allow for
+	 *      chained writes.
+	 */
+	public OutgoingPacket putString(String s) {
+		putByte(s.length());
+		putBytes(s.getBytes());
 		return this;
 	}
 

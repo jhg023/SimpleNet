@@ -1,3 +1,3 @@
-module Test {
+module Client {
 	requires SimpleNet;
 }

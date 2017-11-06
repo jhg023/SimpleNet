@@ -81,6 +81,8 @@ public final class Server extends Packetable implements Channelable {
 			channel.bind(new InetSocketAddress(address, port));
 
 			channel.accept(this, new ServerListener());
+
+			System.out.println(String.format("Successfully bound to %s:%d!", address, port));
 		} catch (AlreadyBoundException e) {
 			throw new IllegalStateException("A server is already running!");
 		} catch (IOException e) {
