@@ -4,7 +4,6 @@ import simplenet.client.*;
 import simplenet.packet.*;
 import simplenet.packet.incoming.*;
 import simplenet.server.*;
-import simplenet.utility.*;
 
 import java.nio.*;
 import java.nio.channels.*;
@@ -19,10 +18,8 @@ import java.nio.channels.*;
  *     Java implementation (i.e. no choice of object type unlike attachment).
  * @param <A>
  *     The attachment that <strong>must</strong> hold a {@link Packetable}.
- *     {@code A} could be a {@link Tuple}, so {@code Listener<A extends Packetable>}
- *     is not an option.
  */
-public abstract class Listener<R, A> implements CompletionHandler<R, A> {
+public abstract class Listener<R, A extends Packetable> implements CompletionHandler<R, A> {
 
 	/**
 	 * An {@code int} representing the opcode
@@ -40,9 +37,8 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 
 	/**
 	 * An {@code int} representing the amount
-	 * of payload data (excluding the header)
-	 * within the backing {@link ByteBuffer}
-	 * at any given time.
+	 * of data held within the backing
+	 * {@link ByteBuffer} at any given time.
 	 */
 	private int currentSize;
 
@@ -76,17 +72,6 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 */
 	protected abstract AsynchronousSocketChannel getChannel(R result, A attachment);
 
-	/**
-	 * Gets the {@link Packetable} that will determine
-	 * where the {@link IncomingPacket} will be processed.
-	 *
-	 * @param attachment
-	 *      The attachment that must hold a {@link Packetable}.
-	 * @return
-	 *      The {@link Packetable} within the attachment.
-	 */
-	protected abstract Packetable getPacketable(A attachment);
-
 	@Override
 	public void completed(R result, A attachment) {
 		onCompletion(result, attachment);
@@ -114,14 +99,10 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 					needToFlip = true;
 				}
 
-				if (result > 0) {
-					// System.out.println("RECEIVED: " + result + " " + Arrays.toString(buffer.array()) + " " + buffer);
-				}
-
 				attemptReadOpcode();
-				attemptReadLength(result - 1);
+				attemptReadLength();
 
-				if (attemptProcessPacket(getPacketable(attachment))) {
+				if (attemptProcessPacket(attachment)) {
 					needToFlip = false;
 
 					completed(buffer.remaining(), attachment);
@@ -129,6 +110,13 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 				}
 
 				if (currentSize > 0) {
+					/*
+					 * If there is still data left
+					 * over in the buffer (partial
+					 * data from the packet arriving
+					 * next), then compact the buffer
+					 * since it will be reused.
+					 */
 					buffer.compact();
 				} else {
 					/*
@@ -172,8 +160,6 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 		currentSize--;
 
 		currentOpcode = buffer.get() & 0xFF;
-
-		// System.out.println("OPCODE: " + currentOpcode + " " + Arrays.toString(buffer.array()) + " " + buffer);
 	}
 
 	/**
@@ -186,12 +172,12 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 	 * allocate a larger buffer, passing in any
 	 * data left over from the original buffer.
 	 */
-	private void attemptReadLength(int result) {
+	private void attemptReadLength() {
 		if (currentOpcode == -1 || currentLength != -1) {
 			return;
 		}
 
-		if (result == 0) {
+		if (currentSize == 0) {
 			return;
 		}
 
@@ -200,8 +186,6 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 		currentLength = buffer.get() & 0xFF;
 
 		if (currentLength > buffer.capacity()) {
-			// System.out.println("ALLOCATING: " + Arrays.toString(buffer.array()) + " " + buffer + "   SIZE: " + currentSize);
-
 			buffer = ByteBuffer.allocateDirect(currentLength).put(buffer);
 
 			if (currentSize == 0) {
@@ -210,8 +194,6 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 				buffer.flip();
 			}
 		}
-
-		// System.out.println("LENGTH: " + currentLength + " " + Arrays.toString(buffer.array()) + " " + buffer);
 	}
 
 	/**
@@ -228,20 +210,12 @@ public abstract class Listener<R, A> implements CompletionHandler<R, A> {
 			return false;
 		}
 
-		if (!buffer.hasRemaining()) {
-			return false;
-		}
-
-		// System.out.println("BEFORE: " + Arrays.toString(buffer.array()) + " " + buffer + "   SIZE: " + currentSize);
-
 		if (currentSize >= currentLength) {
 			currentSize -= currentLength;
 
 			packetable.getPackets()[currentOpcode].read(buffer);
 
 			resetCurrentAttributes();
-
-			// System.out.println("AFTER: " + Arrays.toString(buffer.array()) + " " + buffer);
 
 			return buffer.hasRemaining();
 		}

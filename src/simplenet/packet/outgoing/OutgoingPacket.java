@@ -203,8 +203,10 @@ public final class OutgoingPacket implements Packet {
 		 * Allocate a new buffer with the size of
 		 * the data being added, as well as an extra
 		 * two bytes to account for the opcode and the length.
+		 *
+		 * TODO: Give each Client their own direct ByteBuffer.
 		 */
-		ByteBuffer payload = ByteBuffer.allocate(size + 2);
+		ByteBuffer payload = ByteBuffer.allocateDirect(size + 2);
 
 		/*
 		 * Write the opcode to the buffer.

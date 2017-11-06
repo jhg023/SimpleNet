@@ -1,5 +1,6 @@
 package simplenet.client;
 
+import simplenet.*;
 import simplenet.packet.*;
 import simplenet.server.*;
 import simplenet.utility.*;
@@ -14,7 +15,7 @@ import java.util.*;
  *
  * @since November 1, 2017
  */
-public final class Client extends Packetable {
+public final class Client extends Packetable implements Channelable {
 
 	/**
 	 * The backing {@link Channel} of a {@link Client}.
@@ -56,7 +57,7 @@ public final class Client extends Packetable {
 		}
 
 		try {
-			channel.connect(new InetSocketAddress(address, port), new Tuple<>(this, channel), Constants.CLIENT_LISTENER);
+			channel.connect(new InetSocketAddress(address, port), this, Constants.CLIENT_LISTENER);
 		} catch (AlreadyConnectedException e) {
 			throw new IllegalStateException("This client is already connected!");
 		}
@@ -68,6 +69,7 @@ public final class Client extends Packetable {
 	 * @return
 	 *      This {@link Client}'s backing {@link Channel}.
 	 */
+	@Override
 	public AsynchronousSocketChannel getChannel() {
 		return channel;
 	}

@@ -1,15 +1,14 @@
 package simplenet.server;
 
+import simplenet.*;
 import simplenet.client.*;
 import simplenet.packet.*;
 import simplenet.server.listener.*;
-import simplenet.utility.*;
 
 import java.io.*;
 import java.net.*;
 import java.nio.channels.*;
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.function.*;
 
 /**
@@ -17,13 +16,21 @@ import java.util.function.*;
  *
  * @since November 1, 2017
  */
-public final class Server extends Packetable {
+public final class Server extends Packetable implements Channelable {
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
 	 */
-	private AsynchronousServerSocketChannel server;
+	private AsynchronousServerSocketChannel channel;
 
+	/**
+	 * The {@link Consumer} that is run when a {@link Client}
+	 * successfully connects to this {@link Server}.
+	 *
+	 * TODO: Use {@link Collection<Consumer<AsynchronousSocketChannel>>} to
+	 *       allow the user to add more {@link Consumer}s after this
+	 *       {@link Server} has already been instantiated.
+	 */
 	private final Consumer<AsynchronousSocketChannel> consumer;
 
 	/**
@@ -34,14 +41,12 @@ public final class Server extends Packetable {
 	 *      If multiple {@link Server} instances are created.
 	 */
 	public Server(Consumer<AsynchronousSocketChannel> consumer) {
-		if (server != null) {
+		if (channel != null) {
 			throw new IllegalStateException("Multiple server instances are not allowed!");
 		}
 
 		try {
-			AsynchronousChannelGroup group = AsynchronousChannelGroup.withThreadPool(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()));
-
-			server = AsynchronousServerSocketChannel.open();
+			channel = AsynchronousServerSocketChannel.open();
 		} catch (IOException e) {
 			throw new RuntimeException("Unable to open the channel!");
 		}
@@ -73,9 +78,9 @@ public final class Server extends Packetable {
 		}
 
 		try {
-			server.bind(new InetSocketAddress(address, port));
+			channel.bind(new InetSocketAddress(address, port));
 
-			server.accept(new Tuple<>(this, server), new ServerListener());
+			channel.accept(this, new ServerListener());
 		} catch (AlreadyBoundException e) {
 			throw new IllegalStateException("A server is already running!");
 		} catch (IOException e) {
@@ -83,8 +88,29 @@ public final class Server extends Packetable {
 		}
 	}
 
+	/**
+	 * Gets the {@link Consumer<AsynchronousSocketChannel>} that
+	 * should be executed upon a successful {@link Client} connection
+	 * to this {@link Server}.
+	 *
+	 * @return
+	 *      A {@link Consumer<AsynchronousSocketChannel>}.
+	 */
 	public Consumer<AsynchronousSocketChannel> getConsumer() {
 		return consumer;
+	}
+
+	/**
+	 * Gets the backing {@link AsynchronousServerSocketChannel}
+	 * of this {@link Server}.
+	 *
+	 * @return
+	 *      This {@link Server}'s backing
+	 *      {@link AsynchronousServerSocketChannel}.
+	 */
+	@Override
+	public AsynchronousServerSocketChannel getChannel() {
+		return channel;
 	}
 
 }

@@ -4,7 +4,6 @@ import simplenet.*;
 import simplenet.client.*;
 import simplenet.packet.*;
 import simplenet.server.*;
-import simplenet.utility.*;
 
 import java.nio.channels.*;
 
@@ -13,31 +12,26 @@ import java.nio.channels.*;
  * {@link Server} receives a connection from a {@link Client}.
  * <p>
  * If the connection is accepted, then attempt to asynchronously
- * read a packet from a {@link Client}; otherwise, print the stacktrace.
+ * read a {@link Packet} from a {@link Client}; otherwise, print the stacktrace.
  *
  * @author Jacob G.
  * @since October 22, 2017
  */
-public final class ServerListener extends Listener<AsynchronousSocketChannel, Tuple<Server, AsynchronousServerSocketChannel>> {
+public final class ServerListener extends Listener<AsynchronousSocketChannel, Server> {
 
 	@Override
-	protected void onCompletion(AsynchronousSocketChannel channel, Tuple<Server, AsynchronousServerSocketChannel> tuple) {
-		tuple.getLeft().getConsumer().accept(channel);
+	protected void onCompletion(AsynchronousSocketChannel channel, Server server) {
+		server.getConsumer().accept(channel);
 
 		/*
 		 * Asynchronously accept future connections.
 		 */
-		tuple.getRight().accept(tuple, this);
+		server.getChannel().accept(server, this);
 	}
 
 	@Override
-	protected AsynchronousSocketChannel getChannel(AsynchronousSocketChannel channel, Tuple<Server, AsynchronousServerSocketChannel> tuple) {
+	protected AsynchronousSocketChannel getChannel(AsynchronousSocketChannel channel, Server server) {
 		return channel;
-	}
-
-	@Override
-	protected Packetable getPacketable(Tuple<Server, AsynchronousServerSocketChannel> tuple) {
-		return tuple.getLeft();
 	}
 
 }
