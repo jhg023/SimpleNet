@@ -102,7 +102,7 @@ public abstract class Listener<R, A extends Packetable> implements CompletionHan
 				attemptReadOpcode();
 				attemptReadLength();
 
-				if (attemptProcessPacket(attachment)) {
+				if (attemptProcessPacket(channel, attachment)) {
 					needToFlip = false;
 
 					completed(buffer.remaining(), attachment);
@@ -200,12 +200,16 @@ public abstract class Listener<R, A extends Packetable> implements CompletionHan
 	 * Attempt to process the {@link IncomingPacket} formed
 	 * by the data in the {@link ByteBuffer}.
 	 *
+     * @param channel
+     *      The {@link AsynchronousSocketChannel} that
+     *      either sent or will receive the {@link Packet}
+     *      currently being processed.
 	 * @param packetable
 	 *      Either a {@link Client} or the {@link Server},
 	 *      depending on which entity is attempting to
 	 *      process the {@link IncomingPacket}.
 	 */
-	private boolean attemptProcessPacket(Packetable packetable) {
+	private boolean attemptProcessPacket(AsynchronousSocketChannel channel, Packetable packetable) {
 		if (currentOpcode == -1 || currentLength == -1) {
 			return false;
 		}
@@ -213,7 +217,7 @@ public abstract class Listener<R, A extends Packetable> implements CompletionHan
 		if (currentSize >= currentLength) {
 			currentSize -= currentLength;
 
-			packetable.getPackets()[currentOpcode].read(buffer);
+			packetable.getPackets()[currentOpcode].read(channel, buffer);
 
 			resetCurrentAttributes();
 

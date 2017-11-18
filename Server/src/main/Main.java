@@ -3,6 +3,8 @@ package main;
 import packets.*;
 import simplenet.server.*;
 
+import java.nio.channels.AsynchronousSocketChannel;
+
 public class Main {
 
 	public static void main(String[] args) {
