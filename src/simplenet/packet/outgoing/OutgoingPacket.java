@@ -5,6 +5,7 @@ import simplenet.packet.*;
 import simplenet.server.*;
 
 import java.nio.*;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.util.*;
 import java.util.function.*;
 
@@ -215,12 +216,12 @@ public final class OutgoingPacket implements Packet {
 
 	/**
 	 * Transmits this {@link OutgoingPacket} to
-	 * one (or more) {@link Client}(s).
+	 * one (or more) {@link AsynchronousSocketChannel}(s).
 	 *
-	 * @param clients
-	 *      A variable amount of {@link Client}s.
+	 * @param channels
+	 *      A variable amount of {@link AsynchronousSocketChannel}s.
 	 */
-	public void send(Client... clients) {
+	public void send(AsynchronousSocketChannel... channels) {
 		/*
 		 * Allocate a new buffer with the size of
 		 * the data being added, as well as an extra
@@ -254,8 +255,8 @@ public final class OutgoingPacket implements Packet {
 		/*
 		 * Write the buffer to the channels.
 		 */
-		for (Client client : clients) {
-			client.getChannel().write(payload);
+		for (AsynchronousSocketChannel channel : channels) {
+			channel.write(payload);
 		}
 	}
 
