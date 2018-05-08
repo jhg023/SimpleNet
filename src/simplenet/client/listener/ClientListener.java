@@ -18,10 +18,10 @@ import java.nio.channels.*;
  */
 public final class ClientListener extends Listener<Void, Client> {
 
-	@Override
-	protected void onCompletion(Void result, Client client) {
-		System.out.println("\nClient connected successfully!");
-	}
+    @Override
+    protected void onCompletion(Void result, Client client) {
+        System.out.println("\nClient connected successfully!");
+    }
 
 	@Override
 	protected AsynchronousSocketChannel getChannel(Void result, Client client) {

@@ -1,22 +1,26 @@
 package simplenet.server;
 
-import simplenet.*;
-import simplenet.client.*;
-import simplenet.packet.*;
-import simplenet.server.listener.*;
+import simplenet.Channeled;
+import simplenet.Receiver;
+import simplenet.client.Client;
+import simplenet.server.listener.ServerListener;
 
-import java.io.*;
-import java.net.*;
-import java.nio.channels.*;
-import java.util.*;
-import java.util.function.*;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.channels.AlreadyBoundException;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.Channel;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * The entity that all {@link Client}s will connect to.
  *
  * @since November 1, 2017
  */
-public final class Server extends Packetable implements Channelable {
+public final class Server extends Receiver implements Channeled {
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
@@ -48,7 +52,7 @@ public final class Server extends Packetable implements Channelable {
 		try {
 			channel = AsynchronousServerSocketChannel.open();
 		} catch (IOException e) {
-			throw new RuntimeException("Unable to open the channel!");
+			throw new IllegalStateException("Unable to open the channel!");
 		}
 
 		this.consumer = consumer;
@@ -79,14 +83,13 @@ public final class Server extends Packetable implements Channelable {
 
 		try {
 			channel.bind(new InetSocketAddress(address, port));
-
 			channel.accept(this, new ServerListener());
 
 			System.out.println(String.format("Successfully bound to %s:%d!", address, port));
 		} catch (AlreadyBoundException e) {
 			throw new IllegalStateException("A server is already running!");
 		} catch (IOException e) {
-			throw new RuntimeException("Unable to bind the server!");
+			throw new IllegalStateException("Unable to bind the server!");
 		}
 	}
 

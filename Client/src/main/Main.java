@@ -1,16 +1,16 @@
 package main;
 
 import simplenet.client.*;
-import simplenet.packet.outgoing.*;
+import simplenet.packet.Packet;
 
-public class Main {
+public final class Main {
 
 	public static void main(String[] args) {
 		Client client = new Client();
 
-		client.connect("localhost", 43594);
+		client.connect("localhost", 43_594);
 
-		new OutgoingPacket(0).putString("Hello World!").send(client);
+        Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
 
 		while (true) {
 			Thread.onSpinWait();

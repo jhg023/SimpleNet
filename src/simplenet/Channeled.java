@@ -10,7 +10,7 @@ import java.nio.channels.*;
  * @since November 6, 2017
  */
 @FunctionalInterface
-public interface Channelable {
+public interface Channeled {
 
 	/**
 	 * Gets the backing {@link Channel} of this entity.
