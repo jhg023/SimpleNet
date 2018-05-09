@@ -58,7 +58,7 @@ public abstract class Listener<R, A extends Receiver> implements CompletionHandl
 
                     size -= peek.getKey();
 
-                    if ((peek = queue.pollLast()) == null) {
+                    if ((peek = queue.poll()) == null) {
                         break;
                     }
                 }
@@ -78,7 +78,7 @@ public abstract class Listener<R, A extends Receiver> implements CompletionHandl
 
             @Override
             public void failed(Throwable t, A receiver) {
-                // TODO: Fire disconnect listener.
+                receiver.getDisconnectListeners().forEach(consumer -> consumer.accept(channel));
 
                 try {
                     channel.close();

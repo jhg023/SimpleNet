@@ -20,7 +20,7 @@ public final class ClientListener extends Listener<Void, Client> {
 
     @Override
     protected void onCompletion(Void result, Client client) {
-        System.out.println("\nClient connected successfully!");
+        client.getConnectionListeners().forEach(consumer -> consumer.accept(client.getChannel()));
     }
 
 	@Override

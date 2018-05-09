@@ -21,7 +21,7 @@ public final class ServerListener extends Listener<AsynchronousSocketChannel, Se
 
 	@Override
 	protected void onCompletion(AsynchronousSocketChannel channel, Server server) {
-		server.getConsumer().accept(channel);
+        server.getConnectionListeners().forEach(consumer -> consumer.accept(channel));
 
 		/*
 		 * Asynchronously accept future connections.

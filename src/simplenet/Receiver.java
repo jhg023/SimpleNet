@@ -5,9 +5,8 @@ import simplenet.server.Server;
 import simplenet.utility.IntPair;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Queue;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class Receiver {
@@ -24,9 +23,23 @@ public class Receiver {
      */
     private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
+    /**
+     * Listeners that are fired when a {@link Client} connects
+     * to a {@link Server}.
+     */
+    private final Collection<Consumer<AsynchronousSocketChannel>> connectListeners;
+
+    /**
+     * Listeners that are fired when a {@link Client} connects
+     * to a {@link Server}.
+     */
+    private final Collection<Consumer<AsynchronousSocketChannel>> disconnectListeners;
+
     protected Receiver() {
         buffer = ByteBuffer.allocateDirect(128);
         queue = new ArrayDeque<>();
+        connectListeners = new ArrayList<>();
+        disconnectListeners = new ArrayList<>();
     }
 
     /**
@@ -48,11 +61,13 @@ public class Receiver {
             buffer = ByteBuffer.allocateDirect(n).put(buffer).flip();
         }
 
-        if (always) {
+        /*if (always) {
             queue.addFirst(new IntPair<>(n, consumer));
         } else {
             queue.offer(new IntPair<>(n, consumer));
-        }
+        }*/
+
+        queue.offer(new IntPair<>(n, consumer));
     }
 
     /**
@@ -72,9 +87,66 @@ public class Receiver {
         read(n, new Consumer<>() {
             @Override
             public void accept(ByteBuffer buffer) {
-                consumer.andThen(payload -> read(n, this, true)).accept(buffer);
+                consumer.accept(buffer);
+                read(n, this, true);
             }
         }, true);
+    }
+
+    /**
+     * Registers a listener that fires when a {@link Client} connects
+     * to a {@link Server}.
+     * <p>
+     * This listener is able to be used by both the {@link Client}
+     * and {@link Server}, but can be independent of one-another.
+     * <p>
+     * When calling this method more than once, multiple listeners
+     * are registered.
+     *
+     * @param consumer
+     *      A {@link Consumer<AsynchronousSocketChannel>}.
+     */
+    public void onConnect(Consumer<AsynchronousSocketChannel> consumer) {
+        connectListeners.add(consumer);
+    }
+
+    /**
+     * Registers a listener that fires when a {@link Client}
+     * disconnects from a {@link Server}.
+     * <p>
+     * This listener is able to be used by both the {@link Client}
+     * and {@link Server}, but can be independent of one-another.
+     * <p>
+     * When calling this method more than once, multiple listeners
+     * are registered.
+     *
+     * @param consumer
+     *      A {@link Consumer<AsynchronousSocketChannel>}.
+     */
+    public void onDisconnect(Consumer<AsynchronousSocketChannel> consumer) {
+        disconnectListeners.add(consumer);
+    }
+
+    /**
+     * Gets a {@link Collection} of listeners that are fired when a
+     * {@link Client} connects to a {@link Server}.
+     *
+     * @return
+     *      A {@link Collection}.
+     */
+    public Collection<Consumer<AsynchronousSocketChannel>> getConnectionListeners() {
+        return connectListeners;
+    }
+
+    /**
+     * Gets a {@link Collection} of listeners that are fired when a
+     * {@link Client} disconnects from a {@link Server}.
+     *
+     * @return
+     *      A {@link Collection}.
+     */
+    public Collection<Consumer<AsynchronousSocketChannel>> getDisconnectListeners() {
+        return disconnectListeners;
     }
 
     /**

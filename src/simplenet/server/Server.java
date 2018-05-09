@@ -9,11 +9,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.AlreadyBoundException;
 import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
-import java.util.Collection;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -28,23 +25,13 @@ public final class Server extends Receiver implements Channeled {
 	private AsynchronousServerSocketChannel channel;
 
 	/**
-	 * The {@link Consumer} that is run when a {@link Client}
-	 * successfully connects to this {@link Server}.
-	 *
-	 * TODO: Use {@link Collection<Consumer<AsynchronousSocketChannel>>} to
-	 *       allow the user to add more {@link Consumer}s after this
-	 *       {@link Server} has already been instantiated.
-	 */
-	private final Consumer<AsynchronousSocketChannel> consumer;
-
-	/**
 	 * Instantiates a new {@link Server} by attempting
 	 * to open the backing {@link AsynchronousServerSocketChannel}.
 	 *
 	 * @throws IllegalStateException
 	 *      If multiple {@link Server} instances are created.
 	 */
-	public Server(Consumer<AsynchronousSocketChannel> consumer) {
+	public Server() {
 		if (channel != null) {
 			throw new IllegalStateException("Multiple server instances are not allowed!");
 		}
@@ -54,8 +41,6 @@ public final class Server extends Receiver implements Channeled {
 		} catch (IOException e) {
 			throw new IllegalStateException("Unable to open the channel!");
 		}
-
-		this.consumer = consumer;
 	}
 
 	/**
@@ -91,18 +76,6 @@ public final class Server extends Receiver implements Channeled {
 		} catch (IOException e) {
 			throw new IllegalStateException("Unable to bind the server!");
 		}
-	}
-
-	/**
-	 * Gets the {@link Consumer<AsynchronousSocketChannel>} that
-	 * should be executed upon a successful {@link Client} connection
-	 * to this {@link Server}.
-	 *
-	 * @return
-	 *      A {@link Consumer<AsynchronousSocketChannel>}.
-	 */
-	public Consumer<AsynchronousSocketChannel> getConsumer() {
-		return consumer;
 	}
 
 	/**
