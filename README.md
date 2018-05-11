@@ -13,15 +13,19 @@ requires SimpleNet;
 // Instantiate a new Client.
 var client = new Client();
 
-// Register one connection and disconnection listener.
-client.onConnect(channel -> System.out.println(channel + " has connected to the server!"));
-client.onDisconnect(channel -> System.out.println(channel + " has disconnected from the server!"));
-
 // Attempt to connect to a server.
 client.connect("localhost", 43594);
 
-// Builds a packet and sends it to the server immediately.
-Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
+// Register one connection listener.
+client.onConnect(channel -> {
+    System.out.println(channel + " has connected to the server!");
+    
+    // Builds a packet and sends it to the server immediately.
+    Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
+});
+
+// Register one disconnection listener.
+client.onDisconnect(channel -> System.out.println(channel + " has disconnected from the server!"));
 ```
 
  4. To create a `Server`, you can use the following:
@@ -30,12 +34,12 @@ Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
 // Instantiate a new Server.
 var server = new Server();
 
+// Bind the server to an address and port.
+server.bind("localhost", 43594);
+
 // Register one connection and disconnection listener.
 server.onConnect(channel -> System.out.println(channel + " has connected!"));
 server.onDisconnect(channel -> System.out.println(channel + " has disconnected!"));
-
-// Bind the server to an address and port.
-server.bind("localhost", 43594);
 
 /* 
  * When 1 byte arrives from any client, switch on it.
