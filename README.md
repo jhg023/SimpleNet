@@ -11,14 +11,14 @@ requires SimpleNet;
  3. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
-Client client = new Client();
+var client = new Client();
 
 // Register one connection and disconnection listener.
 client.onConnect(channel -> System.out.println(channel + " has connected to the server!"));
 client.onDisconnect(channel -> System.out.println(channel + " has disconnected from the server!"));
 
 // Attempt to connect to a server.
-client.connect("localhost", 43_594);
+client.connect("localhost", 43594);
 
 // Builds a packet and sends it to the server immediately.
 Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
@@ -28,14 +28,14 @@ Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
 
 ```java
 // Instantiate a new Server.
-Server server = new Server();
+var server = new Server();
 
 // Register one connection and disconnection listener.
 server.onConnect(channel -> System.out.println(channel + " has connected!"));
 server.onDisconnect(channel -> System.out.println(channel + " has disconnected!"));
 
 // Bind the server to an address and port.
-server.bind("localhost", 43_594);
+server.bind("localhost", 43594);
 
 /* 
  * When 1 byte arrives from any client, switch on it.
