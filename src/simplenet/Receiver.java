@@ -12,10 +12,23 @@ import java.util.function.Consumer;
 public class Receiver {
 
     /**
+     * Whether or not new elements added {@code queue}
+     * should be added to the front rather than the back.
+     */
+    private boolean prepend;
+
+    /**
      * The {@link ByteBuffer} that will hold data
      * sent by the {@link Client} or {@link Server}.
      */
     private ByteBuffer buffer;
+
+    /**
+     * The {@link Deque} that keeps track of nested calls
+     * to {@link #read(int, Consumer)} and assures that they
+     * will complete in the expected order.
+     */
+    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
 
     /**
      * The {@link Deque} used when requesting a certain
@@ -30,14 +43,22 @@ public class Receiver {
     private final Collection<Consumer<AsynchronousSocketChannel>> connectListeners;
 
     /**
-     * Listeners that are fired when a {@link Client} connects
+     * Listeners that are fired when a {@link Client} disconnects
      * to a {@link Server}.
      */
     private final Collection<Consumer<AsynchronousSocketChannel>> disconnectListeners;
 
-    protected Receiver() {
-        buffer = ByteBuffer.allocateDirect(128);
+    /**
+     * Instantiates a new {@link Receiver} with a buffer capacity
+     * of {@code bufferSize}.
+     *
+     * @param bufferSize
+     *      The capacity of the buffer used for reading.
+     */
+    protected Receiver(int bufferSize) {
+        buffer = ByteBuffer.allocateDirect(bufferSize);
         queue = new ArrayDeque<>();
+        stack = new ArrayDeque<>();
         connectListeners = new ArrayList<>();
         disconnectListeners = new ArrayList<>();
     }
@@ -53,21 +74,11 @@ public class Receiver {
      *      the {@code n} bytes are received.
      */
     public void read(int n, Consumer<ByteBuffer> consumer) {
-        read(n, consumer, false);
-    }
-
-    private void read(int n, Consumer<ByteBuffer> consumer, boolean always) {
-        if (buffer.capacity() < n) {
-            buffer = ByteBuffer.allocateDirect(n).put(buffer).flip();
-        }
-
-        /*if (always) {
-            queue.addFirst(new IntPair<>(n, consumer));
+        if (prepend) {
+            stack.addFirst(new IntPair<>(n, consumer));
         } else {
             queue.offer(new IntPair<>(n, consumer));
-        }*/
-
-        queue.offer(new IntPair<>(n, consumer));
+        }
     }
 
     /**
@@ -88,9 +99,9 @@ public class Receiver {
             @Override
             public void accept(ByteBuffer buffer) {
                 consumer.accept(buffer);
-                read(n, this, true);
+                read(n, this);
             }
-        }, true);
+        });
     }
 
     /**
@@ -150,14 +161,25 @@ public class Receiver {
     }
 
     /**
-     * Gets the {@link Queue} that holds information
+     * Gets the {@link Deque} that holds information
      * regarding requested bytes by this {@link Client}.
      *
      * @return
-     *      This {@link Client}'s queue.
+     *      A {@link Deque}.
      */
-    public Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
+    Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
         return queue;
+    }
+
+    /**
+     * Gets the {@link Deque} that keeps track of nested
+     * calls to {@link #read(int, Consumer)}.
+     *
+     * @return
+     *      A {@link Deque}.
+     */
+    Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
+        return stack;
     }
 
     /**
@@ -166,8 +188,20 @@ public class Receiver {
      * @return
      *      This {@link Client}'s buffer.
      */
-    public ByteBuffer getBuffer() {
+    ByteBuffer getBuffer() {
         return buffer;
+    }
+
+    /**
+     * Sets whether or not new elements being added to
+     * the {@code queue} should be added to the front
+     * or the back.
+     *
+     * @param prepend
+     *      A {@code boolean}.
+     */
+    void setPrepend(boolean prepend) {
+        this.prepend = prepend;
     }
 
 }

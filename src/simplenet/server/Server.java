@@ -32,16 +32,22 @@ public final class Server extends Receiver implements Channeled {
 	 *      If multiple {@link Server} instances are created.
 	 */
 	public Server() {
-		if (channel != null) {
-			throw new IllegalStateException("Multiple server instances are not allowed!");
-		}
-
-		try {
-			channel = AsynchronousServerSocketChannel.open();
-		} catch (IOException e) {
-			throw new IllegalStateException("Unable to open the channel!");
-		}
+		this(4096);
 	}
+
+	public Server(int bufferSize) {
+	    super(bufferSize);
+
+        if (channel != null) {
+            throw new IllegalStateException("Multiple server instances are not allowed!");
+        }
+
+        try {
+            channel = AsynchronousServerSocketChannel.open();
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to open the channel!");
+        }
+    }
 
 	/**
 	 * Attempts to bind the {@link Server} to a

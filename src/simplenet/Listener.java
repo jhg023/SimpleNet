@@ -46,22 +46,31 @@ public abstract class Listener<R, A extends Receiver> implements CompletionHandl
 
                 var buffer = receiver.getBuffer().flip();
                 var queue = receiver.getQueue();
-                var peek = queue.poll();
+                var peek = queue.pollLast();
+                var stack = receiver.getStack();
 
                 if (peek == null) {
                     channel.read(buffer.flip().limit(buffer.capacity()), receiver, this);
                     return;
                 }
 
+                receiver.setPrepend(true);
+
                 while (size >= peek.getKey()) {
                     peek.getValue().accept(receiver.getBuffer());
 
                     size -= peek.getKey();
 
-                    if ((peek = queue.poll()) == null) {
+                    while (!stack.isEmpty()) {
+                        queue.offer(stack.poll());
+                    }
+
+                    if ((peek = queue.pollLast()) == null) {
                         break;
                     }
                 }
+
+                receiver.setPrepend(false);
 
                 if (peek != null) {
                     queue.addFirst(peek);

@@ -48,6 +48,12 @@ public final class Client extends Receiver implements Channeled {
 	 * to open the backing {@link AsynchronousSocketChannel}.
 	 */
 	public Client() {
+        this(4096);
+    }
+
+    public Client(int bufferSize) {
+	    super(bufferSize);
+
         try {
             channel = AsynchronousSocketChannel.open();
             channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
