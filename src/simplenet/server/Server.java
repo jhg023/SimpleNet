@@ -1,15 +1,12 @@
 package simplenet.server;
 
-import simplenet.Channeled;
 import simplenet.Receiver;
 import simplenet.client.Client;
 import simplenet.server.listener.ServerListener;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.AlreadyBoundException;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.Channel;
+import java.nio.channels.*;
 import java.util.Objects;
 
 /**
@@ -17,7 +14,7 @@ import java.util.Objects;
  *
  * @since November 1, 2017
  */
-public final class Server extends Receiver implements Channeled {
+public final class Server extends Receiver {
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
@@ -32,8 +29,8 @@ public final class Server extends Receiver implements Channeled {
 	 *      If multiple {@link Server} instances are created.
 	 */
 	public Server() {
-		this(4096);
-	}
+	    this(4096);
+    }
 
 	public Server(int bufferSize) {
 	    super(bufferSize);
@@ -74,7 +71,37 @@ public final class Server extends Receiver implements Channeled {
 
 		try {
 			channel.bind(new InetSocketAddress(address, port));
-			channel.accept(this, new ServerListener());
+
+            final ServerListener listener = new ServerListener() {
+                @Override
+                public void failed(Throwable t, Client client) {
+                    getDisconnectListeners().forEach(consumer -> consumer.accept(client));
+
+                    try {
+                        client.getChannel().close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+
+			channel.accept(this, new CompletionHandler<>() {
+                @Override
+                public void completed(AsynchronousSocketChannel channel, Server server) {
+                    var client = new Client(getBufferSize(), channel);
+
+                    server.getConnectionListeners().forEach(consumer -> consumer.accept(client));
+
+                    Server.this.channel.accept(server, this);
+
+                    channel.read(client.getBuffer(), client, listener);
+                }
+
+                @Override
+                public void failed(Throwable t, Server server) {
+                    t.printStackTrace();
+                }
+            });
 
 			System.out.println(String.format("Successfully bound to %s:%d!", address, port));
 		} catch (AlreadyBoundException e) {
@@ -85,12 +112,10 @@ public final class Server extends Receiver implements Channeled {
 	}
 
 	/**
-	 * Gets the backing {@link AsynchronousServerSocketChannel}
-	 * of this {@link Server}.
+	 * Gets the backing {@link Channel} of this {@link Server}.
 	 *
 	 * @return
-	 *      This {@link Server}'s backing
-	 *      {@link AsynchronousServerSocketChannel}.
+	 *      A {@link Channel}.
 	 */
 	@Override
 	public AsynchronousServerSocketChannel getChannel() {

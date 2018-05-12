@@ -4,11 +4,7 @@ import simplenet.client.Client;
 import simplenet.server.Server;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.CompletionHandler;
-import java.nio.charset.Charset;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Queue;
 import java.util.function.Consumer;
 
@@ -46,8 +42,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code byte} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code byte} to this {@link Packet}'s payload.
      *
      * @param b
      *      An {@code int} for ease-of-use,
@@ -64,9 +59,8 @@ public final class Packet {
     }
 
     /**
-     * Writes a variable amount of
-     * {@code byte}s to this {@link Packet}'s
-     * payload.
+     * Writes a variable amount of {@code byte}s to this
+     * {@link Packet}'s payload.
      *
      * @param src
      *      An {@code int} array for ease-of-use,
@@ -89,8 +83,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code char} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code char} to this {@link Packet}'s payload.
      *
      * @param c
      *      A {@code char}.
@@ -105,8 +98,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code double} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code double} to this {@link Packet}'s payload.
      *
      * @param d
      *      A {@code double}.
@@ -121,8 +113,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code float} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code float} to this {@link Packet}'s payload.
      *
      * @param f
      *      A {@code float}.
@@ -137,8 +128,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code int} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code int} to this {@link Packet}'s payload.
      *
      * @param i
      *      A {@code int}.
@@ -153,8 +143,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code long} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code long} to this {@link Packet}'s payload.
      *
      * @param l
      *      A {@code long}.
@@ -169,8 +158,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code short} to this
-     * {@link Packet}'s payload.
+     * Writes a single {@code short} to this {@link Packet}'s payload.
      *
      * @param s
      *      A {@code short}.
@@ -189,7 +177,7 @@ public final class Packet {
          * Allocate a new buffer with the size of
          * the data being added.
          *
-         * TODO: Give each Client their own direct ByteBuffer.
+         * TODO: Give each SimpleSocketChannel their own direct ByteBuffer.
          */
         ByteBuffer payload = ByteBuffer.allocateDirect(size);
 
@@ -205,36 +193,42 @@ public final class Packet {
         return payload.flip();
     }
 
+    /**
+     * Queues this {@link Packet} to one (or more) {@link Client}(s).
+     * <p>
+     * All queued packets will be written to a {@link Client} when
+     * {@link Client#flush()} is called.
+     *
+     * @param clients
+     *      A variable amount of {@link Client}s.
+     */
     public void write(Client... clients) {
         if (clients.length == 0) {
-            throw new IllegalArgumentException("You must write the packet to at-least one client!");
+            throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        ByteBuffer payload = build();
+        var payload = build();
 
-        for (Client client : clients) {
+        for (var client : clients) {
             client.getOutgoingPackets().offer(payload);
         }
     }
 
     /**
-     * Transmits this {@link Packet} to
-     * one (or more) {@link AsynchronousSocketChannel}(s).
+     * Transmits this {@link Packet} to one (or more) {@link Client}(s)
+     * immediately rather than waiting for the user to call {@link Client#flush()}.
      *
      * @param clients
      *      A variable amount of {@link Client}s.
      */
     public void writeAndFlush(Client... clients) {
         if (clients.length == 0) {
-            throw new IllegalArgumentException("You must write the packet to at-least one client!");
+            throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        ByteBuffer payload = build();
+        var payload = build();
 
-        /*
-         * Write the buffer to the channels.
-         */
-        for (Client client : clients) {
+        for (var client : clients) {
             client.getChannel().write(payload);
         }
     }

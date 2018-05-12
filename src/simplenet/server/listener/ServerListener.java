@@ -1,37 +1,68 @@
 package simplenet.server.listener;
 
-import simplenet.*;
-import simplenet.client.*;
-import simplenet.packet.*;
-import simplenet.server.*;
+import simplenet.client.Client;
 
-import java.nio.channels.*;
+import java.io.IOException;
+import java.nio.channels.CompletionHandler;
 
-/**
- * The {@link CompletionHandler} that is executed when the
- * {@link Server} receives a connection from a {@link Client}.
- * <p>
- * If the connection is accepted, then attempt to asynchronously
- * read a {@link Packet} from a {@link Client}; otherwise, print the stacktrace.
- *
- * @author Jacob G.
- * @since October 22, 2017
- */
-public final class ServerListener extends Listener<AsynchronousSocketChannel, Server> {
+public class ServerListener implements CompletionHandler<Integer, Client> {
 
-	@Override
-	protected void onCompletion(AsynchronousSocketChannel channel, Server server) {
-        server.getConnectionListeners().forEach(consumer -> consumer.accept(channel));
+    private static final ServerListener INSTANCE = new ServerListener();
 
-		/*
-		 * Asynchronously accept future connections.
-		 */
-		server.getChannel().accept(server, this);
-	}
+    @Override
+    public void completed(Integer result, Client client) {
+        var buffer = client.getBuffer().flip();
+        var queue = client.getQueue();
+        var peek = queue.pollLast();
+        var stack = client.getStack();
 
-	@Override
-	protected AsynchronousSocketChannel getChannel(AsynchronousSocketChannel channel, Server server) {
-		return channel;
-	}
+        if (peek == null) {
+            client.getChannel().read(buffer.flip().limit(buffer.capacity()), client, this);
+            return;
+        }
+
+        client.setPrepend(true);
+
+        while (client.getBuffer().remaining() >= peek.getKey()) {
+            peek.getValue().accept(client.getBuffer());
+
+            while (!stack.isEmpty()) {
+                queue.offer(stack.poll());
+            }
+
+            if ((peek = queue.pollLast()) == null) {
+                break;
+            }
+        }
+
+        client.setPrepend(false);
+
+        if (peek != null) {
+            queue.addFirst(peek);
+        }
+
+        if (client.getBuffer().hasRemaining()) {
+            client.getBuffer().compact();
+        } else {
+            client.getBuffer().flip();
+        }
+
+        client.getChannel().read(client.getBuffer(), client, this);
+    }
+
+    @Override
+    public void failed(Throwable t, Client client) {
+        client.getDisconnectListeners().forEach(consumer -> consumer.accept(client));
+
+        try {
+            client.getChannel().close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static ServerListener getInstance() {
+        return INSTANCE;
+    }
 
 }

@@ -1,4 +1,4 @@
-package simplenet;
+package simplenet.channel;
 
 import java.nio.channels.*;
 
@@ -16,8 +16,8 @@ public interface Channeled {
 	 * Gets the backing {@link Channel} of this entity.
 	 *
 	 * @return
-	 *      This entity's backing {@link Channel}.
+	 *      A {@link }.
 	 */
-	Channel getChannel();
+	AsynchronousChannel getChannel();
 
 }
