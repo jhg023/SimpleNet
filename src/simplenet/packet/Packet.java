@@ -215,8 +215,9 @@ public final class Packet {
     }
 
     /**
-     * Transmits this {@link Packet} to one (or more) {@link Client}(s)
-     * immediately rather than waiting for the user to call {@link Client#flush()}.
+     * Queues this {@link Packet} to one or more {@link Client}s
+     * and calls {@link Client#flush()}, flushing all
+     * previously-queued packets as well.
      *
      * @param clients
      *      A variable amount of {@link Client}s.
@@ -229,7 +230,8 @@ public final class Packet {
         var payload = build();
 
         for (var client : clients) {
-            client.getChannel().write(payload);
+            client.getOutgoingPackets().offer(payload);
+            client.flush();
         }
     }
 
