@@ -17,15 +17,15 @@ var client = new Client();
 client.connect("localhost", 43594);
 
 // Register one connection listener.
-client.onConnect(channel -> {
-    System.out.println(channel + " has connected to the server!");
+client.onConnect(() -> {
+    System.out.println(client + " has connected to the server!");
     
     // Builds a packet and sends it to the server immediately.
     Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
 });
 
 // Register one disconnection listener.
-client.onDisconnect(channel -> System.out.println(channel + " has disconnected from the server!"));
+client.onDisconnect(() -> System.out.println(client + " has disconnected from the server!"));
 ```
 
  4. To create a `Server`, you can use the following:
@@ -37,24 +37,28 @@ var server = new Server();
 // Bind the server to an address and port.
 server.bind("localhost", 43594);
 
-// Register one connection and disconnection listener.
-server.onConnect(channel -> System.out.println(channel + " has connected!"));
-server.onDisconnect(channel -> System.out.println(channel + " has disconnected!"));
-
-/* 
- * When 1 byte arrives from any client, switch on it.
- * If the byte equals 1, then "request" 4 bytes and
- * print them as an int whenever they arrive.
- * 
- * Because `readAlways` is used, the server will always
- * attempt to read one byte.
- */
-server.readAlways(1, header -> {
-    switch (header.get()) {
-        case 1:
-            server.read(4, payload -> System.out.println(payload.getInt()));
-    }
+// Register one connection listener.
+server.onConnect(client -> {
+    System.out.println(client + " has connected!");
+    
+    /* 
+     * When 1 byte arrives from any client, switch on it.
+     * If the byte equals 1, then "request" 4 bytes and
+     * print them as an int whenever they arrive.
+     * 
+     * Because `readAlways` is used, the server will always
+     * attempt to read one byte.
+     */
+    client.readAlways(1, header -> {
+        switch (header.get()) {
+            case 1:
+                client.read(4, payload -> System.out.println(payload.getInt()));
+        }
+    });
 });
+
+// Register one disconnection listener.
+server.onDisconnect(client -> System.out.println(client + " has disconnected!"));
 ```
 
  5. Congratulations, you're finished! Be sure to run the `Server` first, as every `Client` will not be able to connect otherwise.
