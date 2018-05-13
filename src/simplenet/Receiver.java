@@ -12,24 +12,37 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public abstract class Receiver implements Channeled {
+public abstract class Receiver<T> implements Channeled {
 
     /**
      * The size of this {@link Receiver}'s buffer.
      */
-    private final int bufferSize;
+    protected final int bufferSize;
+
+    /**
+     * The {@link Deque} that keeps track of nested calls
+     * to {@link Client#read(int, Consumer)} and assures that they
+     * will complete in the expected order.
+     */
+    protected final Deque<IntPair<Consumer<ByteBuffer>>> stack;
+
+    /**
+     * The {@link Deque} used when requesting a certain
+     * amount of bytes from the {@link Client} or {@link Server}.
+     */
+    protected final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
     /**
      * Listeners that are fired when a {@link Client} connects
      * to a {@link Server}.
      */
-    private final Collection<Consumer<Client>> connectListeners;
+    private final Collection<T> connectListeners;
 
     /**
      * Listeners that are fired when a {@link Client} disconnects
      * to a {@link Server}.
      */
-    private final Collection<Consumer<Client>> disconnectListeners;
+    private final Collection<T> disconnectListeners;
 
     /**
      * Instantiates a new {@link Receiver} with a buffer capacity
@@ -41,6 +54,8 @@ public abstract class Receiver implements Channeled {
     protected Receiver(int bufferSize) {
         this.bufferSize = bufferSize;
 
+        queue = new ArrayDeque<>();
+        stack = new ArrayDeque<>();
         connectListeners = new ArrayList<>();
         disconnectListeners = new ArrayList<>();
     }
@@ -67,11 +82,11 @@ public abstract class Receiver implements Channeled {
      * When calling this method more than once, multiple listeners
      * are registered.
      *
-     * @param consumer
-     *      A {@link Consumer}.
+     * @param listener
+     *      A {@link T}.
      */
-    public void onConnect(Consumer<Client> consumer) {
-        connectListeners.add(consumer);
+    public void onConnect(T listener) {
+        connectListeners.add(listener);
     }
 
     /**
@@ -84,11 +99,33 @@ public abstract class Receiver implements Channeled {
      * When calling this method more than once, multiple listeners
      * are registered.
      *
-     * @param consumer
-     *      A {@link Consumer}.
+     * @param listener
+     *      A {@link T}.
      */
-    public void onDisconnect(Consumer<Client> consumer) {
-        disconnectListeners.add(consumer);
+    public void onDisconnect(T listener) {
+        disconnectListeners.add(listener);
+    }
+
+    /**
+     * Gets the {@link Deque} that holds information
+     * regarding requested bytes by this {@link Client}.
+     *
+     * @return
+     *      A {@link Deque}.
+     */
+    public Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
+        return queue;
+    }
+
+    /**
+     * Gets the {@link Deque} that keeps track of nested
+     * calls to {@link Client#read(int, Consumer)}.
+     *
+     * @return
+     *      A {@link Deque}.
+     */
+    public Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
+        return stack;
     }
 
     /**
@@ -98,7 +135,7 @@ public abstract class Receiver implements Channeled {
      * @return
      *      A {@link Collection}.
      */
-    public Collection<Consumer<Client>> getConnectionListeners() {
+    public Collection<T> getConnectionListeners() {
         return connectListeners;
     }
 
@@ -109,18 +146,8 @@ public abstract class Receiver implements Channeled {
      * @return
      *      A {@link Collection}.
      */
-    public Collection<Consumer<Client>> getDisconnectListeners() {
+    public Collection<T> getDisconnectListeners() {
         return disconnectListeners;
-    }
-
-    /**
-     * The size of this {@link Receiver}'s buffer.
-     *
-     * @return
-     *      An {@code int}.
-     */
-    public int getBufferSize() {
-        return bufferSize;
     }
 
 }

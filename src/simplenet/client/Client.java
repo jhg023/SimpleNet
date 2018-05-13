@@ -1,6 +1,5 @@
 package simplenet.client;
 
-import simplenet.channel.Channeled;
 import simplenet.Receiver;
 import simplenet.client.listener.ClientListener;
 import simplenet.packet.Packet;
@@ -16,10 +15,8 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -27,7 +24,7 @@ import java.util.function.Consumer;
  *
  * @since November 1, 2017
  */
-public final class Client extends Receiver {
+public class Client extends Receiver<Runnable> {
 
     /**
      * A single instance of {@link ClientListener} to handle
@@ -56,19 +53,6 @@ public final class Client extends Receiver {
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
     private final Queue<ByteBuffer> outgoingPackets;
-
-    /**
-     * The {@link Deque} that keeps track of nested calls
-     * to {@link #read(int, Consumer)} and assures that they
-     * will complete in the expected order.
-     */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
-
-    /**
-     * The {@link Deque} used when requesting a certain
-     * amount of bytes from the {@link Client} or {@link Server}.
-     */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
 	/**
 	 * Instantiates a new {@link Client} by attempting
@@ -106,8 +90,6 @@ public final class Client extends Receiver {
 
         outgoingPackets = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
-        queue = new ArrayDeque<>();
-        stack = new ArrayDeque<>();
 
 	    if (channel != null) {
             this.channel = channel;
@@ -243,28 +225,6 @@ public final class Client extends Receiver {
 	public AsynchronousSocketChannel getChannel() {
 		return channel;
 	}
-
-    /**
-     * Gets the {@link Deque} that holds information
-     * regarding requested bytes by this {@link Client}.
-     *
-     * @return
-     *      A {@link Deque}.
-     */
-    public Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
-        return queue;
-    }
-
-    /**
-     * Gets the {@link Deque} that keeps track of nested
-     * calls to {@link #read(int, Consumer)}.
-     *
-     * @return
-     *      A {@link Deque}.
-     */
-    public Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
-        return stack;
-    }
 
     /**
      * Gets the {@link ByteBuffer} of this {@link Client}.

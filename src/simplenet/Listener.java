@@ -1,13 +1,13 @@
-package simplenet.server.listener;
+package simplenet;
 
 import simplenet.client.Client;
 
 import java.io.IOException;
 import java.nio.channels.CompletionHandler;
 
-public class ServerListener implements CompletionHandler<Integer, Client> {
+public class Listener implements CompletionHandler<Integer, Client> {
 
-    private static final ServerListener INSTANCE = new ServerListener();
+    private static final Listener INSTANCE = new Listener();
 
     @Override
     public void completed(Integer result, Client client) {
@@ -52,16 +52,11 @@ public class ServerListener implements CompletionHandler<Integer, Client> {
 
     @Override
     public void failed(Throwable t, Client client) {
-        client.getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-
-        try {
-            client.getChannel().close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        client.getDisconnectListeners().forEach(Runnable::run);
+        client.close();
     }
 
-    public static ServerListener getInstance() {
+    public static Listener getInstance() {
         return INSTANCE;
     }
 

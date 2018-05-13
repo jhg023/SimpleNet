@@ -1,11 +1,9 @@
 package simplenet.client.listener;
 
-import simplenet.*;
+import simplenet.Listener;
 import simplenet.client.*;
 import simplenet.server.*;
-import simplenet.server.listener.ServerListener;
 
-import java.io.IOException;
 import java.nio.channels.*;
 
 /**
@@ -22,11 +20,9 @@ public final class ClientListener implements CompletionHandler<Void, Client> {
 
     @Override
     public void completed(Void result, Client client) {
-        client.getConnectionListeners().forEach(consumer -> consumer.accept(client));
+        client.getConnectionListeners().forEach(Runnable::run);
 
-        var channel = client.getChannel();
-
-        channel.read(client.getBuffer(), client, ServerListener.getInstance());
+        client.getChannel().read(client.getBuffer(), client, Listener.getInstance());
     }
 
     @Override

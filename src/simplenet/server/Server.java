@@ -1,20 +1,25 @@
 package simplenet.server;
 
+import java.nio.channels.AlreadyBoundException;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.Channel;
+import java.nio.channels.CompletionHandler;
+import simplenet.Listener;
 import simplenet.Receiver;
 import simplenet.client.Client;
-import simplenet.server.listener.ServerListener;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.*;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * The entity that all {@link Client}s will connect to.
  *
  * @since November 1, 2017
  */
-public final class Server extends Receiver {
+public final class Server extends Receiver<Consumer<Client>> {
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
@@ -72,33 +77,28 @@ public final class Server extends Receiver {
 		try {
 			channel.bind(new InetSocketAddress(address, port));
 
-            final ServerListener listener = new ServerListener() {
+            final Listener listener = new Listener() {
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-
-                    try {
-                        client.getChannel().close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    client.close();
                 }
             };
 
-			channel.accept(this, new CompletionHandler<>() {
+			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
-                public void completed(AsynchronousSocketChannel channel, Server server) {
-                    var client = new Client(getBufferSize(), channel);
+                public void completed(AsynchronousSocketChannel channel, Void attachment) {
+                    var client = new Client(bufferSize, channel);
 
-                    server.getConnectionListeners().forEach(consumer -> consumer.accept(client));
+                    getConnectionListeners().forEach(consumer -> consumer.accept(client));
 
-                    Server.this.channel.accept(server, this);
+                    Server.this.channel.accept(null, this);
 
                     channel.read(client.getBuffer(), client, listener);
                 }
 
                 @Override
-                public void failed(Throwable t, Server server) {
+                public void failed(Throwable t, Void attachment) {
                     t.printStackTrace();
                 }
             });

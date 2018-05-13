@@ -24,29 +24,12 @@ public final class Main {
              * Because `readAlways` is used, the server will always
              * attempt to read one byte.
              */
-            client.read(1, header -> {
-                System.out.println("A");
-
-                client.read(1, nested ->  {
-                    System.out.println("B");
-
-                    client.read(1, payload ->  {
-                        System.out.println("C");
-                    });
-
-                    client.read(1, payload ->  {
-                        System.out.println("D");
-                    });
-                });
-
-                client.read(1, nested ->  {
-                    System.out.println("E");
-                });
+            client.readAlways(1, header -> {
+                switch (header.get()) {
+                    case 1:
+                        client.read(4, payload -> System.out.println(payload.getInt()));
+                }
             });
-
-            Packet.builder()
-                  .putInt(6969)
-                  .writeAndFlush(client);
         });
 
         // Register one disconnection listener.
