@@ -27,7 +27,7 @@ public final class ClientListener implements CompletionHandler<Void, Client> {
 
     @Override
     public void failed(Throwable t, Client client) {
-        t.printStackTrace();
+
     }
 
 }

@@ -99,7 +99,7 @@ public final class Server extends Receiver<Consumer<Client>> {
 
                 @Override
                 public void failed(Throwable t, Void attachment) {
-                    t.printStackTrace();
+
                 }
             });
 
