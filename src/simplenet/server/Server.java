@@ -5,8 +5,9 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import simplenet.Listener;
 import simplenet.Receiver;
 import simplenet.client.Client;
@@ -23,6 +24,10 @@ import java.util.function.Consumer;
  */
 public final class Server extends Receiver<Consumer<Client>> {
 
+    /**
+     * The maximum number of {@link Client}s that can be
+     * connected to this {@link Server} at any given time.
+     */
     private int maxClients = Integer.MAX_VALUE;
 
 	/**
@@ -31,10 +36,10 @@ public final class Server extends Receiver<Consumer<Client>> {
 	private AsynchronousServerSocketChannel channel;
 
     /**
-     * The {@link Collection} of {@link Client}s that are
-     * connected to this {@link Server}.
+     * The {@link Set} of {@link Client}s that are connected
+     * to this {@link Server}.
      */
-	private final Collection<Client> clients;
+	private final Set<Client> clients;
 
 	/**
 	 * Instantiates a new {@link Server} by attempting
@@ -60,7 +65,7 @@ public final class Server extends Receiver<Consumer<Client>> {
             throw new IllegalStateException("Unable to open the channel!");
         }
 
-        clients = new ArrayList<>();
+        clients = new HashSet<>();
     }
 
 	/**
@@ -93,6 +98,7 @@ public final class Server extends Receiver<Consumer<Client>> {
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));
+                    clients.remove(client);
                     client.close();
                 }
             };
@@ -139,6 +145,17 @@ public final class Server extends Receiver<Consumer<Client>> {
      */
 	public void setMaxClients(int maxClients) {
 	    this.maxClients = maxClients;
+    }
+
+    /**
+     * Gets a {@link Set} containing every {@link Client}
+     * that is currently connected to this {@link Server}.
+     *
+     * @return
+     *      A {@link Set<Client>}.
+     */
+    public Set<Client> getClients() {
+	    return clients;
     }
 
 	/**
