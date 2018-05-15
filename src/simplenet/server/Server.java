@@ -5,6 +5,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
+import java.util.ArrayList;
+import java.util.Collection;
 import simplenet.Listener;
 import simplenet.Receiver;
 import simplenet.client.Client;
@@ -21,10 +23,18 @@ import java.util.function.Consumer;
  */
 public final class Server extends Receiver<Consumer<Client>> {
 
+    private int maxClients = Integer.MAX_VALUE;
+
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
 	 */
 	private AsynchronousServerSocketChannel channel;
+
+    /**
+     * The {@link Collection} of {@link Client}s that are
+     * connected to this {@link Server}.
+     */
+	private final Collection<Client> clients;
 
 	/**
 	 * Instantiates a new {@link Server} by attempting
@@ -49,6 +59,8 @@ public final class Server extends Receiver<Consumer<Client>> {
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
         }
+
+        clients = new ArrayList<>();
     }
 
 	/**
@@ -88,7 +100,14 @@ public final class Server extends Receiver<Consumer<Client>> {
 			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
+                    if (clients.size() == maxClients) {
+                        Server.this.channel.accept(null, this);
+                        return;
+                    }
+
                     var client = new Client(bufferSize, channel);
+
+                    clients.add(client);
 
                     getConnectionListeners().forEach(consumer -> consumer.accept(client));
 
@@ -110,6 +129,17 @@ public final class Server extends Receiver<Consumer<Client>> {
 			throw new IllegalStateException("Unable to bind the server!");
 		}
 	}
+
+    /**
+     * Sets the maximum number of {@link Client}s that can be connected
+     * to this {@link Server} at any given time.
+     *
+     * @param maxClients
+     *      The maximum number of clients.
+     */
+	public void setMaxClients(int maxClients) {
+	    this.maxClients = maxClients;
+    }
 
 	/**
 	 * Gets the backing {@link Channel} of this {@link Server}.

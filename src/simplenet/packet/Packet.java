@@ -25,13 +25,13 @@ public final class Packet {
      * A {@link Queue} that lazily writes data to the
      * backing {@link ByteBuffer}.
      */
-    private final Queue<Consumer<ByteBuffer>> queue = new ArrayDeque<>();
+    private final Queue<Consumer<ByteBuffer>> queue;
 
     /**
      * A {@code private} constructor.
      */
     private Packet() {
-
+        queue = new ArrayDeque<>();
     }
 
     /**

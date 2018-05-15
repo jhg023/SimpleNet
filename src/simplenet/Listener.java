@@ -17,6 +17,7 @@ public class Listener implements CompletionHandler<Integer, Client> {
         var stack = client.getStack();
 
         if (peek == null) {
+            System.out.println("NULL");
             client.getChannel().read(buffer.flip().limit(buffer.capacity()), client, this);
             return;
         }
@@ -47,7 +48,7 @@ public class Listener implements CompletionHandler<Integer, Client> {
             client.getBuffer().flip();
         }
 
-        client.getChannel().read(client.getBuffer(), client, this);
+        client.getChannel().read(client.getBuffer().limit(buffer.capacity()), client, this);
     }
 
     @Override
