@@ -1,10 +1,9 @@
 package simplenet.client.listener;
 
+import java.nio.channels.CompletionHandler;
 import simplenet.Listener;
-import simplenet.client.*;
-import simplenet.server.*;
-
-import java.nio.channels.*;
+import simplenet.client.Client;
+import simplenet.server.Server;
 
 /**
  * The {@link CompletionHandler} that is executed when a

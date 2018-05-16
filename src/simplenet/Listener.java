@@ -2,7 +2,6 @@ package simplenet;
 
 import simplenet.client.Client;
 
-import java.io.IOException;
 import java.nio.channels.CompletionHandler;
 
 public class Listener implements CompletionHandler<Integer, Client> {
@@ -17,15 +16,14 @@ public class Listener implements CompletionHandler<Integer, Client> {
         var stack = client.getStack();
 
         if (peek == null) {
-            System.out.println("NULL");
             client.getChannel().read(buffer.flip().limit(buffer.capacity()), client, this);
             return;
         }
 
         client.setPrepend(true);
 
-        while (client.getBuffer().remaining() >= peek.getKey()) {
-            peek.getValue().accept(client.getBuffer());
+        while (buffer.remaining() >= peek.getKey()) {
+            peek.getValue().accept(buffer);
 
             while (!stack.isEmpty()) {
                 queue.offer(stack.poll());
@@ -42,13 +40,13 @@ public class Listener implements CompletionHandler<Integer, Client> {
             queue.addFirst(peek);
         }
 
-        if (client.getBuffer().hasRemaining()) {
-            client.getBuffer().compact();
+        if (buffer.hasRemaining()) {
+            buffer.compact();
         } else {
-            client.getBuffer().flip();
+            buffer.flip();
         }
 
-        client.getChannel().read(client.getBuffer().limit(buffer.capacity()), client, this);
+        client.getChannel().read(buffer.limit(buffer.capacity()), client, this);
     }
 
     @Override
