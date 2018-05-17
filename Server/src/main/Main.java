@@ -1,20 +1,20 @@
-package main;
+package main                                                                             ;
 
-import simplenet.packet.Packet;
-import simplenet.server.Server;
+import simplenet.packet.Packet                                                           ;
+import simplenet.server.Server                                                           ;
 
-public final class Main {
+public final class Main                                                                  {
 
-	public static void main(String[] args) {
+    public static void main(String[] args)                                                {
         // Instantiate a new Server.
-        var server = new Server();
+        var server = new Server()                                                        ;
 
         // Bind the server to an address and port.
-        server.bind("localhost", 43594);
+        server.bind("localhost", 43594)                                                  ;
 
         // Register one connection listener.
-        server.onConnect(client -> {
-            System.out.println(client + " has connected!");
+        server.onConnect(client ->                                                       {
+            System.out.println(client + " has connected!")                               ;
 
             /*
              * When 1 byte arrives from any client, switch on it.
@@ -24,20 +24,16 @@ public final class Main {
              * Because `readAlways` is used, the server will always
              * attempt to read one byte.
              */
-            client.readAlways(1, header -> {
-                switch (header.get()) {
+            client.readAlways(1, header ->                                               {
+                switch (header.get())                                                    {
                     case 1:
-                        client.read(4, payload -> System.out.println(payload.getInt()));
-                }
-            });
-        });
+                        client.read(4, payload -> System.out.println(payload.getInt()))  ;}}
+
+            )                                                                           ;}
+        )                                                                               ;
 
         // Register one disconnection listener.
-        server.onDisconnect(client -> System.out.println(client + " has disconnected!"));
+        server.onDisconnect(client -> System.out.println(client + " has disconnected!")) ;
 
-        while (true) {
-			Thread.onSpinWait();
-		}
-	}
-
-}
+        while (true)                                                                     {
+            Thread.onSpinWait()                                                             ;}}}

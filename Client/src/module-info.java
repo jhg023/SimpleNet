@@ -1,3 +1,2 @@
-module Client {
-	requires SimpleNet;
-}
+module Client         {
+	requires SimpleNet ;}

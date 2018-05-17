@@ -1,3 +1,2 @@
-module Server {
-	requires SimpleNet;
-}
+module Server         {
+	requires SimpleNet ;}

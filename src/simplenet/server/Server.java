@@ -1,45 +1,45 @@
-package simplenet.server;
+package simplenet.server                                                                   ;
 
-import java.nio.channels.AlreadyBoundException;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import simplenet.Listener;
-import simplenet.Receiver;
-import simplenet.client.Client;
+import java.nio.channels.AlreadyBoundException                                             ;
+import java.nio.channels.AsynchronousServerSocketChannel                                   ;
+import java.nio.channels.AsynchronousSocketChannel                                         ;
+import java.nio.channels.Channel                                                           ;
+import java.nio.channels.CompletionHandler                                                 ;
+import java.util.HashSet                                                                   ;
+import java.util.Set                                                                       ;
+import java.util.concurrent.TimeUnit                                                       ;
+import simplenet.Listener                                                                  ;
+import simplenet.Receiver                                                                  ;
+import simplenet.client.Client                                                             ;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.Objects;
-import java.util.function.Consumer;
+import java.io.IOException                                                                 ;
+import java.net.InetSocketAddress                                                          ;
+import java.util.Objects                                                                   ;
+import java.util.function.Consumer                                                         ;
 
 /**
  * The entity that all {@link Client}s will connect to.
  *
  * @since November 1, 2017
  */
-public final class Server extends Receiver<Consumer<Client>> {
+public final class Server extends Receiver<Consumer<Client>>                               {
 
-    /**
-     * The maximum number of {@link Client}s that can be
-     * connected to this {@link Server} at any given time.
-     */
-    private int maxClients = Integer.MAX_VALUE;
+	/**
+	 * The maximum number of {@link Client}s that can be
+	 * connected to this {@link Server} at any given time.
+	 */
+	private int maxClients = Integer.MAX_VALUE                                             ;
 
 	/**
 	 * The backing {@link Channel} of the {@link Server}.
 	 */
-	private AsynchronousServerSocketChannel channel;
+	private AsynchronousServerSocketChannel channel                                         ;
 
-    /**
-     * The {@link Set} of {@link Client}s that are connected
-     * to this {@link Server}.
-     */
-	private final Set<Client> clients;
+	/**
+	 * The {@link Set} of {@link Client}s that are connected
+	 * to this {@link Server}.
+	 */
+	private final Set<Client> clients                                                       ;
 
 	/**
 	 * Instantiates a new {@link Server} by attempting
@@ -48,25 +48,23 @@ public final class Server extends Receiver<Consumer<Client>> {
 	 * @throws IllegalStateException
 	 *      If multiple {@link Server} instances are created.
 	 */
-	public Server() {
-	    this(4096);
-    }
+	public Server()                                                                         {
+		this(4096)                                                                          ;}
 
-	public Server(int bufferSize) {
-	    super(bufferSize);
+	public Server(int bufferSize)                                                           {
+		super(bufferSize)                                                                   ;
 
-        if (channel != null) {
-            throw new IllegalStateException("Multiple server instances are not allowed!");
-        }
+		if (channel != null)                                                               {
+			throw new IllegalStateException("Multiple server instances are not allowed!")  ;}
 
-        try {
-            channel = AsynchronousServerSocketChannel.open();
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
-        }
 
-        clients = new HashSet<>();
-    }
+		try                                                                                {
+			channel = AsynchronousServerSocketChannel.open()                               ;}
+		catch (IOException e)                                                            {
+			throw new IllegalStateException("Unable to open the channel!")                 ;}
+
+
+		clients = new HashSet<>()                                                          ;}
 
 	/**
 	 * Attempts to bind the {@link Server} to a
@@ -84,79 +82,75 @@ public final class Server extends Receiver<Consumer<Client>> {
 	 *      If the server is unable to be bound to a specific
 	 *      address or port.
 	 */
-	public void bind(String address, int port) {
-		Objects.requireNonNull(address);
+	public void bind(String address, int port)                                              {
+		Objects.requireNonNull(address)                                                      ;
 
-		if (port < 0 || port > 65535) {
-			throw new IllegalArgumentException("The port must be between 0 and 65535!");
-		}
+		if (port < 0 || port > 65535)                                                        {
+			throw new IllegalArgumentException("The port must be between 0 and 65535!")       ;}
 
-		try {
-			channel.bind(new InetSocketAddress(address, port));
 
-            final Listener listener = new Listener() {
-                @Override
-                public void failed(Throwable t, Client client) {
-                    getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-                    clients.remove(client);
-                    client.close();
-                }
-            };
+		try                                                                                  {
+			channel.bind(new InetSocketAddress(address, port))                                ;
 
-			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
-                @Override
-                public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    if (clients.size() == maxClients) {
-                        Server.this.channel.accept(null, this);
-                        return;
-                    }
+			final Listener listener = new Listener()                                       {
+				@Override
+				public void failed(Throwable t, Client client)                             {
+					getDisconnectListeners().forEach(consumer -> consumer.accept(client))  ;
+					clients.remove(client)                                                 ;
+					client.close()                                                         ;}};
 
-                    var client = new Client(bufferSize, channel);
 
-                    clients.add(client);
 
-                    getConnectionListeners().forEach(consumer -> consumer.accept(client));
+			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>()     {
+				@Override
+				public void completed(AsynchronousSocketChannel channel, Void attachment)  {
+					if (clients.size() == maxClients)                                      {
+						Server.this.channel.accept(null, this)                             ;
+						return                                                             ;}
 
-                    Server.this.channel.accept(null, this);
 
-                    channel.read(client.getBuffer(), client, listener);
-                }
+					var client = new Client(bufferSize, channel)                           ;
 
-                @Override
-                public void failed(Throwable t, Void attachment) {
+					clients.add(client)                                                    ;
 
-                }
-            });
+					getConnectionListeners().forEach(consumer -> consumer.accept(client))  ;
 
-			System.out.println(String.format("Successfully bound to %s:%d!", address, port));
-		} catch (AlreadyBoundException e) {
-			throw new IllegalStateException("A server is already running!");
-		} catch (IOException e) {
-			throw new IllegalStateException("Unable to bind the server!");
-		}
-	}
+					Server.this.channel.accept(null, this)                                 ;
 
-    /**
-     * Sets the maximum number of {@link Client}s that can be connected
-     * to this {@link Server} at any given time.
-     *
-     * @param maxClients
-     *      The maximum number of clients.
-     */
-	public void setMaxClients(int maxClients) {
-	    this.maxClients = maxClients;
-    }
+					channel.read(client.getBuffer(), client, listener)                     ;}
 
-    /**
-     * Gets a {@link Set} containing every {@link Client}
-     * that is currently connected to this {@link Server}.
-     *
-     * @return
-     *      A {@link Set<Client>}.
-     */
-    public Set<Client> getClients() {
-	    return clients;
-    }
+
+				@Override
+				public void failed(Throwable t, Void attachment)                           {}}
+
+
+			)                                                                             ;
+
+			System.out.println(String.format("Successfully bound to %s:%d!", address, port))  ;}
+		catch (AlreadyBoundException e)                                                    {
+			throw new IllegalStateException("A server is already running!")                   ;}
+		catch (IOException e)                                                              {
+			throw new IllegalStateException("Unable to bind the server!")                     ;}}
+
+	/**
+	 * Sets the maximum number of {@link Client}s that can be connected
+	 * to this {@link Server} at any given time.
+	 *
+	 * @param maxClients
+	 *      The maximum number of clients.
+	 */
+	public void setMaxClients(int maxClients)                                               {
+		this.maxClients = maxClients                                                        ;}
+
+	/**
+	 * Gets a {@link Set} containing every {@link Client}
+	 * that is currently connected to this {@link Server}.
+	 *
+	 * @return
+	 *      A {@link Set<Client>}.
+	 */
+	public Set<Client> getClients()                                                        {
+		return clients                                                                      ;}
 
 	/**
 	 * Gets the backing {@link Channel} of this {@link Server}.
@@ -165,8 +159,5 @@ public final class Server extends Receiver<Consumer<Client>> {
 	 *      A {@link Channel}.
 	 */
 	@Override
-	public AsynchronousServerSocketChannel getChannel() {
-		return channel;
-	}
-
-}
+	public AsynchronousServerSocketChannel getChannel()                                     {
+		return channel                                                                       ;}}

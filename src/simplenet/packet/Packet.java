@@ -1,45 +1,43 @@
-package simplenet.packet;
+package simplenet.packet                                                                             ;
 
-import simplenet.client.Client;
-import simplenet.server.Server;
+import simplenet.client.Client                                                                       ;
+import simplenet.server.Server                                                                       ;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Queue;
-import java.util.function.Consumer;
+import java.nio.ByteBuffer                                                                           ;
+import java.util.ArrayDeque                                                                          ;
+import java.util.Queue                                                                               ;
+import java.util.function.Consumer                                                                   ;
 
 /**
  * A {@link Packet} that will be sent from a
  * {@link Client} to the {@link Server} or
  * vice versa.
  */
-public final class Packet {
+public final class Packet                                                                            {
 
     /**
      * An {@code int} representing the amount of
      * bytes that this {@link Packet} will send.
      */
-    private int size;
+    private int size                                                                                 ;
 
     /**
      * A {@link Queue} that lazily writes data to the
      * backing {@link ByteBuffer}.
      */
-    private final Queue<Consumer<ByteBuffer>> queue;
+    private final Queue<Consumer<ByteBuffer>> queue                                                  ;
 
     /**
      * A {@code private} constructor.
      */
-    private Packet() {
-        queue = new ArrayDeque<>();
-    }
+    private Packet()                                                                                 {
+        queue = new ArrayDeque<>()                                                                   ;}
 
     /**
      * Instantiates a raw {@link Packet} builder.
      */
-    public static Packet builder() {
-        return new Packet();
-    }
+    public static Packet builder()                                                                   {
+        return new Packet()                                                                          ;}
 
     /**
      * Writes a single {@code byte} to this {@link Packet}'s payload.
@@ -52,11 +50,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putByte(int b) {
-        size++;
-        queue.offer(payload -> payload.put((byte) b));
-        return this;
-    }
+    public Packet putByte(int b)                                                                     {
+        size++                                                                                       ;
+        queue.offer(payload -> payload.put((byte) b))                                                ;
+        return this                                                                                  ;}
 
     /**
      * Writes a variable amount of {@code byte}s to this
@@ -70,17 +67,16 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putBytes(byte... src) {
-        size += src.length;
+    public Packet putBytes(byte... src)                                                              {
+        size += src.length                                                                           ;
 
-        queue.offer(payload -> {
-            for (byte b : src) {
-                payload.put(b);
-            }
-        });
+        queue.offer(payload ->                                                                       {
+            for (byte b : src)                                                                       {
+                payload.put(b)                                                                       ;}}
 
-        return this;
-    }
+        )                                                                                           ;
+
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code char} to this {@link Packet}'s payload.
@@ -91,11 +87,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putChar(char c) {
-        size += 2;
-        queue.offer(payload -> payload.putChar(c));
-        return this;
-    }
+    public Packet putChar(char c)                                                                    {
+        size += 2                                                                                    ;
+        queue.offer(payload -> payload.putChar(c))                                                   ;
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code double} to this {@link Packet}'s payload.
@@ -106,11 +101,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putDouble(double d) {
-        size += 8;
-        queue.offer(payload -> payload.putDouble(d));
-        return this;
-    }
+    public Packet putDouble(double d)                                                                {
+        size += 8                                                                                    ;
+        queue.offer(payload -> payload.putDouble(d))                                                 ;
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code float} to this {@link Packet}'s payload.
@@ -121,11 +115,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putFloat(float f) {
-        size += 4;
-        queue.offer(payload -> payload.putFloat(f));
-        return this;
-    }
+    public Packet putFloat(float f)                                                                  {
+        size += 4                                                                                    ;
+        queue.offer(payload -> payload.putFloat(f))                                                  ;
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code int} to this {@link Packet}'s payload.
@@ -136,11 +129,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putInt(int i) {
-        size += 4;
-        queue.offer(payload -> payload.putInt(i));
-        return this;
-    }
+    public Packet putInt(int i)                                                                      {
+        size += 4                                                                                    ;
+        queue.offer(payload -> payload.putInt(i))                                                    ;
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code long} to this {@link Packet}'s payload.
@@ -151,11 +143,10 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putLong(long l) {
-        size += 8;
-        queue.offer(payload -> payload.putLong(l));
-        return this;
-    }
+    public Packet putLong(long l)                                                                    {
+        size += 8                                                                                    ;
+        queue.offer(payload -> payload.putLong(l))                                                   ;
+        return this                                                                                  ;}
 
     /**
      * Writes a single {@code short} to this {@link Packet}'s payload.
@@ -166,32 +157,30 @@ public final class Packet {
      *      The {@link Packet} to allow for
      *      chained writes.
      */
-    public Packet putShort(int s) {
-        size += 2;
-        queue.offer(payload -> payload.putShort((short) s));
-        return this;
-    }
+    public Packet putShort(int s)                                                                    {
+        size += 2                                                                                    ;
+        queue.offer(payload -> payload.putShort((short) s))                                          ;
+        return this                                                                                  ;}
 
-    private ByteBuffer build() {
+    private ByteBuffer build()                                                                       {
         /*
          * Allocate a new buffer with the size of
          * the data being added.
          *
          * TODO: Give each SimpleSocketChannel their own direct ByteBuffer.
          */
-        ByteBuffer payload = ByteBuffer.allocateDirect(size);
+        ByteBuffer payload = ByteBuffer.allocateDirect(size)                                         ;
 
         /*
          * Add the data to the buffer.
          */
-        queue.forEach(consumer -> consumer.accept(payload));
+        queue.forEach(consumer -> consumer.accept(payload))                                          ;
 
         /*
          * Flip the buffer so the client can immediately
          * read it on arrival.
          */
-        return payload.flip();
-    }
+        return payload.flip()                                                                        ;}
 
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
@@ -202,17 +191,15 @@ public final class Packet {
      * @param clients
      *      A variable amount of {@link Client}s.
      */
-    public void write(Client... clients) {
-        if (clients.length == 0) {
-            throw new IllegalArgumentException("You must send this packet to at least one channel!");
-        }
+    public void write(Client... clients)                                                             {
+        if (clients.length == 0)                                                                     {
+            throw new IllegalArgumentException("You must send this packet to at least one channel!") ;}
 
-        var payload = build();
 
-        for (var client : clients) {
-            client.getOutgoingPackets().offer(payload);
-        }
-    }
+        var payload = build()                                                                        ;
+
+        for (var client : clients)                                                                   {
+            client.getOutgoingPackets().offer(payload)                                               ;}}
 
     /**
      * Queues this {@link Packet} to one or more {@link Client}s
@@ -222,17 +209,13 @@ public final class Packet {
      * @param clients
      *      A variable amount of {@link Client}s.
      */
-    public void writeAndFlush(Client... clients) {
-        if (clients.length == 0) {
-            throw new IllegalArgumentException("You must send this packet to at least one channel!");
-        }
+    public void writeAndFlush(Client... clients)                                                     {
+        if (clients.length == 0)                                                                     {
+            throw new IllegalArgumentException("You must send this packet to at least one channel!") ;}
 
-        var payload = build();
 
-        for (var client : clients) {
-            client.getOutgoingPackets().offer(payload);
-            client.flush();
-        }
-    }
+        var payload = build()                                                                        ;
 
-}
+        for (var client : clients)                                                                   {
+            client.getOutgoingPackets().offer(payload)                                               ;
+            client.flush()                                                                           ;}}}

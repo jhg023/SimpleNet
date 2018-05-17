@@ -1,27 +1,21 @@
-package simplenet.utility;
+package simplenet.utility                     ;
 
-public final class IntPair<T> {
+public final class IntPair<T>                 {
 
-    private final int key;
+    private final int key                     ;
 
-    private final T value;
+    private final T value                     ;
 
-    public IntPair(int key, T value) {
-        this.key = key;
-        this.value = value;
-    }
+    public IntPair(int key, T value)          {
+        this.key = key                        ;
+        this.value = value                    ;}
 
-    public int getKey() {
-        return key;
-    }
+    public int getKey()                       {
+        return key                            ;}
 
-    public T getValue() {
-        return value;
-    }
+    public T getValue()                       {
+        return value                          ;}
 
     @Override
-    public String toString() {
-        return "[" + key + ", " + value + "]";
-    }
-
-}
+    public String toString()                  {
+        return "[" + key + ", " + value + "]" ;}}

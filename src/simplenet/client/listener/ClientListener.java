@@ -1,9 +1,9 @@
-package simplenet.client.listener;
+package simplenet.client.listener                                                    ;
 
-import java.nio.channels.CompletionHandler;
-import simplenet.Listener;
-import simplenet.client.Client;
-import simplenet.server.Server;
+import java.nio.channels.CompletionHandler                                           ;
+import simplenet.Listener                                                            ;
+import simplenet.client.Client                                                       ;
+import simplenet.server.Server                                                       ;
 
 /**
  * The {@link CompletionHandler} that is executed when a
@@ -15,18 +15,13 @@ import simplenet.server.Server;
  * @author Jacob G.
  * @since October 22, 2017
  */
-public final class ClientListener implements CompletionHandler<Void, Client> {
+public final class ClientListener implements CompletionHandler<Void, Client>         {
 
     @Override
-    public void completed(Void result, Client client) {
-        client.getConnectionListeners().forEach(Runnable::run);
+    public void completed(Void result, Client client)                                {
+        client.getConnectionListeners().forEach(Runnable::run)                       ;
 
-        client.getChannel().read(client.getBuffer(), client, Listener.getInstance());
-    }
+        client.getChannel().read(client.getBuffer(), client, Listener.getInstance()) ;}
 
     @Override
-    public void failed(Throwable t, Client client) {
-
-    }
-
-}
+    public void failed(Throwable t, Client client)                                   {}}
