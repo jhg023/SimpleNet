@@ -40,19 +40,19 @@ server.bind("localhost", 43594);
 // Register one connection listener.
 server.onConnect(client -> {
     System.out.println(client + " has connected!");
-    
-    /* 
-     * When 1 byte arrives from this client, switch on it.
-     * If the byte equals 1, then "request" 4 bytes and
-     * print them as an int whenever they arrive.
-     * 
-     * Because `readAlways` is used, the server will always
-     * attempt to read one byte from this client.
-     */
-    client.readAlways(1, header -> {
-        switch (header.get()) {
+
+   /*
+    * When one byte arrives from the client, switch on it.
+    * If the byte equals 1, then "request" an int and
+    * print it when it arrives.
+    *
+    * Because `readByteAlways` is used, the server will always
+    * attempt to read one byte.
+    */
+    client.readByteAlways(b -> {
+        switch (b) {
             case 1:
-                client.read(4, payload -> System.out.println(payload.getInt()));
+                client.readInt(System.out::println);
         }
     });
 });
