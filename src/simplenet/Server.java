@@ -1,4 +1,4 @@
-package simplenet.server;
+package simplenet;
 
 import java.nio.channels.AlreadyBoundException;
 import java.nio.channels.AsynchronousServerSocketChannel;
@@ -7,15 +7,12 @@ import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import simplenet.Listener;
-import simplenet.Receiver;
-import simplenet.client.Client;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 import java.util.function.Consumer;
+import simplenet.receiver.Receiver;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -94,7 +91,7 @@ public final class Server extends Receiver<Consumer<Client>> {
 		try {
 			channel.bind(new InetSocketAddress(address, port));
 
-            final Listener listener = new Listener() {
+            final Client.Listener listener = new Client.Listener() {
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));

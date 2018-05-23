@@ -1,7 +1,7 @@
 package simplenet.packet;
 
-import simplenet.client.Client;
-import simplenet.server.Server;
+import simplenet.Client;
+import simplenet.Server;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -187,7 +187,7 @@ public final class Packet {
         queue.forEach(consumer -> consumer.accept(payload));
 
         /*
-         * Flip the buffer so the client can immediately
+         * Flip the buffer so the receiver can immediately
          * read it on arrival.
          */
         return payload.flip();

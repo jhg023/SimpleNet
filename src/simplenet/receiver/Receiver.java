@@ -1,8 +1,8 @@
-package simplenet;
+package simplenet.receiver;
 
+import simplenet.Client;
+import simplenet.Server;
 import simplenet.channel.Channeled;
-import simplenet.client.Client;
-import simplenet.server.Server;
 import simplenet.utility.IntPair;
 
 import java.io.IOException;
@@ -17,19 +17,6 @@ public abstract class Receiver<T> implements Channeled {
      * The size of this {@link Receiver}'s buffer.
      */
     protected final int bufferSize;
-
-    /**
-     * The {@link Deque} that keeps track of nested calls
-     * to {@link Client#read(int, Consumer)} and assures that they
-     * will complete in the expected order.
-     */
-    protected final Deque<IntPair<Consumer<ByteBuffer>>> stack;
-
-    /**
-     * The {@link Deque} used when requesting a certain
-     * amount of bytes from the {@link Client} or {@link Server}.
-     */
-    protected final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
     /**
      * Listeners that are fired when a {@link Client} connects
@@ -53,8 +40,6 @@ public abstract class Receiver<T> implements Channeled {
     protected Receiver(int bufferSize) {
         this.bufferSize = bufferSize;
 
-        queue = new ArrayDeque<>();
-        stack = new ArrayDeque<>();
         connectListeners = new ArrayList<>();
         disconnectListeners = new ArrayList<>();
     }
@@ -103,28 +88,6 @@ public abstract class Receiver<T> implements Channeled {
      */
     public void onDisconnect(T listener) {
         disconnectListeners.add(listener);
-    }
-
-    /**
-     * Gets the {@link Deque} that holds information
-     * regarding requested bytes by this {@link Client}.
-     *
-     * @return
-     *      A {@link Deque}.
-     */
-    public Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
-        return queue;
-    }
-
-    /**
-     * Gets the {@link Deque} that keeps track of nested
-     * calls to {@link Client#read(int, Consumer)}.
-     *
-     * @return
-     *      A {@link Deque}.
-     */
-    public Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
-        return stack;
     }
 
     /**

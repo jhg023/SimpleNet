@@ -1,12 +1,11 @@
-package simplenet.client;
+package simplenet;
 
+import java.util.Deque;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import simplenet.Receiver;
-import simplenet.client.listener.ClientListener;
 import simplenet.packet.Packet;
-import simplenet.server.Server;
+import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
 
 import java.io.IOException;
@@ -29,11 +28,75 @@ import java.util.function.Consumer;
  */
 public class Client extends Receiver<Runnable> {
 
-    /**
-     * A single instance of {@link ClientListener} to handle
-     * connections to a {@link Server}.
-     */
-    private static final ClientListener CLIENT_LISTENER = new ClientListener();
+    static class Listener implements CompletionHandler<Integer, Client> {
+
+        private static final Listener INSTANCE = new Listener();
+
+        @Override
+        public void completed(Integer result, Client client) {
+            var buffer = client.getBuffer().flip();
+            var queue = client.getQueue();
+            var peek = queue.pollLast();
+
+            if (peek == null) {
+                client.getChannel().read(buffer.flip().limit(buffer.capacity()), client, this);
+                return;
+            }
+
+            var stack = client.getStack();
+
+            client.setPrepend(true);
+
+            while (buffer.remaining() >= peek.getKey()) {
+                peek.getValue().accept(buffer);
+
+                while (!stack.isEmpty()) {
+                    queue.offer(stack.poll());
+                }
+
+                if ((peek = queue.pollLast()) == null) {
+                    break;
+                }
+            }
+
+            client.setPrepend(false);
+
+            if (peek != null) {
+                queue.addFirst(peek);
+            }
+
+            if (buffer.hasRemaining()) {
+                buffer.compact();
+            } else {
+                buffer.flip();
+            }
+
+            client.getChannel().read(buffer.limit(buffer.capacity()), client, this);
+        }
+
+        @Override
+        public void failed(Throwable t, Client client) {
+            client.getDisconnectListeners().forEach(Runnable::run);
+            client.close();
+        }
+
+        static Listener getInstance() {
+            return INSTANCE;
+        }
+    }
+
+    private static final CompletionHandler<Void, Client> CLIENT_LISTENER = new CompletionHandler<>() {
+        @Override
+        public void completed(Void result, Client client) {
+            client.getConnectionListeners().forEach(Runnable::run);
+            client.getChannel().read(client.getBuffer(), client, Listener.getInstance());
+        }
+
+        @Override
+        public void failed(Throwable exc, Client client) {
+
+        }
+    };
 
     /**
      * Whether or not new elements added {@code queue}
@@ -56,6 +119,19 @@ public class Client extends Receiver<Runnable> {
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
     private final Queue<ByteBuffer> outgoingPackets;
+
+    /**
+     * The {@link Deque} that keeps track of nested calls
+     * to {@link Client#read(int, Consumer)} and assures that they
+     * will complete in the expected order.
+     */
+    protected final Deque<IntPair<Consumer<ByteBuffer>>> stack;
+
+    /**
+     * The {@link Deque} used when requesting a certain
+     * amount of bytes from the {@link Client} or {@link Server}.
+     */
+    protected final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
 	/**
 	 * Instantiates a new {@link Client} by attempting
@@ -92,6 +168,8 @@ public class Client extends Receiver<Runnable> {
 	    super(bufferSize);
 
         outgoingPackets = new ArrayDeque<>();
+        queue = new ArrayDeque<>();
+        stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
 
 	    if (channel != null) {
@@ -131,7 +209,7 @@ public class Client extends Receiver<Runnable> {
 		try {
 			channel.connect(new InetSocketAddress(address, port), this, CLIENT_LISTENER);
 		} catch (AlreadyConnectedException e) {
-			throw new IllegalStateException("This client is already connected!");
+			throw new IllegalStateException("This receiver is already connected!");
 		}
 	}
 
@@ -381,6 +459,28 @@ public class Client extends Receiver<Runnable> {
     }
 
     /**
+     * Gets the {@link Deque} that holds information
+     * regarding requested bytes by this {@link Client}.
+     *
+     * @return
+     *      A {@link Deque}.
+     */
+    private Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
+        return queue;
+    }
+
+    /**
+     * Gets the {@link Deque} that keeps track of nested
+     * calls to {@link Client#read(int, Consumer)}.
+     *
+     * @return
+     *      A {@link Deque}.
+     */
+    private Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
+        return stack;
+    }
+
+    /**
      * Gets the {@link Queue} that manages outgoing
      * {@link Packet}s before writing them to the
      * {@link Channel}.
@@ -409,7 +509,7 @@ public class Client extends Receiver<Runnable> {
      * @return
      *      This {@link Client}'s buffer.
      */
-    public ByteBuffer getBuffer() {
+    ByteBuffer getBuffer() {
         return buffer;
     }
 
@@ -421,7 +521,7 @@ public class Client extends Receiver<Runnable> {
      * @param prepend
      *      A {@code boolean}.
      */
-    public void setPrepend(boolean prepend) {
+    private void setPrepend(boolean prepend) {
         this.prepend = prepend;
     }
 

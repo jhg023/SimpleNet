@@ -1,6 +1,6 @@
 package main;
 
-import simplenet.server.Server;
+import simplenet.Server;
 
 public final class Main {
 
@@ -16,7 +16,7 @@ public final class Main {
             System.out.println(client + " has connected!");
 
             /*
-             * When one byte arrives from the client, switch on it.
+             * When one byte arrives from the receiver, switch on it.
              * If the byte equals 1, then "request" an int and
              * print it when it arrives.
              *

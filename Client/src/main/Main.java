@@ -1,6 +1,6 @@
 package main;
 
-import simplenet.client.*;
+import simplenet.Client;
 import simplenet.packet.Packet;
 
 public final class Main {
