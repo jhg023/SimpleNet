@@ -1,5 +1,8 @@
 package simplenet.client;
 
+import java.util.function.DoubleConsumer;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import simplenet.Receiver;
 import simplenet.client.listener.ClientListener;
 import simplenet.packet.Packet;
@@ -139,8 +142,7 @@ public class Client extends Receiver<Runnable> {
      * @param n
      *      The number of bytes requested.
      * @param consumer
-     *      Holds the operations that should be performed once
-     *      the {@code n} bytes are received.
+     *      A {@link Consumer<ByteBuffer>}.
      */
     public void read(int n, Consumer<ByteBuffer> consumer) {
         if (prepend) {
@@ -148,6 +150,181 @@ public class Client extends Receiver<Runnable> {
         } else {
             queue.offer(new IntPair<>(n, consumer));
         }
+    }
+
+    /**
+     * Requests a single {@code byte} and accepts a {@link Consumer}
+     * with the {@code byte} when it is received.
+     *
+     * @param consumer
+     *      A {@link Consumer<Byte>}.
+     */
+    public void readByte(Consumer<Byte> consumer) {
+        read(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
+    }
+
+    /**
+     * Calls {@link #readByte(Consumer)}, however once
+     * finished, {@link #readByte(Consumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readByte(Consumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link Consumer<Byte>}.
+     */
+    public void readByteAlways(Consumer<Byte> consumer) {
+        readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
+    }
+
+    /**
+     * Requests a single {@code char} and accepts a {@link Consumer}
+     * with the {@code char} when it is received.
+     *
+     * @param consumer
+     *      A {@link Consumer<Character>}.
+     */
+    public void readChar(Consumer<Character> consumer) {
+        read(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
+    }
+
+    /**
+     * Calls {@link #readChar(Consumer)}, however once
+     * finished, {@link #readChar(Consumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readChar(Consumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link Consumer<Character>}.
+     */
+    public void readCharAlways(Consumer<Character> consumer) {
+        readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
+    }
+
+    /**
+     * Requests a single {@code short} and accepts a {@link Consumer}
+     * with the {@code short} when it is received.
+     *
+     * @param consumer
+     *      A {@link Consumer<Short>}.
+     */
+    public void readShort(Consumer<Short> consumer) {
+        read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+    }
+
+    /**
+     * Calls {@link #readShort(Consumer)}, however once
+     * finished, {@link #readShort(Consumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readShort(Consumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link Consumer<Short>}.
+     */
+    public void readShortAlways(Consumer<Short> consumer) {
+        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+    }
+
+    /**
+     * Requests a single {@code int} and accepts a {@link Consumer}
+     * with the {@code int} when it is received.
+     *
+     * @param consumer
+     *      An {@link IntConsumer}.
+     */
+    public void readInt(IntConsumer consumer) {
+        read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    }
+
+    /**
+     * Calls {@link #readInt(IntConsumer)}, however once
+     * finished, {@link #readInt(IntConsumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readInt(IntConsumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      An {@link IntConsumer}.
+     */
+    public void readIntAlways(IntConsumer consumer) {
+        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    }
+
+    /**
+     * Requests a single {@code float} and accepts a {@link Consumer}
+     * with the {@code float} when it is received.
+     *
+     * @param consumer
+     *      A {@link Consumer<Float>}.
+     */
+    public void readFloat(Consumer<Float> consumer) {
+        read(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
+    }
+
+    /**
+     * Calls {@link #readFloat(Consumer)}, however once
+     * finished, {@link #readFloat(Consumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readFloat(Consumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link Consumer<Float>}.
+     */
+    public void readFloatAlways(Consumer<Float> consumer) {
+        readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
+    }
+
+    /**
+     * Requests a single {@code long} and accepts a {@link Consumer}
+     * with the {@code long} when it is received.
+     *
+     * @param consumer
+     *      A {@link LongConsumer}.
+     */
+    public void readLong(LongConsumer consumer) {
+        read(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
+    }
+
+    /**
+     * Calls {@link #readLong(LongConsumer)}, however once
+     * finished, {@link #readLong(LongConsumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readLong(LongConsumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link LongConsumer}.
+     */
+    public void readLongAlways(LongConsumer consumer) {
+        readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
+    }
+
+    /**
+     * Requests a single {@code double} and accepts a {@link Consumer}
+     * with the {@code double} when it is received.
+     *
+     * @param consumer
+     *      A {@link DoubleConsumer}.
+     */
+    public void readDouble(DoubleConsumer consumer) {
+        read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
+    }
+
+    /**
+     * Calls {@link #readDouble(DoubleConsumer)}, however once
+     * finished, {@link #readDouble(DoubleConsumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readDouble(DoubleConsumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer
+     *      A {@link DoubleConsumer}.
+     */
+    public void readDoubleAlways(DoubleConsumer consumer) {
+        readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
     }
 
     /**

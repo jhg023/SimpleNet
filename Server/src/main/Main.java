@@ -1,6 +1,5 @@
 package main;
 
-import simplenet.packet.Packet;
 import simplenet.server.Server;
 
 public final class Main {
@@ -17,17 +16,17 @@ public final class Main {
             System.out.println(client + " has connected!");
 
             /*
-             * When 1 byte arrives from any client, switch on it.
-             * If the byte equals 1, then "request" 4 bytes and
-             * print them as an int whenever they arrive.
+             * When one byte arrives from the client, switch on it.
+             * If the byte equals 1, then "request" an int and
+             * print it when it arrives.
              *
-             * Because `readAlways` is used, the server will always
+             * Because `readByteAlways` is used, the server will always
              * attempt to read one byte.
              */
-            client.readAlways(1, header -> {
-                switch (header.get()) {
+            client.readByteAlways(b -> {
+                switch (b) {
                     case 1:
-                        client.read(4, payload -> System.out.println(payload.getInt()));
+                        client.readInt(System.out::println);
                 }
             });
         });
