@@ -26,14 +26,6 @@
         </license>
     </licenses>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.github.jhg023</groupId>
-            <artifactId>SimpleNet</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-    </dependencies>
-
     <developers>
         <developer>
             <name>Jacob Glickman</name>
