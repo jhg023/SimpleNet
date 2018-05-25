@@ -1,11 +1,11 @@
-package com.github.jhg023.simplenet.packet;
+package simplenet.packet;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Consumer;
-import com.github.jhg023.simplenet.Client;
-import com.github.jhg023.simplenet.Server;
+import simplenet.Client;
+import simplenet.Server;
 
 /**
  * A {@link Packet} that will be sent from a

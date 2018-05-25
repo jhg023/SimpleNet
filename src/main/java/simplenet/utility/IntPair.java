@@ -1,4 +1,4 @@
-package com.github.jhg023.simplenet.utility;
+package simplenet.utility;
 
 public final class IntPair<T> {
 

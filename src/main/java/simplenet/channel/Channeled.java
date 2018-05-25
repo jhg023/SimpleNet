@@ -1,4 +1,4 @@
-package com.github.jhg023.simplenet.channel;
+package simplenet.channel;
 
 import java.nio.channels.AsynchronousChannel;
 import java.nio.channels.Channel;
