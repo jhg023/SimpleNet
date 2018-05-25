@@ -2,8 +2,17 @@
 An easy-to-use, event-driven, asynchronous, network application framework compiled with Java 10.
 
 # How can I start using SimpleNet?
- 1. Because SimpleNet is compiled with Java 10, you'll first need to build it into a dependency (coming to Maven soon) and add it to your build path.
- 2. Next, you must edit your `module-info.java` to include the following:
+ 1. SimpleNet has been deployed to Maven, and you can use the following to add it as a dependency:
+ 
+ ```xml
+<dependency>
+    <groupId>com.github.jhg023</groupId>
+    <artifactId>SimpleNet</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+ 
+ 2. Next, you must edit your `module-info.java` to require the module:
 
 ```java
 requires SimpleNet;
@@ -61,4 +70,4 @@ server.onConnect(client -> {
 server.onDisconnect(client -> System.out.println(client + " has disconnected!"));
 ```
 
- 5. Congratulations, you're finished! Be sure to run the `Server` first, as every `Client` will not be able to connect otherwise.
+ 5. Congratulations, you're finished!
