@@ -27,8 +27,15 @@ import simplenet.utility.IntPair;
  */
 public class Client extends Receiver<Runnable> {
 
+    /**
+     * The {@link CompletionHandler} used to process bytes
+     * when they are received by this {@link Client}.
+     */
     static class Listener implements CompletionHandler<Integer, Client> {
 
+        /**
+         * A {@code static} instance of this class to be reused.
+         */
         private static final Listener INSTANCE = new Listener();
 
         @Override
@@ -79,11 +86,21 @@ public class Client extends Receiver<Runnable> {
             client.close();
         }
 
+        /**
+         * Gets the single instance of this class.
+         *
+         * @return
+         *      A {@link Listener}.
+         */
         static Listener getInstance() {
             return INSTANCE;
         }
     }
 
+    /**
+     * The {@link CompletionHandler} used when this {@link Client}
+     * connects to a {@link Server}.
+     */
     private static final CompletionHandler<Void, Client> CLIENT_LISTENER = new CompletionHandler<>() {
         @Override
         public void completed(Void result, Client client) {
@@ -124,13 +141,13 @@ public class Client extends Receiver<Runnable> {
      * to {@link Client#read(int, Consumer)} and assures that they
      * will complete in the expected order.
      */
-    protected final Deque<IntPair<Consumer<ByteBuffer>>> stack;
+    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
 
     /**
      * The {@link Deque} used when requesting a certain
      * amount of bytes from the {@link Client} or {@link Server}.
      */
-    protected final Deque<IntPair<Consumer<ByteBuffer>>> queue;
+    private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
     /**
      * Instantiates a new {@link Client} by attempting
@@ -218,6 +235,27 @@ public class Client extends Receiver<Runnable> {
         } else {
             queue.offer(new IntPair<>(n, consumer));
         }
+    }
+
+    /**
+     * Calls {@link #read(int, Consumer)}, however once
+     * finished, {@link #read(int, Consumer)} is called once
+     * again with the same parameters; this loops indefinitely
+     * whereas {@link #read(int, Consumer)} completes after
+     * a single iteration.
+     *
+     * @param n        The number of bytes requested.
+     * @param consumer Holds the operations that should be performed once
+     *                 the {@code n} bytes are received.
+     */
+    public void readAlways(int n, Consumer<ByteBuffer> consumer) {
+        read(n, new Consumer<>() {
+            @Override
+            public void accept(ByteBuffer buffer) {
+                consumer.accept(buffer);
+                read(n, this);
+            }
+        });
     }
 
     /**
@@ -379,27 +417,6 @@ public class Client extends Receiver<Runnable> {
      */
     public void readDoubleAlways(DoubleConsumer consumer) {
         readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
-    }
-
-    /**
-     * Calls {@link #read(int, Consumer)}, however once
-     * finished, {@link #read(int, Consumer)} is called once
-     * again with the same parameters; this loops indefinitely
-     * whereas {@link #read(int, Consumer)} completes after
-     * a single iteration.
-     *
-     * @param n        The number of bytes requested.
-     * @param consumer Holds the operations that should be performed once
-     *                 the {@code n} bytes are received.
-     */
-    public void readAlways(int n, Consumer<ByteBuffer> consumer) {
-        read(n, new Consumer<>() {
-            @Override
-            public void accept(ByteBuffer buffer) {
-                consumer.accept(buffer);
-                read(n, this);
-            }
-        });
     }
 
     /**
