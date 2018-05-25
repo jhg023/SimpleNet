@@ -1,12 +1,12 @@
-package simplenet.receiver;
+package com.github.jhg023.simplenet.receiver;
 
 import java.io.IOException;
 import java.nio.channels.Channel;
 import java.util.ArrayList;
 import java.util.Collection;
-import simplenet.Client;
-import simplenet.Server;
-import simplenet.channel.Channeled;
+import com.github.jhg023.simplenet.Client;
+import com.github.jhg023.simplenet.Server;
+import com.github.jhg023.simplenet.channel.Channeled;
 
 public abstract class Receiver<T> implements Channeled {
 

@@ -1,4 +1,4 @@
 module SimpleNet {
-    exports simplenet;
-    exports simplenet.packet;
+    exports com.github.jhg023.simplenet;
+    exports com.github.jhg023.simplenet.packet;
 }

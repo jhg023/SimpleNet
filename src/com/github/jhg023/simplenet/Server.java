@@ -1,4 +1,4 @@
-package simplenet;
+package com.github.jhg023.simplenet;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -11,7 +11,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import simplenet.receiver.Receiver;
+import com.github.jhg023.simplenet.receiver.Receiver;
 
 /**
  * The entity that all {@link Client}s will connect to.
