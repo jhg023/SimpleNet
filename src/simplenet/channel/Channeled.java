@@ -1,6 +1,7 @@
 package simplenet.channel;
 
-import java.nio.channels.*;
+import java.nio.channels.AsynchronousChannel;
+import java.nio.channels.Channel;
 
 /**
  * An {@code interface} that denotes an entity as
@@ -12,12 +13,11 @@ import java.nio.channels.*;
 @FunctionalInterface
 public interface Channeled {
 
-	/**
-	 * Gets the backing {@link Channel} of this entity.
-	 *
-	 * @return
-	 *      A {@link }.
-	 */
-	AsynchronousChannel getChannel();
+    /**
+     * Gets the backing {@link Channel} of this entity.
+     *
+     * @return A {@link }.
+     */
+    AsynchronousChannel getChannel();
 
 }

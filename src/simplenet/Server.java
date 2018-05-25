@@ -1,16 +1,15 @@
 package simplenet;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.AlreadyBoundException;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.HashSet;
-import java.util.Set;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import simplenet.receiver.Receiver;
 
@@ -27,30 +26,29 @@ public final class Server extends Receiver<Consumer<Client>> {
      */
     private int maxClients = Integer.MAX_VALUE;
 
-	/**
-	 * The backing {@link Channel} of the {@link Server}.
-	 */
-	private AsynchronousServerSocketChannel channel;
+    /**
+     * The backing {@link Channel} of the {@link Server}.
+     */
+    private AsynchronousServerSocketChannel channel;
 
     /**
      * The {@link Set} of {@link Client}s that are connected
      * to this {@link Server}.
      */
-	private final Set<Client> clients;
+    private final Set<Client> clients;
 
-	/**
-	 * Instantiates a new {@link Server} by attempting
-	 * to open the backing {@link AsynchronousServerSocketChannel}.
-	 *
-	 * @throws IllegalStateException
-	 *      If multiple {@link Server} instances are created.
-	 */
-	public Server() {
-	    this(4096);
+    /**
+     * Instantiates a new {@link Server} by attempting
+     * to open the backing {@link AsynchronousServerSocketChannel}.
+     *
+     * @throws IllegalStateException If multiple {@link Server} instances are created.
+     */
+    public Server() {
+        this(4096);
     }
 
-	public Server(int bufferSize) {
-	    super(bufferSize);
+    public Server(int bufferSize) {
+        super(bufferSize);
 
         if (channel != null) {
             throw new IllegalStateException("Multiple server instances are not allowed!");
@@ -65,31 +63,26 @@ public final class Server extends Receiver<Consumer<Client>> {
         clients = new HashSet<>();
     }
 
-	/**
-	 * Attempts to bind the {@link Server} to a
-	 * specific {@code address} and {@code port}.
-	 *
-	 * @param address
-	 *      The IP address to bind to.
-	 * @param port
-	 *      The port to bind to {@code 0 <= port <= 65535}.
-	 * @throws IllegalArgumentException
-	 *      If {@code port} is less than 0 or greater than 65535.
-	 * @throws AlreadyBoundException
-	 *      If a server is already running on any address/port.
-	 * @throws RuntimeException
-	 *      If the server is unable to be bound to a specific
-	 *      address or port.
-	 */
-	public void bind(String address, int port) {
-		Objects.requireNonNull(address);
+    /**
+     * Attempts to bind the {@link Server} to a
+     * specific {@code address} and {@code port}.
+     *
+     * @param address The IP address to bind to.
+     * @param port    The port to bind to {@code 0 <= port <= 65535}.
+     * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
+     * @throws AlreadyBoundException    If a server is already running on any address/port.
+     * @throws RuntimeException         If the server is unable to be bound to a specific
+     *                                  address or port.
+     */
+    public void bind(String address, int port) {
+        Objects.requireNonNull(address);
 
-		if (port < 0 || port > 65535) {
-			throw new IllegalArgumentException("The port must be between 0 and 65535!");
-		}
+        if (port < 0 || port > 65535) {
+            throw new IllegalArgumentException("The port must be between 0 and 65535!");
+        }
 
-		try {
-			channel.bind(new InetSocketAddress(address, port));
+        try {
+            channel.bind(new InetSocketAddress(address, port));
 
             final Client.Listener listener = new Client.Listener() {
                 @Override
@@ -100,7 +93,7 @@ public final class Server extends Receiver<Consumer<Client>> {
                 }
             };
 
-			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
+            channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
                     if (clients.size() == maxClients) {
@@ -125,45 +118,42 @@ public final class Server extends Receiver<Consumer<Client>> {
                 }
             });
 
-			System.out.println(String.format("Successfully bound to %s:%d!", address, port));
-		} catch (AlreadyBoundException e) {
-			throw new IllegalStateException("A server is already running!");
-		} catch (IOException e) {
-			throw new IllegalStateException("Unable to bind the server!");
-		}
-	}
+            System.out.println(String.format("Successfully bound to %s:%d!", address, port));
+        } catch (AlreadyBoundException e) {
+            throw new IllegalStateException("A server is already running!");
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to bind the server!");
+        }
+    }
 
     /**
      * Sets the maximum number of {@link Client}s that can be connected
      * to this {@link Server} at any given time.
      *
-     * @param maxClients
-     *      The maximum number of clients.
+     * @param maxClients The maximum number of clients.
      */
-	public void setMaxClients(int maxClients) {
-	    this.maxClients = maxClients;
+    public void setMaxClients(int maxClients) {
+        this.maxClients = maxClients;
     }
 
     /**
      * Gets a {@link Set} containing every {@link Client}
      * that is currently connected to this {@link Server}.
      *
-     * @return
-     *      A {@link Set<Client>}.
+     * @return A {@link Set<Client>}.
      */
     public Set<Client> getClients() {
-	    return clients;
+        return clients;
     }
 
-	/**
-	 * Gets the backing {@link Channel} of this {@link Server}.
-	 *
-	 * @return
-	 *      A {@link Channel}.
-	 */
-	@Override
-	public AsynchronousServerSocketChannel getChannel() {
-		return channel;
-	}
+    /**
+     * Gets the backing {@link Channel} of this {@link Server}.
+     *
+     * @return A {@link Channel}.
+     */
+    @Override
+    public AsynchronousServerSocketChannel getChannel() {
+        return channel;
+    }
 
 }

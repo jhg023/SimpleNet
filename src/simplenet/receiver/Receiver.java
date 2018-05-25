@@ -1,15 +1,12 @@
 package simplenet.receiver;
 
+import java.io.IOException;
+import java.nio.channels.Channel;
+import java.util.ArrayList;
+import java.util.Collection;
 import simplenet.Client;
 import simplenet.Server;
 import simplenet.channel.Channeled;
-import simplenet.utility.IntPair;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channel;
-import java.util.*;
-import java.util.function.Consumer;
 
 public abstract class Receiver<T> implements Channeled {
 
@@ -34,8 +31,7 @@ public abstract class Receiver<T> implements Channeled {
      * Instantiates a new {@link Receiver} with a buffer capacity
      * of {@code bufferSize}.
      *
-     * @param bufferSize
-     *      The capacity of the buffer used for reading.
+     * @param bufferSize The capacity of the buffer used for reading.
      */
     protected Receiver(int bufferSize) {
         this.bufferSize = bufferSize;
@@ -66,8 +62,7 @@ public abstract class Receiver<T> implements Channeled {
      * When calling this method more than once, multiple listeners
      * are registered.
      *
-     * @param listener
-     *      A {@link T}.
+     * @param listener A {@link T}.
      */
     public void onConnect(T listener) {
         connectListeners.add(listener);
@@ -83,8 +78,7 @@ public abstract class Receiver<T> implements Channeled {
      * When calling this method more than once, multiple listeners
      * are registered.
      *
-     * @param listener
-     *      A {@link T}.
+     * @param listener A {@link T}.
      */
     public void onDisconnect(T listener) {
         disconnectListeners.add(listener);
@@ -94,8 +88,7 @@ public abstract class Receiver<T> implements Channeled {
      * Gets a {@link Collection} of listeners that are fired when a
      * {@link Client} connects to a {@link Server}.
      *
-     * @return
-     *      A {@link Collection}.
+     * @return A {@link Collection}.
      */
     public Collection<T> getConnectionListeners() {
         return connectListeners;
@@ -105,8 +98,7 @@ public abstract class Receiver<T> implements Channeled {
      * Gets a {@link Collection} of listeners that are fired when a
      * {@link Client} disconnects from a {@link Server}.
      *
-     * @return
-     *      A {@link Collection}.
+     * @return A {@link Collection}.
      */
     public Collection<T> getDisconnectListeners() {
         return disconnectListeners;
