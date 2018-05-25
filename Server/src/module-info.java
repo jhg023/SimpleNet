@@ -1,3 +1,0 @@
-module Server {
-	requires SimpleNet;
-}
