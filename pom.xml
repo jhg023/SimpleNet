@@ -11,7 +11,7 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>SimpleNet</name>
@@ -30,7 +30,7 @@
         <dependency>
             <groupId>com.github.jhg023</groupId>
             <artifactId>SimpleNet</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
     </dependencies>
 
