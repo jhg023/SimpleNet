@@ -90,7 +90,7 @@ public abstract class Receiver<T> implements Channeled {
      *
      * @return A {@link Collection}.
      */
-    public Collection<T> getConnectionListeners() {
+    protected Collection<T> getConnectionListeners() {
         return connectListeners;
     }
 
@@ -100,7 +100,7 @@ public abstract class Receiver<T> implements Channeled {
      *
      * @return A {@link Collection}.
      */
-    public Collection<T> getDisconnectListeners() {
+    protected Collection<T> getDisconnectListeners() {
         return disconnectListeners;
     }
 

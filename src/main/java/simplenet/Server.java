@@ -7,9 +7,7 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 import simplenet.receiver.Receiver;
 
@@ -21,6 +19,12 @@ import simplenet.receiver.Receiver;
 public final class Server extends Receiver<Consumer<Client>> {
 
     /**
+     * The number of {@link Client}s that are currently
+     * connected to this {@link Server}.
+     */
+    private int numClients;
+
+    /**
      * The maximum number of {@link Client}s that can be
      * connected to this {@link Server} at any given time.
      */
@@ -30,12 +34,6 @@ public final class Server extends Receiver<Consumer<Client>> {
      * The backing {@link Channel} of the {@link Server}.
      */
     private AsynchronousServerSocketChannel channel;
-
-    /**
-     * The {@link Set} of {@link Client}s that are connected
-     * to this {@link Server}.
-     */
-    private final Set<Client> clients;
 
     /**
      * Instantiates a new {@link Server} by attempting
@@ -59,8 +57,6 @@ public final class Server extends Receiver<Consumer<Client>> {
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
         }
-
-        clients = new HashSet<>();
     }
 
     /**
@@ -88,7 +84,9 @@ public final class Server extends Receiver<Consumer<Client>> {
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-                    clients.remove(client);
+
+                    numClients--;
+
                     client.close();
                 }
             };
@@ -96,14 +94,12 @@ public final class Server extends Receiver<Consumer<Client>> {
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    if (clients.size() == maxClients) {
+                    if (numClients++ == maxClients) {
                         Server.this.channel.accept(null, this);
                         return;
                     }
 
                     var client = new Client(bufferSize, channel);
-
-                    clients.add(client);
 
                     getConnectionListeners().forEach(consumer -> consumer.accept(client));
 
@@ -134,16 +130,6 @@ public final class Server extends Receiver<Consumer<Client>> {
      */
     public void setMaxClients(int maxClients) {
         this.maxClients = maxClients;
-    }
-
-    /**
-     * Gets a {@link Set} containing every {@link Client}
-     * that is currently connected to this {@link Server}.
-     *
-     * @return A {@link Set<Client>}.
-     */
-    public Set<Client> getClients() {
-        return clients;
     }
 
     /**
