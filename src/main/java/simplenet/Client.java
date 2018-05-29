@@ -528,7 +528,7 @@ public class Client extends Receiver<Runnable> {
      * @return This {@link Client}'s backing channel.
      */
     @Override
-    public final AsynchronousSocketChannel getChannel() {
+    public AsynchronousSocketChannel getChannel() {
         return channel;
     }
 
