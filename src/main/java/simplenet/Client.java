@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import javax.crypto.Cipher;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
@@ -49,12 +50,28 @@ public class Client extends Receiver<Runnable> {
                 return;
             }
 
-            var stack = client.getStack();
-
             client.setPrepend(true);
 
-            while (buffer.remaining() >= peek.getKey()) {
+            boolean decrypt = client.decryption != null;
+
+            int key;
+            int size = buffer.remaining();
+            var stack = client.getStack();
+
+            while (size >= (key = peek.getKey())) {
+                if (decrypt) {
+                    try {
+                        int position = buffer.position();
+                        client.decryption.update(buffer.limit(buffer.position() + key), buffer.duplicate());
+                        buffer.flip().position(position);
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Exception occurred when decrypting:", e);
+                    }
+                }
+
                 peek.getValue().accept(buffer);
+
+                size -= key;
 
                 while (!stack.isEmpty()) {
                     queue.offer(stack.poll());
@@ -71,7 +88,7 @@ public class Client extends Receiver<Runnable> {
                 queue.addFirst(peek);
             }
 
-            if (buffer.hasRemaining()) {
+            if (size > 0) {
                 buffer.compact();
             } else {
                 buffer.flip();
@@ -130,6 +147,16 @@ public class Client extends Receiver<Runnable> {
      * The backing {@link Channel} of a {@link Client}.
      */
     private final AsynchronousSocketChannel channel;
+
+    /**
+     * The {@link Cipher} used for {@link Packet} encryption.
+     */
+    private Cipher encryption;
+
+    /**
+     * The {@link Cipher} used for {@link Packet} decryption.
+     */
+    private Cipher decryption;
 
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
@@ -208,7 +235,7 @@ public class Client extends Receiver<Runnable> {
      * @throws IllegalArgumentException  If {@code port} is less than 0 or greater than 65535.
      * @throws AlreadyConnectedException If a {@link Client} is already connected to any address/port.
      */
-    public void connect(String address, int port) {
+    public final void connect(String address, int port) {
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
@@ -229,7 +256,7 @@ public class Client extends Receiver<Runnable> {
      * @param n        The number of bytes requested.
      * @param consumer A {@link Consumer<ByteBuffer>}.
      */
-    public void read(int n, Consumer<ByteBuffer> consumer) {
+    public final void read(int n, Consumer<ByteBuffer> consumer) {
         if (prepend) {
             stack.addFirst(new IntPair<>(n, consumer));
         } else {
@@ -248,7 +275,7 @@ public class Client extends Receiver<Runnable> {
      * @param consumer Holds the operations that should be performed once
      *                 the {@code n} bytes are received.
      */
-    public void readAlways(int n, Consumer<ByteBuffer> consumer) {
+    public final void readAlways(int n, Consumer<ByteBuffer> consumer) {
         read(n, new Consumer<>() {
             @Override
             public void accept(ByteBuffer buffer) {
@@ -264,7 +291,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Byte>}.
      */
-    public void readByte(Consumer<Byte> consumer) {
+    public final void readByte(Consumer<Byte> consumer) {
         read(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
     }
 
@@ -277,7 +304,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Byte>}.
      */
-    public void readByteAlways(Consumer<Byte> consumer) {
+    public final void readByteAlways(Consumer<Byte> consumer) {
         readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
     }
 
@@ -287,7 +314,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Character>}.
      */
-    public void readChar(Consumer<Character> consumer) {
+    public final void readChar(Consumer<Character> consumer) {
         read(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
     }
 
@@ -300,7 +327,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Character>}.
      */
-    public void readCharAlways(Consumer<Character> consumer) {
+    public final void readCharAlways(Consumer<Character> consumer) {
         readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
     }
 
@@ -310,7 +337,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Short>}.
      */
-    public void readShort(Consumer<Short> consumer) {
+    public final void readShort(Consumer<Short> consumer) {
         read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
     }
 
@@ -323,7 +350,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Short>}.
      */
-    public void readShortAlways(Consumer<Short> consumer) {
+    public final void readShortAlways(Consumer<Short> consumer) {
         readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
     }
 
@@ -333,7 +360,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer An {@link IntConsumer}.
      */
-    public void readInt(IntConsumer consumer) {
+    public final void readInt(IntConsumer consumer) {
         read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
     }
 
@@ -346,7 +373,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer An {@link IntConsumer}.
      */
-    public void readIntAlways(IntConsumer consumer) {
+    public final void readIntAlways(IntConsumer consumer) {
         readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
     }
 
@@ -356,7 +383,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Float>}.
      */
-    public void readFloat(Consumer<Float> consumer) {
+    public final void readFloat(Consumer<Float> consumer) {
         read(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
     }
 
@@ -369,7 +396,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link Consumer<Float>}.
      */
-    public void readFloatAlways(Consumer<Float> consumer) {
+    public final void readFloatAlways(Consumer<Float> consumer) {
         readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
     }
 
@@ -379,7 +406,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link LongConsumer}.
      */
-    public void readLong(LongConsumer consumer) {
+    public final void readLong(LongConsumer consumer) {
         read(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
     }
 
@@ -392,7 +419,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link LongConsumer}.
      */
-    public void readLongAlways(LongConsumer consumer) {
+    public final void readLongAlways(LongConsumer consumer) {
         readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
     }
 
@@ -402,7 +429,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link DoubleConsumer}.
      */
-    public void readDouble(DoubleConsumer consumer) {
+    public final void readDouble(DoubleConsumer consumer) {
         read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
     }
 
@@ -415,7 +442,7 @@ public class Client extends Receiver<Runnable> {
      *
      * @param consumer A {@link DoubleConsumer}.
      */
-    public void readDoubleAlways(DoubleConsumer consumer) {
+    public final void readDoubleAlways(DoubleConsumer consumer) {
         readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
     }
 
@@ -427,7 +454,7 @@ public class Client extends Receiver<Runnable> {
      * {@code Client#flush()} will not be flushed until
      * it is called again.
      */
-    public void flush() {
+    public final void flush() {
         flush(outgoingPackets.size());
     }
 
@@ -436,7 +463,22 @@ public class Client extends Receiver<Runnable> {
             return;
         }
 
-        channel.write(outgoingPackets.poll(), null, new CompletionHandler<>() {
+        ByteBuffer raw = outgoingPackets.poll();
+
+        if (raw == null) {
+            throw new IllegalStateException("An outgoing packet is null!");
+        }
+
+        if (encryption != null) {
+            try {
+                encryption.doFinal(raw, raw.duplicate());
+                raw.flip();
+            } catch (Exception e) {
+                throw new IllegalStateException("Exception occurred when encrypting:", e);
+            }
+        }
+
+        channel.write(raw, null, new CompletionHandler<>() {
             @Override
             public void completed(Integer result, Object attachment) {
                 flush(i - 1);
@@ -486,7 +528,7 @@ public class Client extends Receiver<Runnable> {
      * @return This {@link Client}'s backing channel.
      */
     @Override
-    public AsynchronousSocketChannel getChannel() {
+    public final AsynchronousSocketChannel getChannel() {
         return channel;
     }
 
@@ -508,6 +550,26 @@ public class Client extends Receiver<Runnable> {
      */
     private void setPrepend(boolean prepend) {
         this.prepend = prepend;
+    }
+
+    public void setEncryption(Cipher encryption) {
+        Objects.requireNonNull(encryption);
+
+        if (!encryption.getAlgorithm().endsWith("NoPadding")) {
+            throw new IllegalArgumentException("The cipher cannot have any padding!");
+        }
+
+        this.encryption = encryption;
+    }
+
+    public void setDecryption(Cipher decryption) {
+        Objects.requireNonNull(decryption);
+
+        if (!decryption.getAlgorithm().endsWith("NoPadding")) {
+            throw new IllegalArgumentException("The cipher cannot have any padding!");
+        }
+
+        this.decryption = decryption;
     }
 
 }
