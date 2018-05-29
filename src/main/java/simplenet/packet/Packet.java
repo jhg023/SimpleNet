@@ -1,5 +1,6 @@
 package simplenet.packet;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -12,18 +13,19 @@ import simplenet.Server;
  * {@link Client} to the {@link Server} or
  * vice versa.
  */
-public class Packet {
+public final class Packet {
 
     /**
      * An {@code int} representing the amount of bytes that this {@link Packet}
      * will contain in its payload.
      */
-    protected int size;
+    private int size;
 
     /**
-     * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
+     * A {@link Deque} that lazily writes data to the backing
+     * {@link ByteArrayOutputStream}.
      */
-    protected final Deque<Consumer<ByteBuffer>> queue;
+    private final Deque<Consumer<ByteArrayOutputStream>> queue;
 
     /**
      * A {@code private} constructor.
@@ -50,7 +52,7 @@ public class Packet {
      */
     public final Packet putByte(int b) {
         size += Byte.BYTES;
-        queue.offer(payload -> payload.put((byte) b));
+        queue.offer(stream -> stream.write(b));
         return this;
     }
 
@@ -67,12 +69,11 @@ public class Packet {
     public final Packet putBytes(byte... src) {
         size += src.length * Byte.BYTES;
 
-        queue.offer(payload -> {
+        queue.offer(stream -> {
             for (byte b : src) {
-                payload.put(b);
+                stream.write(b);
             }
         });
-
         return this;
     }
 
@@ -85,7 +86,10 @@ public class Packet {
      */
     public final Packet putChar(char c) {
         size += Character.BYTES;
-        queue.offer(payload -> payload.putChar(c));
+        queue.offer(stream -> {
+            stream.write((c >>> 8) & 0xFF);
+            stream.write( c        & 0xFF);
+        });
         return this;
     }
 
@@ -97,8 +101,7 @@ public class Packet {
      * chained writes.
      */
     public final Packet putDouble(double d) {
-        size += Double.BYTES;
-        queue.offer(payload -> payload.putDouble(d));
+        putLong(Double.doubleToLongBits(d));
         return this;
     }
 
@@ -110,8 +113,7 @@ public class Packet {
      * chained writes.
      */
     public final Packet putFloat(float f) {
-        size += Float.BYTES;
-        queue.offer(payload -> payload.putFloat(f));
+        putInt(Float.floatToIntBits(f));
         return this;
     }
 
@@ -124,7 +126,12 @@ public class Packet {
      */
     public final Packet putInt(int i) {
         size += Integer.BYTES;
-        queue.offer(payload -> payload.putInt(i));
+        queue.offer(stream -> {
+            stream.write((i >>> 24) & 0xFF);
+            stream.write((i >>> 16) & 0xFF);
+            stream.write((i >>>  8) & 0xFF);
+            stream.write( i         & 0xFF);
+        });
         return this;
     }
 
@@ -137,7 +144,19 @@ public class Packet {
      */
     public final Packet putLong(long l) {
         size += Long.BYTES;
-        queue.offer(payload -> payload.putLong(l));
+
+        var b = new byte[Long.BYTES];
+
+        b[0] = (byte) (l >>> 56);
+        b[1] = (byte) (l >>> 48);
+        b[2] = (byte) (l >>> 40);
+        b[3] = (byte) (l >>> 32);
+        b[4] = (byte) (l >>> 24);
+        b[5] = (byte) (l >>> 16);
+        b[6] = (byte) (l >>>  8);
+        b[7] = (byte)  l;
+
+        queue.offer(stream -> stream.write(b, 0, b.length));
         return this;
     }
 
@@ -150,7 +169,28 @@ public class Packet {
      */
     public final Packet putShort(short s) {
         size += Short.BYTES;
-        queue.offer(payload -> payload.putShort(s));
+        queue.offer(stream -> {
+            stream.write((s >>> 8) & 0xFF);
+            stream.write( s        & 0xFF);
+        });
+        return this;
+    }
+
+    /**
+     * Prepends data to the front of the {@link Packet}.
+     * <p>
+     * This is primarily used for headers, such as when one
+     * or more of the headers depend on the size of the data
+     * contained within the {@link Packet} itself.
+     *
+     * @param consumer
+     *      The {@link ByteArrayOutputStream} containing
+     *      this packet's data.
+     * @return
+     *      The {@link Packet} to allow for chained writes.
+     */
+    public Packet prepend(Consumer<ByteArrayOutputStream> consumer) {
+        queue.offerFirst(consumer);
         return this;
     }
 
@@ -161,10 +201,12 @@ public class Packet {
      * @return
      *      A {@link ByteBuffer}.
      */
-    protected ByteBuffer build() {
-        var payload = ByteBuffer.allocateDirect(size);
-        queue.forEach(consumer -> consumer.accept(payload));
-        return payload.flip();
+    private ByteBuffer build() {
+        var stream = new ByteArrayOutputStream();
+        queue.forEach(consumer -> consumer.accept(stream));
+        return ByteBuffer.allocateDirect(stream.size())
+                         .put(stream.toByteArray())
+                         .flip();
     }
 
     /**
@@ -205,6 +247,16 @@ public class Packet {
             client.getOutgoingPackets().offer(payload);
             client.flush();
         }
+    }
+
+    /**
+     * Gets the number of bytes in this {@link Packet}'s payload.
+     *
+     * @return
+     *      The current size of this {@link Packet} measured in bytes.
+     */
+    public int getSize() {
+        return size;
     }
 
 }
