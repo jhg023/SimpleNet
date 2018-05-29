@@ -2,7 +2,7 @@ package simplenet.packet;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.Queue;
+import java.util.Deque;
 import java.util.function.Consumer;
 import simplenet.Client;
 import simplenet.Server;
@@ -12,19 +12,18 @@ import simplenet.Server;
  * {@link Client} to the {@link Server} or
  * vice versa.
  */
-public final class Packet {
+public class Packet {
 
     /**
-     * An {@code int} representing the amount of
-     * bytes that this {@link Packet} will send.
+     * An {@code int} representing the amount of bytes that this {@link Packet}
+     * will contain in its payload.
      */
-    private int size;
+    protected int size;
 
     /**
-     * A {@link Queue} that lazily writes data to the
-     * backing {@link ByteBuffer}.
+     * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
      */
-    private final Queue<Consumer<ByteBuffer>> queue;
+    protected final Deque<Consumer<ByteBuffer>> queue;
 
     /**
      * A {@code private} constructor.
@@ -49,8 +48,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putByte(int b) {
-        size++;
+    public final Packet putByte(int b) {
+        size += Byte.BYTES;
         queue.offer(payload -> payload.put((byte) b));
         return this;
     }
@@ -65,8 +64,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putBytes(byte... src) {
-        size += src.length;
+    public final Packet putBytes(byte... src) {
+        size += src.length * Byte.BYTES;
 
         queue.offer(payload -> {
             for (byte b : src) {
@@ -84,8 +83,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putChar(char c) {
-        size += 2;
+    public final Packet putChar(char c) {
+        size += Character.BYTES;
         queue.offer(payload -> payload.putChar(c));
         return this;
     }
@@ -97,8 +96,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putDouble(double d) {
-        size += 8;
+    public final Packet putDouble(double d) {
+        size += Double.BYTES;
         queue.offer(payload -> payload.putDouble(d));
         return this;
     }
@@ -110,8 +109,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putFloat(float f) {
-        size += 4;
+    public final Packet putFloat(float f) {
+        size += Float.BYTES;
         queue.offer(payload -> payload.putFloat(f));
         return this;
     }
@@ -123,8 +122,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putInt(int i) {
-        size += 4;
+    public final Packet putInt(int i) {
+        size += Integer.BYTES;
         queue.offer(payload -> payload.putInt(i));
         return this;
     }
@@ -136,8 +135,8 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putLong(long l) {
-        size += 8;
+    public final Packet putLong(long l) {
+        size += Long.BYTES;
         queue.offer(payload -> payload.putLong(l));
         return this;
     }
@@ -149,30 +148,22 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public Packet putShort(int s) {
-        size += 2;
-        queue.offer(payload -> payload.putShort((short) s));
+    public final Packet putShort(short s) {
+        size += Short.BYTES;
+        queue.offer(payload -> payload.putShort(s));
         return this;
     }
 
-    private ByteBuffer build() {
-        /*
-         * Allocate a new buffer with the size of
-         * the data being added.
-         *
-         * TODO: Give each SimpleSocketChannel their own direct ByteBuffer.
-         */
-        ByteBuffer payload = ByteBuffer.allocateDirect(size);
-
-        /*
-         * Add the data to the buffer.
-         */
+    /**
+     * Builds this {@link Packet}'s data into a {@link ByteBuffer}
+     * for use in {@link #write(Client...)} and {@link #writeAndFlush(Client...)}.
+     *
+     * @return
+     *      A {@link ByteBuffer}.
+     */
+    protected ByteBuffer build() {
+        var payload = ByteBuffer.allocateDirect(size);
         queue.forEach(consumer -> consumer.accept(payload));
-
-        /*
-         * Flip the buffer so the receiver can immediately
-         * read it on arrival.
-         */
         return payload.flip();
     }
 
@@ -184,7 +175,7 @@ public final class Packet {
      *
      * @param clients A variable amount of {@link Client}s.
      */
-    public void write(Client... clients) {
+    public final void write(Client... clients) {
         if (clients.length == 0) {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
@@ -203,7 +194,7 @@ public final class Packet {
      *
      * @param clients A variable amount of {@link Client}s.
      */
-    public void writeAndFlush(Client... clients) {
+    public final void writeAndFlush(Client... clients) {
         if (clients.length == 0) {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
