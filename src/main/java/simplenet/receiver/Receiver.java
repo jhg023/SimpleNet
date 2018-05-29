@@ -40,6 +40,12 @@ public abstract class Receiver<T> implements Channeled {
         disconnectListeners = new ArrayList<>();
     }
 
+    protected Receiver(Receiver<T> receiver) {
+        this.bufferSize = receiver.bufferSize;
+        this.connectListeners = receiver.connectListeners;
+        this.disconnectListeners = receiver.disconnectListeners;
+    }
+
     /**
      * Closes the backing {@link Channel} of this {@link Receiver},
      * which results in the firing of any disconnect-listeners that exist.

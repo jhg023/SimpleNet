@@ -226,6 +226,19 @@ public class Client extends Receiver<Runnable> {
         }
     }
 
+    public Client(Client client) {
+        super(client);
+
+        this.prepend = client.prepend;
+        this.buffer = client.buffer;
+        this.channel = client.channel;
+        this.encryption = client.encryption;
+        this.decryption = client.decryption;
+        this.outgoingPackets = client.outgoingPackets;
+        this.stack = client.stack;
+        this.queue = client.queue;
+    }
+
     /**
      * Attempts to connect to a {@link Server} with a
      * specific {@code address} and {@code port}.
@@ -528,7 +541,7 @@ public class Client extends Receiver<Runnable> {
      * @return This {@link Client}'s backing channel.
      */
     @Override
-    public AsynchronousSocketChannel getChannel() {
+    public final AsynchronousSocketChannel getChannel() {
         return channel;
     }
 
