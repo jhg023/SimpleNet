@@ -484,7 +484,7 @@ public class Client extends Receiver<Runnable> {
 
         if (encryption != null) {
             try {
-                encryption.doFinal(raw, raw.duplicate());
+                encryption.update(raw, raw.duplicate());
                 raw.flip();
             } catch (Exception e) {
                 throw new IllegalStateException("Exception occurred when encrypting:", e);
