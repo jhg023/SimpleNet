@@ -476,6 +476,11 @@ public class Client extends Receiver<Runnable> {
             return;
         }
 
+        if (!channel.isOpen()) {
+            outgoingPackets.clear();
+            return;
+        }
+
         ByteBuffer raw = outgoingPackets.poll();
 
         if (raw == null) {
