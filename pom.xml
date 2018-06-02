@@ -5,18 +5,18 @@
     <modelVersion>4.0.0</modelVersion>
 
     <properties>
-        <maven.compiler.source>10</maven.compiler.source>
-        <maven.compiler.target>10</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.0.6</version>
+    <version>1.0.8</version>
     <packaging>jar</packaging>
 
     <name>SimpleNet</name>
     <description>An easy-to-use, event-driven, asynchronous,
-        network application framework compiled with Java 10. </description>
+        network application framework. </description>
     <url>https://github.com/jhg023/SimpleNet</url>
 
     <licenses>

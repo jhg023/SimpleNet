@@ -9,6 +9,7 @@ import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
+import simplenet.channel.Channeled;
 import simplenet.receiver.Receiver;
 
 /**
@@ -16,7 +17,7 @@ import simplenet.receiver.Receiver;
  *
  * @since November 1, 2017
  */
-public final class Server extends Receiver<Consumer<Client>> {
+public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
 
     /**
      * The number of {@link Client}s that are currently
@@ -99,7 +100,7 @@ public final class Server extends Receiver<Consumer<Client>> {
                         return;
                     }
 
-                    var client = new Client(bufferSize, channel);
+                    Client client = new Client(bufferSize, channel);
 
                     getConnectionListeners().forEach(consumer -> consumer.accept(client));
 

@@ -1,14 +1,11 @@
 package simplenet.receiver;
 
-import java.io.IOException;
-import java.nio.channels.Channel;
 import java.util.ArrayList;
 import java.util.Collection;
 import simplenet.Client;
 import simplenet.Server;
-import simplenet.channel.Channeled;
 
-public abstract class Receiver<T> implements Channeled {
+public abstract class Receiver<T> {
 
     /**
      * The size of this {@link Receiver}'s buffer.
@@ -44,18 +41,6 @@ public abstract class Receiver<T> implements Channeled {
         this.bufferSize = receiver.bufferSize;
         this.connectListeners = receiver.connectListeners;
         this.disconnectListeners = receiver.disconnectListeners;
-    }
-
-    /**
-     * Closes the backing {@link Channel} of this {@link Receiver},
-     * which results in the firing of any disconnect-listeners that exist.
-     */
-    public void close() {
-        try {
-            getChannel().close();
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to close the channel!");
-        }
     }
 
     /**

@@ -17,6 +17,7 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import javax.crypto.Cipher;
+import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
@@ -26,7 +27,7 @@ import simplenet.utility.IntPair;
  *
  * @since November 1, 2017
  */
-public class Client extends Receiver<Runnable> {
+public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel> {
 
     /**
      * The {@link CompletionHandler} used to process bytes
@@ -41,12 +42,13 @@ public class Client extends Receiver<Runnable> {
 
         @Override
         public void completed(Integer result, Client client) {
-            var buffer = client.getBuffer().flip();
-            var queue = client.getQueue();
-            var peek = queue.pollLast();
+            ByteBuffer buffer = (ByteBuffer) client.getBuffer().flip();
+            Deque<IntPair<Consumer<ByteBuffer>>> queue = client.getQueue();
+            IntPair<Consumer<ByteBuffer>> peek = queue.pollLast();
 
             if (peek == null) {
-                client.getChannel().read(buffer.flip().limit(buffer.capacity()), client, this);
+                buffer.flip().limit(buffer.capacity());
+                client.getChannel().read(buffer, client, this);
                 return;
             }
 
@@ -56,13 +58,14 @@ public class Client extends Receiver<Runnable> {
 
             int key;
             int size = buffer.remaining();
-            var stack = client.getStack();
+            Deque<IntPair<Consumer<ByteBuffer>>> stack = client.getStack();
 
             while (size >= (key = peek.getKey())) {
                 if (decrypt) {
                     try {
                         int position = buffer.position();
-                        client.decryption.update(buffer.limit(buffer.position() + key), buffer.duplicate());
+                        buffer.limit(buffer.position() + key);
+                        client.decryption.update(buffer, buffer.duplicate());
                         buffer.flip().position(position);
                     } catch (Exception e) {
                         throw new IllegalStateException("Exception occurred when decrypting:", e);
@@ -94,7 +97,8 @@ public class Client extends Receiver<Runnable> {
                 buffer.flip();
             }
 
-            client.getChannel().read(buffer.limit(buffer.capacity()), client, this);
+            buffer.limit(buffer.capacity());
+            client.getChannel().read(buffer, client, this);
         }
 
         @Override
@@ -118,7 +122,7 @@ public class Client extends Receiver<Runnable> {
      * The {@link CompletionHandler} used when this {@link Client}
      * connects to a {@link Server}.
      */
-    private static final CompletionHandler<Void, Client> CLIENT_LISTENER = new CompletionHandler<>() {
+    private static final CompletionHandler<Void, Client> CLIENT_LISTENER = new CompletionHandler<Void, Client>() {
         @Override
         public void completed(Void result, Client client) {
             client.getConnectionListeners().forEach(Runnable::run);
@@ -289,7 +293,7 @@ public class Client extends Receiver<Runnable> {
      *                 the {@code n} bytes are received.
      */
     public final void readAlways(int n, Consumer<ByteBuffer> consumer) {
-        read(n, new Consumer<>() {
+        read(n, new Consumer<ByteBuffer>() {
             @Override
             public void accept(ByteBuffer buffer) {
                 consumer.accept(buffer);
@@ -496,7 +500,7 @@ public class Client extends Receiver<Runnable> {
             }
         }
 
-        channel.write(raw, null, new CompletionHandler<>() {
+        channel.write(raw, null, new CompletionHandler<Integer, Object>() {
             @Override
             public void completed(Integer result, Object attachment) {
                 flush(i - 1);

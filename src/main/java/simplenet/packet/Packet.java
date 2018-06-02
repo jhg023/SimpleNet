@@ -145,7 +145,7 @@ public final class Packet {
     public final Packet putLong(long l) {
         size += Long.BYTES;
 
-        var b = new byte[Long.BYTES];
+        byte[] b = new byte[Long.BYTES];
 
         b[0] = (byte) (l >>> 56);
         b[1] = (byte) (l >>> 48);
@@ -202,9 +202,9 @@ public final class Packet {
      *      A {@link ByteBuffer}.
      */
     private ByteBuffer build() {
-        var stream = new ByteArrayOutputStream();
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
         queue.forEach(consumer -> consumer.accept(stream));
-        return ByteBuffer.allocateDirect(stream.size())
+        return (ByteBuffer) ByteBuffer.allocateDirect(stream.size())
                          .put(stream.toByteArray())
                          .flip();
     }
@@ -222,9 +222,9 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        var payload = build();
+        ByteBuffer payload = build();
 
-        for (var client : clients) {
+        for (Client client : clients) {
             client.getOutgoingPackets().offer(payload);
         }
     }
@@ -241,9 +241,9 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        var payload = build();
+        ByteBuffer payload = build();
 
-        for (var client : clients) {
+        for (Client client : clients) {
             client.getOutgoingPackets().offer(payload);
             client.flush();
         }
