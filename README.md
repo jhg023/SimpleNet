@@ -1,5 +1,5 @@
 # SimpleNet
-An easy-to-use, event-driven, asynchronous, network application framework compiled with Java 10.
+An easy-to-use, event-driven, asynchronous, network application framework.
 
 # How can I start using SimpleNet?
  1. SimpleNet has been deployed to Maven, and you can use the following to add it as a dependency:
