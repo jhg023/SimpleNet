@@ -12,12 +12,7 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 </dependency>
 ```
  
- 2. Next, you must edit your `module-info.java` to require the module:
-
-```java
-requires SimpleNet;
-```
- 3. To create a `Client`, you can use the following:
+ 2. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
 Client client = new Client();
@@ -37,7 +32,7 @@ client.onConnect(() -> {
 client.onDisconnect(() -> System.out.println(client + " has disconnected from the server!"));
 ```
 
- 4. To create a `Server`, you can use the following:
+ 3. To create a `Server`, you can use the following:
 
 ```java
 // Instantiate a new Server.
