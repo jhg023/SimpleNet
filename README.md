@@ -8,7 +8,7 @@ An easy-to-use, event-driven, asynchronous, network application framework compil
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.8</version>
 </dependency>
 ```
  
@@ -20,7 +20,7 @@ requires SimpleNet;
  3. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
-var client = new Client();
+Client client = new Client();
 
 // Attempt to connect to a server.
 client.connect("localhost", 43594);
@@ -41,7 +41,7 @@ client.onDisconnect(() -> System.out.println(client + " has disconnected from th
 
 ```java
 // Instantiate a new Server.
-var server = new Server();
+Server server = new Server();
 
 // Bind the server to an address and port.
 server.bind("localhost", 43594);
