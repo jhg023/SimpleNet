@@ -65,4 +65,4 @@ server.onConnect(client -> {
 server.onDisconnect(client -> System.out.println(client + " has disconnected!"));
 ```
 
- 5. Congratulations, you're finished!
+ 4. Congratulations, you're finished!
