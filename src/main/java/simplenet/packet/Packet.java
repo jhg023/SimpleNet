@@ -50,7 +50,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putByte(int b) {
+    public Packet putByte(int b) {
         size += Byte.BYTES;
         queue.offer(stream -> stream.write(b));
         return this;
@@ -66,7 +66,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putBytes(byte... src) {
+    public Packet putBytes(byte... src) {
         size += src.length * Byte.BYTES;
 
         queue.offer(stream -> {
@@ -84,7 +84,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putChar(char c) {
+    public Packet putChar(char c) {
         size += Character.BYTES;
         queue.offer(stream -> {
             stream.write((c >>> 8) & 0xFF);
@@ -100,7 +100,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putDouble(double d) {
+    public Packet putDouble(double d) {
         putLong(Double.doubleToLongBits(d));
         return this;
     }
@@ -112,7 +112,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putFloat(float f) {
+    public Packet putFloat(float f) {
         putInt(Float.floatToIntBits(f));
         return this;
     }
@@ -124,7 +124,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putInt(int i) {
+    public Packet putInt(int i) {
         size += Integer.BYTES;
         queue.offer(stream -> {
             stream.write((i >>> 24) & 0xFF);
@@ -142,7 +142,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putLong(long l) {
+    public Packet putLong(long l) {
         size += Long.BYTES;
 
         byte[] b = new byte[Long.BYTES];
@@ -167,12 +167,25 @@ public final class Packet {
      * @return The {@link Packet} to allow for
      * chained writes.
      */
-    public final Packet putShort(short s) {
+    public Packet putShort(int s) {
         size += Short.BYTES;
         queue.offer(stream -> {
             stream.write((s >>> 8) & 0xFF);
             stream.write( s        & 0xFF);
         });
+        return this;
+    }
+
+    /**
+     * Writes a single {@link String} to this {@link Packet}'s payload.
+     *
+     * @param s A {@link String}.
+     * @return The {@link Packet} to allow for
+     * chained writes.
+     */
+    public Packet putString(String s) {
+        putShort(s.length());
+        putBytes(s.getBytes());
         return this;
     }
 

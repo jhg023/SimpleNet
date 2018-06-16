@@ -3,11 +3,13 @@ package simplenet;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.AlreadyBoundException;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import simplenet.channel.Channeled;
 import simplenet.receiver.Receiver;
@@ -54,7 +56,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         }
 
         try {
-            channel = AsynchronousServerSocketChannel.open();
+            channel = AsynchronousServerSocketChannel.open(
+                    AsynchronousChannelGroup.withCachedThreadPool(Executors.newCachedThreadPool(), 1));
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
         }
@@ -85,9 +88,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-
                     numClients--;
-
                     client.close();
                 }
             };
@@ -101,11 +102,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                     }
 
                     Client client = new Client(bufferSize, channel);
-
                     getConnectionListeners().forEach(consumer -> consumer.accept(client));
-
                     Server.this.channel.accept(null, this);
-
                     channel.read(client.getBuffer(), client, listener);
                 }
 

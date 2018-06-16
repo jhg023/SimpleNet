@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.AlreadyConnectedException;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
@@ -42,23 +43,23 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void completed(Integer result, Client client) {
-            ByteBuffer buffer = (ByteBuffer) client.getBuffer().flip();
-            Deque<IntPair<Consumer<ByteBuffer>>> queue = client.getQueue();
+            ByteBuffer buffer = (ByteBuffer) client.buffer.flip();
+            Deque<IntPair<Consumer<ByteBuffer>>> queue = client.queue;
             IntPair<Consumer<ByteBuffer>> peek = queue.pollLast();
 
             if (peek == null) {
                 buffer.flip().limit(buffer.capacity());
-                client.getChannel().read(buffer, client, this);
+                client.channel.read(buffer, client, this);
                 return;
             }
 
-            client.setPrepend(true);
+            client.prepend = true;
 
             boolean decrypt = client.decryption != null;
 
             int key;
             int size = buffer.remaining();
-            Deque<IntPair<Consumer<ByteBuffer>>> stack = client.getStack();
+            Deque<IntPair<Consumer<ByteBuffer>>> stack = client.stack;
 
             while (size >= (key = peek.getKey())) {
                 if (decrypt) {
@@ -85,7 +86,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
             }
 
-            client.setPrepend(false);
+            client.prepend = false;
 
             if (peek != null) {
                 queue.addFirst(peek);
@@ -98,7 +99,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
 
             buffer.limit(buffer.capacity());
-            client.getChannel().read(buffer, client, this);
+
+            client.channel.read(buffer, client, this);
         }
 
         @Override
@@ -126,7 +128,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         @Override
         public void completed(Void result, Client client) {
             client.getConnectionListeners().forEach(Runnable::run);
-            client.getChannel().read(client.getBuffer(), client, Listener.getInstance());
+            client.channel.read(client.buffer, client, Listener.getInstance());
         }
 
         @Override
@@ -222,7 +224,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         try {
-            this.channel = AsynchronousSocketChannel.open();
+            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withFixedThreadPool(1, Thread::new));
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
@@ -349,49 +351,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Requests a single {@code short} and accepts a {@link Consumer}
-     * with the {@code short} when it is received.
+     * Requests a single {@code double} and accepts a {@link Consumer}
+     * with the {@code double} when it is received.
      *
-     * @param consumer A {@link Consumer<Short>}.
+     * @param consumer A {@link DoubleConsumer}.
      */
-    public final void readShort(Consumer<Short> consumer) {
-        read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+    public final void readDouble(DoubleConsumer consumer) {
+        read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
     }
 
     /**
-     * Calls {@link #readShort(Consumer)}, however once
-     * finished, {@link #readShort(Consumer)} is called once
+     * Calls {@link #readDouble(DoubleConsumer)}, however once
+     * finished, {@link #readDouble(DoubleConsumer)} is called once
      * again with the same parameter; this loops indefinitely
-     * whereas {@link #readShort(Consumer)} completes after
+     * whereas {@link #readDouble(DoubleConsumer)} completes after
      * a single iteration.
      *
-     * @param consumer A {@link Consumer<Short>}.
+     * @param consumer A {@link DoubleConsumer}.
      */
-    public final void readShortAlways(Consumer<Short> consumer) {
-        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-    }
-
-    /**
-     * Requests a single {@code int} and accepts a {@link Consumer}
-     * with the {@code int} when it is received.
-     *
-     * @param consumer An {@link IntConsumer}.
-     */
-    public final void readInt(IntConsumer consumer) {
-        read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
-    }
-
-    /**
-     * Calls {@link #readInt(IntConsumer)}, however once
-     * finished, {@link #readInt(IntConsumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readInt(IntConsumer)} completes after
-     * a single iteration.
-     *
-     * @param consumer An {@link IntConsumer}.
-     */
-    public final void readIntAlways(IntConsumer consumer) {
-        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    public final void readDoubleAlways(DoubleConsumer consumer) {
+        readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
     }
 
     /**
@@ -418,6 +397,29 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
+     * Requests a single {@code int} and accepts a {@link Consumer}
+     * with the {@code int} when it is received.
+     *
+     * @param consumer An {@link IntConsumer}.
+     */
+    public final void readInt(IntConsumer consumer) {
+        read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    }
+
+    /**
+     * Calls {@link #readInt(IntConsumer)}, however once
+     * finished, {@link #readInt(IntConsumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readInt(IntConsumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer An {@link IntConsumer}.
+     */
+    public final void readIntAlways(IntConsumer consumer) {
+        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    }
+
+    /**
      * Requests a single {@code long} and accepts a {@link Consumer}
      * with the {@code long} when it is received.
      *
@@ -441,26 +443,63 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Requests a single {@code double} and accepts a {@link Consumer}
-     * with the {@code double} when it is received.
+     * Requests a single {@code short} and accepts a {@link Consumer}
+     * with the {@code short} when it is received.
      *
-     * @param consumer A {@link DoubleConsumer}.
+     * @param consumer A {@link Consumer<Short>}.
      */
-    public final void readDouble(DoubleConsumer consumer) {
-        read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
+    public final void readShort(Consumer<Short> consumer) {
+        read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
     }
 
     /**
-     * Calls {@link #readDouble(DoubleConsumer)}, however once
-     * finished, {@link #readDouble(DoubleConsumer)} is called once
+     * Calls {@link #readShort(Consumer)}, however once
+     * finished, {@link #readShort(Consumer)} is called once
      * again with the same parameter; this loops indefinitely
-     * whereas {@link #readDouble(DoubleConsumer)} completes after
+     * whereas {@link #readShort(Consumer)} completes after
      * a single iteration.
      *
-     * @param consumer A {@link DoubleConsumer}.
+     * @param consumer A {@link Consumer<Short>}.
      */
-    public final void readDoubleAlways(DoubleConsumer consumer) {
-        readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
+    public final void readShortAlways(Consumer<Short> consumer) {
+        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+    }
+
+    /**
+     * Requests a single {@link String} and accepts a {@link Consumer}
+     * with the {@link String} when it is received.  A {@code short}
+     * is used to store the length of the {@link String}, which imposes
+     * a maximum {@link String} length of {@code 65,535}.
+     *
+     * @param consumer A {@link Consumer<String>}.
+     */
+    public final void readString(Consumer<String> consumer) {
+        readShort(s -> {
+            read(s, buffer -> {
+                byte[] b = new byte[s & 0xFFFF];
+                buffer.get(b);
+                consumer.accept(new String(b));
+            });
+        });
+    }
+
+    /**
+     * Calls {@link #readString(Consumer)}, however once
+     * finished, {@link #readString(Consumer)} is called once
+     * again with the same parameter; this loops indefinitely
+     * whereas {@link #readString(Consumer)} completes after
+     * a single iteration.
+     *
+     * @param consumer A {@link Consumer<String>}.
+     */
+    public final void readStringAlways(Consumer<String> consumer) {
+        readShortAlways(s -> {
+            read(s, buffer -> {
+                byte[] b = new byte[s & 0xFFFF];
+                buffer.get(b);
+                consumer.accept(new String(b));
+            });
+        });
     }
 
     /**
@@ -561,17 +600,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     ByteBuffer getBuffer() {
         return buffer;
-    }
-
-    /**
-     * Sets whether or not new elements being added to
-     * the {@code queue} should be added to the front
-     * or the back.
-     *
-     * @param prepend A {@code boolean}.
-     */
-    private void setPrepend(boolean prepend) {
-        this.prepend = prepend;
     }
 
     public void setEncryption(Cipher encryption) {
