@@ -17,6 +17,7 @@ import simplenet.receiver.Receiver;
 /**
  * The entity that all {@link Client}s will connect to.
  *
+ * @author Jacob G.
  * @since November 1, 2017
  */
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {

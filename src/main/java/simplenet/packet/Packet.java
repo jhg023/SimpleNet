@@ -1,6 +1,5 @@
 package simplenet.packet;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -16,16 +15,21 @@ import simplenet.Server;
 public final class Packet {
 
     /**
+     * A {@code boolean} that designates whether data should be added
+     * to the front of the {@link Deque} rather than the end.
+     */
+    private boolean prepend;
+
+    /**
      * An {@code int} representing the amount of bytes that this {@link Packet}
      * will contain in its payload.
      */
     private int size;
 
     /**
-     * A {@link Deque} that lazily writes data to the backing
-     * {@link ByteArrayOutputStream}.
+     * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
      */
-    private final Deque<Consumer<ByteArrayOutputStream>> queue;
+    private final Deque<Consumer<ByteBuffer>> queue;
 
     /**
      * A {@code private} constructor.
@@ -52,7 +56,11 @@ public final class Packet {
      */
     public Packet putByte(int b) {
         size += Byte.BYTES;
-        queue.offer(stream -> stream.write(b));
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.put((byte) b));
+        } else {
+            queue.offerLast(buffer -> buffer.put((byte) b));
+        }
         return this;
     }
 
@@ -68,12 +76,11 @@ public final class Packet {
      */
     public Packet putBytes(byte... src) {
         size += src.length * Byte.BYTES;
-
-        queue.offer(stream -> {
-            for (byte b : src) {
-                stream.write(b);
-            }
-        });
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.put(src));
+        } else {
+            queue.offerLast(buffer -> buffer.put(src));
+        }
         return this;
     }
 
@@ -86,10 +93,11 @@ public final class Packet {
      */
     public Packet putChar(char c) {
         size += Character.BYTES;
-        queue.offer(stream -> {
-            stream.write((c >>> 8) & 0xFF);
-            stream.write( c        & 0xFF);
-        });
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putChar(c));
+        } else {
+            queue.offerLast(buffer -> buffer.putChar(c));
+        }
         return this;
     }
 
@@ -101,7 +109,12 @@ public final class Packet {
      * chained writes.
      */
     public Packet putDouble(double d) {
-        putLong(Double.doubleToLongBits(d));
+        size += Double.BYTES;
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putDouble(d));
+        } else {
+            queue.offerLast(buffer -> buffer.putDouble(d));
+        }
         return this;
     }
 
@@ -113,7 +126,12 @@ public final class Packet {
      * chained writes.
      */
     public Packet putFloat(float f) {
-        putInt(Float.floatToIntBits(f));
+        size += Float.BYTES;
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putFloat(f));
+        } else {
+            queue.offerLast(buffer -> buffer.putFloat(f));
+        }
         return this;
     }
 
@@ -126,12 +144,11 @@ public final class Packet {
      */
     public Packet putInt(int i) {
         size += Integer.BYTES;
-        queue.offer(stream -> {
-            stream.write((i >>> 24) & 0xFF);
-            stream.write((i >>> 16) & 0xFF);
-            stream.write((i >>>  8) & 0xFF);
-            stream.write( i         & 0xFF);
-        });
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putInt(i));
+        } else {
+            queue.offerLast(buffer -> buffer.putInt(i));
+        }
         return this;
     }
 
@@ -144,19 +161,11 @@ public final class Packet {
      */
     public Packet putLong(long l) {
         size += Long.BYTES;
-
-        byte[] b = new byte[Long.BYTES];
-
-        b[0] = (byte) (l >>> 56);
-        b[1] = (byte) (l >>> 48);
-        b[2] = (byte) (l >>> 40);
-        b[3] = (byte) (l >>> 32);
-        b[4] = (byte) (l >>> 24);
-        b[5] = (byte) (l >>> 16);
-        b[6] = (byte) (l >>>  8);
-        b[7] = (byte)  l;
-
-        queue.offer(stream -> stream.write(b, 0, b.length));
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putLong(l));
+        } else {
+            queue.offerLast(buffer -> buffer.putLong(l));
+        }
         return this;
     }
 
@@ -169,15 +178,18 @@ public final class Packet {
      */
     public Packet putShort(int s) {
         size += Short.BYTES;
-        queue.offer(stream -> {
-            stream.write((s >>> 8) & 0xFF);
-            stream.write( s        & 0xFF);
-        });
+        if (prepend) {
+            queue.offerFirst(buffer -> buffer.putShort((short) s));
+        } else {
+            queue.offerLast(buffer -> buffer.putShort((short) s));
+        }
         return this;
     }
 
     /**
      * Writes a single {@link String} to this {@link Packet}'s payload.
+     * <p>
+     * The {@link String} can have a maximum length of {@code 65,535}.
      *
      * @param s A {@link String}.
      * @return The {@link Packet} to allow for
@@ -196,14 +208,16 @@ public final class Packet {
      * or more of the headers depend on the size of the data
      * contained within the {@link Packet} itself.
      *
-     * @param consumer
-     *      The {@link ByteArrayOutputStream} containing
-     *      this packet's data.
+     * @param runnable
+     *      The {@link Runnable} containing calls to add
+     *      more data to this {@link Packet}.
      * @return
      *      The {@link Packet} to allow for chained writes.
      */
-    public Packet prepend(Consumer<ByteArrayOutputStream> consumer) {
-        queue.offerFirst(consumer);
+    public Packet prepend(Runnable runnable) {
+        prepend = true;
+        runnable.run();
+        prepend = false;
         return this;
     }
 
@@ -215,11 +229,9 @@ public final class Packet {
      *      A {@link ByteBuffer}.
      */
     private ByteBuffer build() {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        queue.forEach(consumer -> consumer.accept(stream));
-        return (ByteBuffer) ByteBuffer.allocateDirect(stream.size())
-                         .put(stream.toByteArray())
-                         .flip();
+        ByteBuffer buffer = ByteBuffer.allocateDirect(size);
+        queue.forEach(consumer -> consumer.accept(buffer));
+        return (ByteBuffer) buffer.flip();
     }
 
     /**

@@ -26,6 +26,7 @@ import simplenet.utility.IntPair;
 /**
  * The entity that will connect to the {@link Server}.
  *
+ * @author Jacob G.
  * @since November 1, 2017
  */
 public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel> {
@@ -43,6 +44,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void completed(Integer result, Client client) {
+            if (result == -1) {
+                client.close();
+                return;
+            }
+
             ByteBuffer buffer = (ByteBuffer) client.buffer.flip();
             Deque<IntPair<Consumer<ByteBuffer>>> queue = client.queue;
             IntPair<Consumer<ByteBuffer>> peek = queue.pollLast();
@@ -534,8 +540,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         if (i == 0) {
             return;
         }
-
-        System.out.println(i);
 
         if (!channel.isOpen()) {
             outgoingPackets.clear();
