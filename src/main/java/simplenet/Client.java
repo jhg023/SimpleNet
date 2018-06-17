@@ -132,8 +132,24 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         @Override
-        public void failed(Throwable exc, Client client) {
+        public void failed(Throwable t, Client client) {
 
+        }
+    };
+
+    /**
+     * The {@link CompletionHandler} used when this {@link Client}
+     * sends one or more {@link Packet}s to a {@link Server}.
+     */
+    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
+        @Override
+        public void completed(Integer result, Client client) {
+            client.flush(client.outgoingPackets.size());
+        }
+
+        @Override
+        public void failed(Throwable t, Client client) {
+            t.printStackTrace();
         }
     };
 
@@ -519,6 +535,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             return;
         }
 
+        System.out.println(i);
+
         if (!channel.isOpen()) {
             outgoingPackets.clear();
             return;
@@ -539,17 +557,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
         }
 
-        channel.write(raw, null, new CompletionHandler<Integer, Object>() {
-            @Override
-            public void completed(Integer result, Object attachment) {
-                flush(i - 1);
-            }
-
-            @Override
-            public void failed(Throwable t, Object attachment) {
-                t.printStackTrace();
-            }
-        });
+        channel.write(raw, this, PACKET_HANDLER);
     }
 
     /**
