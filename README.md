@@ -45,14 +45,13 @@ server.bind("localhost", 43594);
 server.onConnect(client -> {
     System.out.println(client + " has connected!");
 
-   /*
-    * When one byte arrives from the client, switch on it.
-    * If the byte equals 1, then "request" an int and
-    * print it when it arrives.
-    *
-    * Because `readByteAlways` is used, the server will always
-    * attempt to read one byte.
-    */
+    /*
+     * When one byte arrives from the client, switch on it.
+     * If the byte equals 1, then print an int when it arrives.
+     *
+     * Because `readByteAlways` is used, this will loop when
+     * the callback completes, but does not hang the main thread.
+     */
     client.readByteAlways(b -> {
         switch (b) {
             case 1:
