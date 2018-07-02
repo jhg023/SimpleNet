@@ -5,7 +5,6 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.AlreadyConnectedException;
-import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
@@ -13,6 +12,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
@@ -147,10 +147,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client}
      * sends one or more {@link Packet}s to a {@link Server}.
      */
-    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
+    private static final CompletionHandler<Long, Client> PACKET_HANDLER = new CompletionHandler<Long, Client>() {
         @Override
-        public void completed(Integer result, Client client) {
-            client.flush(client.outgoingPackets.size());
+        public void completed(Long result, Client client) {
+
         }
 
         @Override
@@ -246,7 +246,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         try {
-            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withFixedThreadPool(1, Thread::new));
+            this.channel = AsynchronousSocketChannel.open();
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
@@ -525,43 +526,32 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Flushes any queued {@link Packet}s held within
-     * the internal {@link Queue}.
+     * Flushes any queued {@link Packet}s held within the internal {@link Queue}.
      * <p>
-     * Any {@link Packet}s queued after the call to
-     * {@code Client#flush()} will not be flushed until
+     * Any {@link Packet}s queued after the call to {@code Client#flush()} will not be flushed until
      * it is called again.
      */
     public final void flush() {
-        flush(outgoingPackets.size());
-    }
-
-    private void flush(int i) {
-        if (i == 0) {
-            return;
-        }
-
         if (!channel.isOpen()) {
             outgoingPackets.clear();
             return;
         }
 
-        ByteBuffer raw = outgoingPackets.poll();
-
-        if (raw == null) {
-            throw new IllegalStateException("An outgoing packet is null!");
-        }
+        ByteBuffer[] buffers = outgoingPackets.toArray(new ByteBuffer[0]);
 
         if (encryption != null) {
             try {
-                encryption.update(raw, raw.duplicate());
-                raw.flip();
+                for (ByteBuffer raw : buffers) {
+                    encryption.update(raw, raw.duplicate());
+                    raw.flip();
+                }
             } catch (Exception e) {
                 throw new IllegalStateException("Exception occurred when encrypting:", e);
             }
         }
 
-        channel.write(raw, this, PACKET_HANDLER);
+        outgoingPackets.clear();
+        channel.write(buffers, 0, buffers.length, 30L, TimeUnit.SECONDS, this, PACKET_HANDLER);
     }
 
     /**

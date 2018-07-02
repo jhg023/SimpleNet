@@ -2,6 +2,7 @@ package simplenet;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.AlreadyBoundException;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
@@ -9,6 +10,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import simplenet.channel.Channeled;
@@ -23,16 +25,10 @@ import simplenet.receiver.Receiver;
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
 
     /**
-     * The number of {@link Client}s that are currently
-     * connected to this {@link Server}.
+     * The cached thread pool that all {@link Server}s will use for I/O,
+     * even though it's ideal to only have a single server running on a machine.
      */
-    private int numClients;
-
-    /**
-     * The maximum number of {@link Client}s that can be
-     * connected to this {@link Server} at any given time.
-     */
-    private int maxClients = Integer.MAX_VALUE;
+    private static final ExecutorService SERVICE = Executors.newCachedThreadPool();
 
     /**
      * The backing {@link Channel} of the {@link Server}.
@@ -57,8 +53,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         }
 
         try {
-            channel = AsynchronousServerSocketChannel.open(
-                    AsynchronousChannelGroup.withCachedThreadPool(Executors.newCachedThreadPool(), 1));
+            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withCachedThreadPool(SERVICE, 1));
+            channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
         }
@@ -89,7 +85,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 @Override
                 public void failed(Throwable t, Client client) {
                     getDisconnectListeners().forEach(consumer -> consumer.accept(client));
-                    numClients--;
                     client.close();
                 }
             };
@@ -97,11 +92,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    if (numClients++ == maxClients) {
-                        Server.this.channel.accept(null, this);
-                        return;
-                    }
-
                     Client client = new Client(bufferSize, channel);
                     getConnectionListeners().forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
@@ -120,16 +110,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         } catch (IOException e) {
             throw new IllegalStateException("Unable to bind the server!");
         }
-    }
-
-    /**
-     * Sets the maximum number of {@link Client}s that can be connected
-     * to this {@link Server} at any given time.
-     *
-     * @param maxClients The maximum number of clients.
-     */
-    public void setMaxClients(int maxClients) {
-        this.maxClients = maxClients;
     }
 
     /**
