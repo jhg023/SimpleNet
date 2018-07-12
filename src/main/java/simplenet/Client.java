@@ -12,6 +12,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
@@ -149,7 +151,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
         @Override
         public void completed(Integer result, Client client) {
-            client.flush(client.outgoingPackets.size());
+            if (!client.channel.isOpen()) {
+                client.outgoingPackets.clear();
+                client.packetsToFlush.clear();
+                return;
+            }
+
+            ByteBuffer payload = client.packetsToFlush.poll();
+
+            if (payload == null) {
+                client.writing.set(false);
+                return;
+            }
+
+            client.channel.write(payload, client, this);
         }
 
         @Override
@@ -158,11 +173,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
     };
 
-    /**
-     * Whether or not new elements added {@code queue}
-     * should be added to the front rather than the back.
-     */
-    private boolean prepend;
+    private final AtomicBoolean writing;
 
     /**
      * The {@link ByteBuffer} that will hold data
@@ -174,6 +185,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The backing {@link Channel} of a {@link Client}.
      */
     private final AsynchronousSocketChannel channel;
+
+    /**
+     * Whether or not new elements added {@code queue}
+     * should be added to the front rather than the back.
+     */
+    private boolean prepend;
 
     /**
      * The {@link Cipher} used for {@link Packet} encryption.
@@ -189,6 +206,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
     private final Queue<ByteBuffer> outgoingPackets;
+
+    /**
+     * A {@link Queue} to manage {@link Packet}s that should be
+     * flushed as soon as possible.
+     */
+    private final Queue<ByteBuffer> packetsToFlush;
 
     /**
      * The {@link Deque} that keeps track of nested calls
@@ -234,7 +257,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public Client(int bufferSize, AsynchronousSocketChannel channel) {
         super(bufferSize);
 
+        writing = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
+        packetsToFlush = new ConcurrentLinkedQueue<>();
         queue = new ArrayDeque<>();
         stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
@@ -265,6 +290,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.outgoingPackets = client.outgoingPackets;
         this.stack = client.stack;
         this.queue = client.queue;
+        this.writing = client.writing;
+        this.packetsToFlush = client.packetsToFlush;
     }
 
     /**
@@ -530,32 +557,25 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Any {@link Packet}s queued after the call to {@code Client#flush()} will not be flushed until
      * it is called again.
      */
-    public final void flush() {
-        flush(outgoingPackets.size());
-    }
+    public final synchronized void flush() {
+        for (int i = 0; i < outgoingPackets.size(); i++) {
+            ByteBuffer raw = outgoingPackets.poll();
 
-    private void flush(int i) {
-        if (i == 0) {
-            return;
-        }
+            if (encryption != null) {
+                try {
+                    encryption.update(raw, raw.duplicate());
+                    raw.flip();
+                } catch (Exception e) {
+                    throw new IllegalStateException("Exception occurred when encrypting:", e);
+                }
+            }
 
-        if (!channel.isOpen()) {
-            outgoingPackets.clear();
-            return;
-        }
-
-        ByteBuffer raw = outgoingPackets.poll();
-
-        if (encryption != null) {
-            try {
-                encryption.update(raw, raw.duplicate());
-                raw.flip();
-            } catch (Exception e) {
-                throw new IllegalStateException("Exception occurred when encrypting:", e);
+            if (!writing.getAndSet(true)) {
+                channel.write(raw, this, PACKET_HANDLER);
+            } else {
+                packetsToFlush.offer(raw);
             }
         }
-
-        channel.write(raw, this, PACKET_HANDLER);
     }
 
     /**
