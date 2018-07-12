@@ -12,7 +12,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
@@ -147,10 +146,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client}
      * sends one or more {@link Packet}s to a {@link Server}.
      */
-    private static final CompletionHandler<Long, Client> PACKET_HANDLER = new CompletionHandler<Long, Client>() {
+    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
         @Override
-        public void completed(Long result, Client client) {
-
+        public void completed(Integer result, Client client) {
+            client.flush(client.outgoingPackets.size());
         }
 
         @Override
@@ -532,26 +531,31 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * it is called again.
      */
     public final void flush() {
+        flush(outgoingPackets.size());
+    }
+
+    private void flush(int i) {
+        if (i == 0) {
+            return;
+        }
+
         if (!channel.isOpen()) {
             outgoingPackets.clear();
             return;
         }
 
-        ByteBuffer[] buffers = outgoingPackets.toArray(new ByteBuffer[0]);
+        ByteBuffer raw = outgoingPackets.poll();
 
         if (encryption != null) {
             try {
-                for (ByteBuffer raw : buffers) {
-                    encryption.update(raw, raw.duplicate());
-                    raw.flip();
-                }
+                encryption.update(raw, raw.duplicate());
+                raw.flip();
             } catch (Exception e) {
                 throw new IllegalStateException("Exception occurred when encrypting:", e);
             }
         }
 
-        outgoingPackets.clear();
-        channel.write(buffers, 0, buffers.length, 30L, TimeUnit.SECONDS, this, PACKET_HANDLER);
+        channel.write(raw, this, PACKET_HANDLER);
     }
 
     /**

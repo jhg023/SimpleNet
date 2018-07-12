@@ -8,7 +8,7 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.1.2</version>
+    <version>1.1.3</version>
 </dependency>
 ```
  
