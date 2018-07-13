@@ -2,7 +2,9 @@
 An easy-to-use, event-driven, asynchronous, network application framework.
 
 # How can I start using SimpleNet?
- 1. SimpleNet has been deployed to Maven, and you can use the following to add it as a dependency:
+ 1. Add SimpleNet as a dependency using either Maven or Gradle:
+ 
+ Maven:
  
  ```xml
 <dependency>
@@ -11,6 +13,10 @@ An easy-to-use, event-driven, asynchronous, network application framework.
     <version>1.1.4</version>
 </dependency>
 ```
+
+Gradle:
+
+    compile 'com.github.jhg023:SimpleNet:1.1.4'
  
  2. To create a `Client`, you can use the following:
 ```java
