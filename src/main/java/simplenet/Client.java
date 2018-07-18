@@ -112,7 +112,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, Client client) {
-            client.getDisconnectListeners().forEach(Runnable::run);
             client.close();
         }
 
@@ -140,7 +139,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, Client client) {
-
+            client.close();
         }
     };
 
@@ -315,6 +314,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         } catch (AlreadyConnectedException e) {
             throw new IllegalStateException("This receiver is already connected!");
         }
+    }
+
+    @Override
+    public void close() {
+        getDisconnectListeners().forEach(Runnable::run);
+        Channeled.super.close();
     }
 
     /**

@@ -33,7 +33,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     /**
      * The backing {@link Channel} of the {@link Server}.
      */
-    private AsynchronousServerSocketChannel channel;
+    private final AsynchronousServerSocketChannel channel;
 
     /**
      * Instantiates a new {@link Server} by attempting
@@ -47,10 +47,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
 
     public Server(int bufferSize) {
         super(bufferSize);
-
-        if (channel != null) {
-            throw new IllegalStateException("Multiple server instances are not allowed!");
-        }
 
         try {
             channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withCachedThreadPool(SERVICE, 1));

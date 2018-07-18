@@ -10,13 +10,13 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.1.4</version>
+    <version>1.1.5</version>
 </dependency>
 ```
 
 Gradle:
 
-    compile 'com.github.jhg023:SimpleNet:1.1.4'
+    compile 'com.github.jhg023:SimpleNet:1.1.5'
  
  2. To create a `Client`, you can use the following:
 ```java
@@ -58,8 +58,8 @@ server.onConnect(client -> {
      * Because `readByteAlways` is used, this will loop when
      * the callback completes, but does not hang the main thread.
      */
-    client.readByteAlways(b -> {
-        switch (b) {
+    client.readByteAlways(opcode -> {
+        switch (opcode) {
             case 1:
                 client.readInt(System.out::println);
         }
