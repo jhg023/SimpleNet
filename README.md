@@ -10,13 +10,13 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.1.5</version>
+    <version>1.1.6</version>
 </dependency>
 ```
 
 Gradle:
 
-    compile 'com.github.jhg023:SimpleNet:1.1.5'
+    compile 'com.github.jhg023:SimpleNet:1.1.6'
  
  2. To create a `Client`, you can use the following:
 ```java

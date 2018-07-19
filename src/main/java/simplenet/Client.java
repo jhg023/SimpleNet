@@ -96,7 +96,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             client.prepend = false;
 
             if (peek != null) {
-                queue.addFirst(peek);
+                queue.addLast(peek);
             }
 
             if (size > 0) {
