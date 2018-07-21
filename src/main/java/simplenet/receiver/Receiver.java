@@ -16,13 +16,13 @@ public abstract class Receiver<T> {
      * Listeners that are fired when a {@link Client} connects
      * to a {@link Server}.
      */
-    private final Collection<T> connectListeners;
+    protected final Collection<T> connectListeners;
 
     /**
      * Listeners that are fired when a {@link Client} disconnects
      * to a {@link Server}.
      */
-    private final Collection<T> disconnectListeners;
+    protected final Collection<T> disconnectListeners;
 
     /**
      * Instantiates a new {@link Receiver} with a buffer capacity
@@ -57,42 +57,6 @@ public abstract class Receiver<T> {
      */
     public void onConnect(T listener) {
         connectListeners.add(listener);
-    }
-
-    /**
-     * Registers a listener that fires when a {@link Client}
-     * disconnects from a {@link Server}.
-     * <p>
-     * This listener is able to be used by both the {@link Client}
-     * and {@link Server}, but can be independent of one-another.
-     * <p>
-     * When calling this method more than once, multiple listeners
-     * are registered.
-     *
-     * @param listener A {@link T}.
-     */
-    public void onDisconnect(T listener) {
-        disconnectListeners.add(listener);
-    }
-
-    /**
-     * Gets a {@link Collection} of listeners that are fired when a
-     * {@link Client} connects to a {@link Server}.
-     *
-     * @return A {@link Collection}.
-     */
-    protected Collection<T> getConnectionListeners() {
-        return connectListeners;
-    }
-
-    /**
-     * Gets a {@link Collection} of listeners that are fired when a
-     * {@link Client} disconnects from a {@link Server}.
-     *
-     * @return A {@link Collection}.
-     */
-    protected Collection<T> getDisconnectListeners() {
-        return disconnectListeners;
     }
 
 }

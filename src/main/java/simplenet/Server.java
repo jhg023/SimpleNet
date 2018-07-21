@@ -80,7 +80,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             final Client.Listener listener = new Client.Listener() {
                 @Override
                 public void failed(Throwable t, Client client) {
-                    getDisconnectListeners().forEach(consumer -> consumer.accept(client));
+                    disconnectListeners.forEach(consumer -> consumer.accept(client));
                     client.close();
                 }
             };
@@ -89,7 +89,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
                     Client client = new Client(bufferSize, channel);
-                    getConnectionListeners().forEach(consumer -> consumer.accept(client));
+                    connectListeners.forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
                     channel.read(client.getBuffer(), client, listener);
                 }

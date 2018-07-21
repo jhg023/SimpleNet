@@ -10,21 +10,18 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.1.6</version>
+    <version>1.1.7</version>
 </dependency>
 ```
 
 Gradle:
 
-    compile 'com.github.jhg023:SimpleNet:1.1.6'
+    compile 'com.github.jhg023:SimpleNet:1.1.7'
  
  2. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
 Client client = new Client();
-
-// Attempt to connect to a server.
-client.connect("localhost", 43594);
 
 // Register one connection listener.
 client.onConnect(() -> {
@@ -36,6 +33,9 @@ client.onConnect(() -> {
 
 // Register one disconnection listener.
 client.onDisconnect(() -> System.out.println(client + " has disconnected from the server!"));
+
+// Attempt to connect to a server AFTER registering listeners.
+client.connect("localhost", 43594);
 ```
 
  3. To create a `Server`, you can use the following:
@@ -64,10 +64,10 @@ server.onConnect(client -> {
                 client.readInt(System.out::println);
         }
     });
-});
 
-// Register one disconnection listener.
-server.onDisconnect(client -> System.out.println(client + " has disconnected!"));
+    // Register one disconnection listener.
+    client.onDisconnect(() -> System.out.println(client + " has disconnected!"));
+});
 ```
 
  4. Congratulations, you're finished!

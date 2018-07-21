@@ -13,6 +13,7 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
@@ -125,23 +126,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             return INSTANCE;
         }
     }
-
-    /**
-     * The {@link CompletionHandler} used when this {@link Client}
-     * connects to a {@link Server}.
-     */
-    private static final CompletionHandler<Void, Client> CLIENT_LISTENER = new CompletionHandler<Void, Client>() {
-        @Override
-        public void completed(Void result, Client client) {
-            client.getConnectionListeners().forEach(Runnable::run);
-            client.channel.read(client.buffer, client, Listener.getInstance());
-        }
-
-        @Override
-        public void failed(Throwable t, Client client) {
-            client.close();
-        }
-    };
 
     /**
      * The {@link CompletionHandler} used when this {@link Client}
@@ -294,8 +278,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Attempts to connect to a {@link Server} with a
-     * specific {@code address} and {@code port}.
+     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
+     * and a default timeout of {@code 30} seconds.
      *
      * @param address The IP address to connect to.
      * @param port    The port to connect to {@code 0 <= port <= 65535}.
@@ -303,6 +287,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @throws AlreadyConnectedException If a {@link Client} is already connected to any address/port.
      */
     public final void connect(String address, int port) {
+        connect(address, port, 30L, TimeUnit.SECONDS, () -> {
+            System.err.println("Couldn't connect within 30 seconds!");
+        });
+    }
+
+    public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable runnable) {
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
@@ -310,16 +300,37 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         try {
-            channel.connect(new InetSocketAddress(address, port), this, CLIENT_LISTENER);
+            channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
+            connectListeners.forEach(Runnable::run);
+            channel.read(buffer, this, Listener.getInstance());
         } catch (AlreadyConnectedException e) {
             throw new IllegalStateException("This receiver is already connected!");
+        } catch (Exception e) {
+            runnable.run();
+            close();
         }
     }
 
     @Override
     public void close() {
-        getDisconnectListeners().forEach(Runnable::run);
+        disconnectListeners.forEach(Runnable::run);
         Channeled.super.close();
+    }
+
+    /**
+     * Registers a listener that fires when a {@link Client}
+     * disconnects from a {@link Server}.
+     * <p>
+     * This listener is able to be used by both the {@link Client}
+     * and {@link Server}, but can be independent of one-another.
+     * <p>
+     * When calling this method more than once, multiple listeners
+     * are registered.
+     *
+     * @param listener A {@link Runnable}.
+     */
+    public void onDisconnect(Runnable listener) {
+        disconnectListeners.add(listener);
     }
 
     /**
