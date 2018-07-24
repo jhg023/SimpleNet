@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -303,6 +304,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             channel.read(buffer, this, Listener.INSTANCE);
         } catch (AlreadyConnectedException e) {
             throw new IllegalStateException("This receiver is already connected!");
+        } catch (ExecutionException e) {
+            e.printStackTrace();
         } catch (Exception e) {
             runnable.run();
             close();
