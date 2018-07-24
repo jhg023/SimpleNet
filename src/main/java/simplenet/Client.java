@@ -1,5 +1,11 @@
 package simplenet;
 
+import simplenet.channel.Channeled;
+import simplenet.packet.Packet;
+import simplenet.receiver.Receiver;
+import simplenet.utility.IntPair;
+
+import javax.crypto.Cipher;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -21,11 +27,6 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import javax.crypto.Cipher;
-import simplenet.channel.Channeled;
-import simplenet.packet.Packet;
-import simplenet.receiver.Receiver;
-import simplenet.utility.IntPair;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -375,15 +376,32 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
         });
     }
-
-    public final byte readByte() {
+	
+	/**
+	 * A helper method to block until the {@link CompletableFuture} contains a value.
+	 *
+	 * @param future The {@link CompletableFuture} to wait for.
+	 * @param <T>    The type of the {@link CompletableFuture} and the return type.
+	 * @return The instance of {@code T} contained in the {@link CompletableFuture}.
+	 */
+	private <T> T read(CompletableFuture<T> future) {
+		try {
+			return future.get();
+		} catch (Exception e) {
+			throw new IllegalStateException("Blocking operation was cancelled!");
+		}
+	}
+	
+	/**
+	 * Reads a {@code byte} from the network, but blocks the executing thread
+	 * unlike {@link #readByte(Consumer)}.
+	 *
+	 * @return A {@code byte}.
+	 */
+	public final byte readByte() {
         CompletableFuture<Byte> future = new CompletableFuture<>();
-        readByte(future::complete);
-        try {
-            return future.get();
-        } catch (Exception e) {
-            throw new IllegalStateException("Blocking operation was cancelled!");
-        }
+		readByte(future::complete);
+        return read(future);
     }
 
     /**
@@ -407,8 +425,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readByteAlways(Consumer<Byte> consumer) {
         readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
-    }
-
+	}
+	
+	/**
+	 * Reads a {@code char} from the network, but blocks the executing thread
+	 * unlike {@link #readChar(Consumer)}.
+	 *
+	 * @return A {@code char}.
+	 */
+	public final char readChar() {
+		CompletableFuture<Character> future = new CompletableFuture<>();
+		readChar(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code char} and accepts a {@link Consumer}
      * with the {@code char} when it is received.
@@ -430,8 +460,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readCharAlways(Consumer<Character> consumer) {
         readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
-    }
-
+	}
+	
+	/**
+	 * Reads a {@code double} from the network, but blocks the executing thread
+	 * unlike {@link #readDouble(DoubleConsumer)}.
+	 *
+	 * @return A {@code double}.
+	 */
+	public final double readDouble() {
+		CompletableFuture<Double> future = new CompletableFuture<>();
+		readDouble(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code double} and accepts a {@link Consumer}
      * with the {@code double} when it is received.
@@ -453,8 +495,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readDoubleAlways(DoubleConsumer consumer) {
         readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
-    }
-
+	}
+	
+	/**
+	 * Reads a {@code float} from the network, but blocks the executing thread
+	 * unlike {@link #readFloat(Consumer)}.
+	 *
+	 * @return A {@code float}.
+	 */
+	public final float readFloat() {
+		CompletableFuture<Float> future = new CompletableFuture<>();
+		readFloat(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code float} and accepts a {@link Consumer}
      * with the {@code float} when it is received.
@@ -475,9 +529,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer<Float>}.
      */
     public final void readFloatAlways(Consumer<Float> consumer) {
-        readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
-    }
-
+		readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
+	}
+	
+	/**
+	 * Reads an {@code int} from the network, but blocks the executing thread
+	 * unlike {@link #readInt(IntConsumer)}.
+	 *
+	 * @return An {@code int}.
+	 */
+	public final int readInt() {
+		CompletableFuture<Integer> future = new CompletableFuture<>();
+		readInt(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code int} and accepts a {@link Consumer}
      * with the {@code int} when it is received.
@@ -498,9 +564,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer An {@link IntConsumer}.
      */
     public final void readIntAlways(IntConsumer consumer) {
-        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
-    }
-
+		readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+	}
+	
+	/**
+	 * Reads a {@code long} from the network, but blocks the executing thread
+	 * unlike {@link #readLong(LongConsumer)}.
+	 *
+	 * @return A {@code long}.
+	 */
+	public final long readLong() {
+		CompletableFuture<Long> future = new CompletableFuture<>();
+		readLong(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code long} and accepts a {@link Consumer}
      * with the {@code long} when it is received.
@@ -521,9 +599,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link LongConsumer}.
      */
     public final void readLongAlways(LongConsumer consumer) {
-        readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
-    }
-
+		readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
+	}
+	
+	/**
+	 * Reads a {@code short} from the network, but blocks the executing thread
+	 * unlike {@link #readShort(Consumer)}.
+	 *
+	 * @return A {@code short}.
+	 */
+	public final short readShort() {
+		CompletableFuture<Short> future = new CompletableFuture<>();
+		readShort(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@code short} and accepts a {@link Consumer}
      * with the {@code short} when it is received.
@@ -544,9 +634,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer<Short>}.
      */
     public final void readShortAlways(Consumer<Short> consumer) {
-        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-    }
-
+		readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+	}
+	
+	/**
+	 * Reads a {@link String} from the network, but blocks the executing thread
+	 * unlike {@link #readString(Consumer)}.
+	 *
+	 * @return A {@code String}.
+	 */
+	public final String readString() {
+		CompletableFuture<String> future = new CompletableFuture<>();
+		readString(future::complete);
+		return read(future);
+	}
+    
     /**
      * Requests a single {@link String} and accepts a {@link Consumer}
      * with the {@link String} when it is received.  A {@code short}
