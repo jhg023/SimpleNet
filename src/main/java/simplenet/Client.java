@@ -149,8 +149,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             t.printStackTrace();
         }
     };
-
-    private final AtomicBoolean writing;
+	
+	/**
+	 * A thread-safe method of keeping track whether this {@link Client}
+	 * is currently writing data to the network.
+	 */
+	private final AtomicBoolean writing;
 
     /**
      * The {@link ByteBuffer} that will hold data
@@ -290,9 +294,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         connect(address, port, 30L, TimeUnit.SECONDS, () -> {
             System.err.println("Couldn't connect within 30 seconds!");
         });
-    }
-
-    public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable runnable) {
+	}
+	
+	/**
+	 * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
+	 * and a specified timeout.  If the timeout is reached, then the {@link Runnable} is run and
+	 * the backing {@link AsynchronousSocketChannel} is closed.
+	 *
+	 * @param address   The IP address to connect to.
+	 * @param port      The port to connect to {@code 0 <= port <= 65535}.
+	 * @param timeout   The timeout value.
+	 * @param unit      The timeout unit.
+	 * @param onTimeout The {@link Runnable} that runs if this connection attempt times out.
+	 */
+	public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable onTimeout) {
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
@@ -307,8 +322,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalStateException("This receiver is already connected!");
         } catch (ExecutionException e) {
             e.printStackTrace();
-        } catch (Exception e) {
-            runnable.run();
+		} catch (Exception e) {
+            onTimeout.run();
             close();
         }
     }
