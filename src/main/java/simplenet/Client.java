@@ -12,6 +12,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,6 +52,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 return;
             }
 
+            client.size += result;
+
             ByteBuffer buffer = (ByteBuffer) client.buffer.flip();
             Deque<IntPair<Consumer<ByteBuffer>>> queue = client.queue;
             IntPair<Consumer<ByteBuffer>> peek = queue.pollLast();
@@ -66,10 +69,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             boolean decrypt = client.decryption != null;
 
             int key;
-            int size = buffer.remaining();
             Deque<IntPair<Consumer<ByteBuffer>>> stack = client.stack;
 
-            while (size >= (key = peek.getKey())) {
+            while (client.size >= (key = peek.getKey())) {
                 if (decrypt) {
                     try {
                         int position = buffer.position();
@@ -83,7 +85,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                 peek.getValue().accept(buffer);
 
-                size -= key;
+                client.size -= key;
 
                 while (!stack.isEmpty()) {
                     queue.offer(stack.poll());
@@ -100,7 +102,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 queue.addLast(peek);
             }
 
-            if (size > 0) {
+            if (client.size > 0) {
                 buffer.compact();
             } else {
                 buffer.flip();
@@ -114,16 +116,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         @Override
         public void failed(Throwable t, Client client) {
             client.close();
-        }
-
-        /**
-         * Gets the single instance of this class.
-         *
-         * @return
-         *      A {@link Listener}.
-         */
-        static Listener getInstance() {
-            return INSTANCE;
         }
     }
 
@@ -174,6 +166,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * should be added to the front rather than the back.
      */
     private boolean prepend;
+
+    /**
+     * The amount of readable {@code byte}s that currently exist
+     * within this {@link Client}'s {@code buffer}.
+     */
+    private int size;
 
     /**
      * The {@link Cipher} used for {@link Packet} encryption.
@@ -302,7 +300,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
             connectListeners.forEach(Runnable::run);
-            channel.read(buffer, this, Listener.getInstance());
+            channel.read(buffer, this, Listener.INSTANCE);
         } catch (AlreadyConnectedException e) {
             throw new IllegalStateException("This receiver is already connected!");
         } catch (Exception e) {
@@ -341,6 +339,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer<ByteBuffer>}.
      */
     public final void read(int n, Consumer<ByteBuffer> consumer) {
+        if (size >= n) {
+            size -= n;
+            consumer.accept(buffer);
+            return;
+        }
+
         if (prepend) {
             stack.addFirst(new IntPair<>(n, consumer));
         } else {
@@ -367,6 +371,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 read(n, this);
             }
         });
+    }
+
+    public final byte readByte() {
+        CompletableFuture<Byte> future = new CompletableFuture<>();
+        readByte(future::complete);
+        try {
+            return future.get();
+        } catch (Exception e) {
+            throw new IllegalStateException("Blocking operation was cancelled!");
+        }
     }
 
     /**

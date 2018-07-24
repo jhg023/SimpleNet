@@ -10,7 +10,6 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import simplenet.channel.Channeled;
@@ -23,12 +22,6 @@ import simplenet.receiver.Receiver;
  * @since November 1, 2017
  */
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
-
-    /**
-     * The cached thread pool that all {@link Server}s will use for I/O,
-     * even though it's ideal to only have a single server running on a machine.
-     */
-    private static final ExecutorService SERVICE = Executors.newCachedThreadPool();
 
     /**
      * The backing {@link Channel} of the {@link Server}.
@@ -49,7 +42,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         super(bufferSize);
 
         try {
-            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withCachedThreadPool(SERVICE, 1));
+            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
