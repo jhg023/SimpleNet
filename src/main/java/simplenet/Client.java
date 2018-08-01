@@ -1,11 +1,5 @@
 package simplenet;
 
-import simplenet.channel.Channeled;
-import simplenet.packet.Packet;
-import simplenet.receiver.Receiver;
-import simplenet.utility.IntPair;
-
-import javax.crypto.Cipher;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -27,6 +21,11 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import javax.crypto.Cipher;
+import simplenet.channel.Channeled;
+import simplenet.packet.Packet;
+import simplenet.receiver.Receiver;
+import simplenet.utility.IntPair;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -85,9 +84,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
                 }
 
-                peek.getValue().accept(buffer);
-
                 client.size -= key;
+
+                peek.getValue().accept(buffer);
 
                 while (!stack.isEmpty()) {
                     queue.offer(stack.poll());
