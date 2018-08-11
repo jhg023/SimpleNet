@@ -11,12 +11,13 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.1.9</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>SimpleNet</name>
     <description>An easy-to-use, event-driven, asynchronous,
-        network application framework. </description>
+        network application framework.
+    </description>
     <url>https://github.com/jhg023/SimpleNet</url>
 
     <licenses>

@@ -208,30 +208,15 @@ public final class Packet {
      * or more of the headers depend on the size of the data
      * contained within the {@link Packet} itself.
      *
-     * @param runnable
-     *      The {@link Runnable} containing calls to add
-     *      more data to this {@link Packet}.
-     * @return
-     *      The {@link Packet} to allow for chained writes.
+     * @param runnable The {@link Runnable} containing calls to add
+     *                 more data to this {@link Packet}.
+     * @return The {@link Packet} to allow for chained writes.
      */
     public Packet prepend(Runnable runnable) {
         prepend = true;
         runnable.run();
         prepend = false;
         return this;
-    }
-
-    /**
-     * Builds this {@link Packet}'s data into a {@link ByteBuffer}
-     * for use in {@link #write(Client...)} and {@link #writeAndFlush(Client...)}.
-     *
-     * @return
-     *      A {@link ByteBuffer}.
-     */
-    private ByteBuffer build() {
-        ByteBuffer buffer = ByteBuffer.allocateDirect(size);
-        queue.forEach(consumer -> consumer.accept(buffer));
-        return (ByteBuffer) buffer.flip();
     }
 
     /**
@@ -247,10 +232,8 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        ByteBuffer payload = build();
-
         for (Client client : clients) {
-            client.getOutgoingPackets().offer(payload);
+            client.getOutgoingPackets().offer(this);
         }
     }
 
@@ -266,10 +249,8 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one channel!");
         }
 
-        ByteBuffer payload = build();
-
         for (Client client : clients) {
-            client.getOutgoingPackets().offer(payload);
+            client.getOutgoingPackets().offer(this);
             client.flush();
         }
     }
@@ -277,11 +258,19 @@ public final class Packet {
     /**
      * Gets the number of bytes in this {@link Packet}'s payload.
      *
-     * @return
-     *      The current size of this {@link Packet} measured in bytes.
+     * @return The current size of this {@link Packet} measured in bytes.
      */
     public int getSize() {
         return size;
+    }
+
+    /**
+     * Gets the backing queue of this {@link Packet}.
+     *
+     * @return A {@link Deque<Consumer<ByteBuffer>>}.
+     */
+    public Deque<Consumer<ByteBuffer>> getQueue() {
+        return queue;
     }
 
 }

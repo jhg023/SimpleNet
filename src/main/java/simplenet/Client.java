@@ -36,8 +36,7 @@ import simplenet.utility.IntPair;
 public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel> {
 
     /**
-     * The {@link CompletionHandler} used to process bytes
-     * when they are received by this {@link Client}.
+     * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
      */
     static class Listener implements CompletionHandler<Integer, Client> {
 
@@ -121,8 +120,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * The {@link CompletionHandler} used when this {@link Client}
-     * sends one or more {@link Packet}s to a {@link Server}.
+     * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s
+     * to a {@link Server}.
      */
     private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
         @Override
@@ -148,16 +147,15 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             t.printStackTrace();
         }
     };
-	
-	/**
-	 * A thread-safe method of keeping track whether this {@link Client}
-	 * is currently writing data to the network.
-	 */
-	private final AtomicBoolean writing;
 
     /**
-     * The {@link ByteBuffer} that will hold data
-     * sent by the {@link Client} or {@link Server}.
+     * A thread-safe method of keeping track whether this {@link Client} is currently writing data
+     * to the network.
+     */
+    private final AtomicBoolean writing;
+
+    /**
+     * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
      */
     private final ByteBuffer buffer;
 
@@ -167,14 +165,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final AsynchronousSocketChannel channel;
 
     /**
-     * Whether or not new elements added {@code queue}
-     * should be added to the front rather than the back.
+     * Whether or not new elements added {@code queue} should be added to the front rather than the back.
      */
     private boolean prepend;
 
     /**
-     * The amount of readable {@code byte}s that currently exist
-     * within this {@link Client}'s {@code buffer}.
+     * The amount of readable {@code byte}s that currently exist within this {@link Client}'s {@code buffer}.
      */
     private int size;
 
@@ -191,39 +187,35 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
-    private final Queue<ByteBuffer> outgoingPackets;
+    private final Queue<Packet> outgoingPackets;
 
     /**
-     * A {@link Queue} to manage {@link Packet}s that should be
-     * flushed as soon as possible.
+     * A {@link Queue} to manage {@link Packet}s that should be flushed as soon as possible.
      */
     private final Queue<ByteBuffer> packetsToFlush;
 
     /**
-     * The {@link Deque} that keeps track of nested calls
-     * to {@link Client#read(int, Consumer)} and assures that they
-     * will complete in the expected order.
+     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)}
+     * and assures that they will complete in the expected order.
      */
     private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
 
     /**
-     * The {@link Deque} used when requesting a certain
-     * amount of bytes from the {@link Client} or {@link Server}.
+     * The {@link Deque} used when requesting a certain amount of bytes from the {@link Client} or
+     * {@link Server}.
      */
     private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
     /**
-     * Instantiates a new {@link Client} by attempting
-     * to open the backing {@link AsynchronousSocketChannel}
-     * with a default buffer size of {@code 4096} bytes.
+     * Instantiates a new {@link Client} by attempting to open the backing
+     * {@link AsynchronousSocketChannel} with a default buffer size of {@code 4096} bytes.
      */
     public Client() {
         this(4096);
     }
 
     /**
-     * Instantiates a new {@link Client} by attempting
-     * to open the backing {@link AsynchronousSocketChannel}
+     * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel}
      * with a provided buffer size in bytes.
      *
      * @param bufferSize The size of this {@link Client}'s buffer, in bytes.
@@ -233,8 +225,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Instantiates a new {@link Client} with an existing
-     * {@link AsynchronousSocketChannel} with a provided
+     * Instantiates a new {@link Client} with an existing {@link AsynchronousSocketChannel} with a provided
      * buffer size in bytes.
      *
      * @param bufferSize The size of this {@link Client}'s buffer, in bytes.
@@ -293,20 +284,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         connect(address, port, 30L, TimeUnit.SECONDS, () -> {
             System.err.println("Couldn't connect within 30 seconds!");
         });
-	}
-	
-	/**
-	 * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
-	 * and a specified timeout.  If the timeout is reached, then the {@link Runnable} is run and
-	 * the backing {@link AsynchronousSocketChannel} is closed.
-	 *
-	 * @param address   The IP address to connect to.
-	 * @param port      The port to connect to {@code 0 <= port <= 65535}.
-	 * @param timeout   The timeout value.
-	 * @param unit      The timeout unit.
-	 * @param onTimeout The {@link Runnable} that runs if this connection attempt times out.
-	 */
-	public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable onTimeout) {
+    }
+
+    /**
+     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
+     * and a specified timeout.  If the timeout is reached, then the {@link Runnable} is run and
+     * the backing {@link AsynchronousSocketChannel} is closed.
+     *
+     * @param address   The IP address to connect to.
+     * @param port      The port to connect to {@code 0 <= port <= 65535}.
+     * @param timeout   The timeout value.
+     * @param unit      The timeout unit.
+     * @param onTimeout The {@link Runnable} that runs if this connection attempt times out.
+     */
+    public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable onTimeout) {
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
@@ -321,7 +312,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalStateException("This receiver is already connected!");
         } catch (ExecutionException e) {
             e.printStackTrace();
-		} catch (Exception e) {
+        } catch (Exception e) {
             onTimeout.run();
             close();
         }
@@ -334,14 +325,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Registers a listener that fires when a {@link Client}
-     * disconnects from a {@link Server}.
+     * Registers a listener that fires when a {@link Client} disconnects from a {@link Server}.
      * <p>
-     * This listener is able to be used by both the {@link Client}
-     * and {@link Server}, but can be independent of one-another.
+     * This listener is able to be used by both the {@link Client} and {@link Server}, but can
+     * be independent of one-another.
      * <p>
-     * When calling this method more than once, multiple listeners
-     * are registered.
+     * Calling this method more than once registers multiple listeners.
      *
      * @param listener A {@link Runnable}.
      */
@@ -350,8 +339,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Requests {@code n} bytes and accepts a {@link Consumer<ByteBuffer>}
-     * holding the {@code n} bytes once received.
+     * Requests {@code n} bytes and accepts a {@link Consumer<ByteBuffer>} holding the {@code n}
+     * bytes once received.
      *
      * @param n        The number of bytes requested.
      * @param consumer A {@link Consumer<ByteBuffer>}.
@@ -371,11 +360,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Calls {@link #read(int, Consumer)}, however once
-     * finished, {@link #read(int, Consumer)} is called once
-     * again with the same parameters; this loops indefinitely
-     * whereas {@link #read(int, Consumer)} completes after
-     * a single iteration.
+     * Calls {@link #read(int, Consumer)}, however once finished, {@link #read(int, Consumer)}
+     * is called once again with the same parameters; this loops indefinitely whereas
+     * {@link #read(int, Consumer)} completes after a single iteration.
      *
      * @param n        The number of bytes requested.
      * @param consumer Holds the operations that should be performed once
@@ -390,37 +377,37 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
         });
     }
-	
-	/**
-	 * A helper method to block until the {@link CompletableFuture} contains a value.
-	 *
-	 * @param future The {@link CompletableFuture} to wait for.
-	 * @param <T>    The type of the {@link CompletableFuture} and the return type.
-	 * @return The instance of {@code T} contained in the {@link CompletableFuture}.
-	 */
-	private <T> T read(CompletableFuture<T> future) {
-		try {
-			return future.get();
-		} catch (Exception e) {
-			throw new IllegalStateException("Blocking operation was cancelled!");
-		}
-	}
-	
-	/**
-	 * Reads a {@code byte} from the network, but blocks the executing thread
-	 * unlike {@link #readByte(Consumer)}.
-	 *
-	 * @return A {@code byte}.
-	 */
-	public final byte readByte() {
+
+    /**
+     * A helper method to block until the {@link CompletableFuture} contains a value.
+     *
+     * @param future The {@link CompletableFuture} to wait for.
+     * @param <T>    The type of the {@link CompletableFuture} and the return type.
+     * @return The instance of {@code T} contained in the {@link CompletableFuture}.
+     */
+    private <T> T read(CompletableFuture<T> future) {
+        try {
+            return future.get();
+        } catch (Exception e) {
+            throw new IllegalStateException("Blocking operation was cancelled!");
+        }
+    }
+
+    /**
+     * Reads a {@code byte} from the network, but blocks the executing thread unlike
+     * {@link #readByte(Consumer)}.
+     *
+     * @return A {@code byte}.
+     */
+    public final byte readByte() {
         CompletableFuture<Byte> future = new CompletableFuture<>();
-		readByte(future::complete);
+        readByte(future::complete);
         return read(future);
     }
 
     /**
-     * Requests a single {@code byte} and accepts a {@link Consumer}
-     * with the {@code byte} when it is received.
+     * Requests a single {@code byte} and accepts a {@link Consumer} with the {@code byte}
+     * when it is received.
      *
      * @param consumer A {@link Consumer<Byte>}.
      */
@@ -429,33 +416,31 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Calls {@link #readByte(Consumer)}, however once
-     * finished, {@link #readByte(Consumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readByte(Consumer)} completes after
-     * a single iteration.
+     * Calls {@link #readByte(Consumer)}, however once finished, {@link #readByte(Consumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readByte(Consumer)} completes after a single iteration.
      *
      * @param consumer A {@link Consumer<Byte>}.
      */
     public final void readByteAlways(Consumer<Byte> consumer) {
         readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
-	}
-	
-	/**
-	 * Reads a {@code char} from the network, but blocks the executing thread
-	 * unlike {@link #readChar(Consumer)}.
-	 *
-	 * @return A {@code char}.
-	 */
-	public final char readChar() {
-		CompletableFuture<Character> future = new CompletableFuture<>();
-		readChar(future::complete);
-		return read(future);
-	}
-    
+    }
+
     /**
-     * Requests a single {@code char} and accepts a {@link Consumer}
-     * with the {@code char} when it is received.
+     * Reads a {@code char} from the network, but blocks the executing thread unlike
+     * {@link #readChar(Consumer)}.
+     *
+     * @return A {@code char}.
+     */
+    public final char readChar() {
+        CompletableFuture<Character> future = new CompletableFuture<>();
+        readChar(future::complete);
+        return read(future);
+    }
+
+    /**
+     * Requests a single {@code char} and accepts a {@link Consumer} with the {@code char}
+     * when it is received.
      *
      * @param consumer A {@link Consumer<Character>}.
      */
@@ -474,20 +459,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readCharAlways(Consumer<Character> consumer) {
         readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
-	}
-	
-	/**
-	 * Reads a {@code double} from the network, but blocks the executing thread
-	 * unlike {@link #readDouble(DoubleConsumer)}.
-	 *
-	 * @return A {@code double}.
-	 */
-	public final double readDouble() {
-		CompletableFuture<Double> future = new CompletableFuture<>();
-		readDouble(future::complete);
-		return read(future);
-	}
-    
+    }
+
+    /**
+     * Reads a {@code double} from the network, but blocks the executing thread
+     * unlike {@link #readDouble(DoubleConsumer)}.
+     *
+     * @return A {@code double}.
+     */
+    public final double readDouble() {
+        CompletableFuture<Double> future = new CompletableFuture<>();
+        readDouble(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@code double} and accepts a {@link Consumer}
      * with the {@code double} when it is received.
@@ -509,20 +494,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readDoubleAlways(DoubleConsumer consumer) {
         readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
-	}
-	
-	/**
-	 * Reads a {@code float} from the network, but blocks the executing thread
-	 * unlike {@link #readFloat(Consumer)}.
-	 *
-	 * @return A {@code float}.
-	 */
-	public final float readFloat() {
-		CompletableFuture<Float> future = new CompletableFuture<>();
-		readFloat(future::complete);
-		return read(future);
-	}
-    
+    }
+
+    /**
+     * Reads a {@code float} from the network, but blocks the executing thread
+     * unlike {@link #readFloat(Consumer)}.
+     *
+     * @return A {@code float}.
+     */
+    public final float readFloat() {
+        CompletableFuture<Float> future = new CompletableFuture<>();
+        readFloat(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@code float} and accepts a {@link Consumer}
      * with the {@code float} when it is received.
@@ -543,21 +528,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer<Float>}.
      */
     public final void readFloatAlways(Consumer<Float> consumer) {
-		readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
-	}
-	
-	/**
-	 * Reads an {@code int} from the network, but blocks the executing thread
-	 * unlike {@link #readInt(IntConsumer)}.
-	 *
-	 * @return An {@code int}.
-	 */
-	public final int readInt() {
-		CompletableFuture<Integer> future = new CompletableFuture<>();
-		readInt(future::complete);
-		return read(future);
-	}
-    
+        readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
+    }
+
+    /**
+     * Reads an {@code int} from the network, but blocks the executing thread
+     * unlike {@link #readInt(IntConsumer)}.
+     *
+     * @return An {@code int}.
+     */
+    public final int readInt() {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        readInt(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@code int} and accepts a {@link Consumer}
      * with the {@code int} when it is received.
@@ -578,21 +563,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer An {@link IntConsumer}.
      */
     public final void readIntAlways(IntConsumer consumer) {
-		readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
-	}
-	
-	/**
-	 * Reads a {@code long} from the network, but blocks the executing thread
-	 * unlike {@link #readLong(LongConsumer)}.
-	 *
-	 * @return A {@code long}.
-	 */
-	public final long readLong() {
-		CompletableFuture<Long> future = new CompletableFuture<>();
-		readLong(future::complete);
-		return read(future);
-	}
-    
+        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
+    }
+
+    /**
+     * Reads a {@code long} from the network, but blocks the executing thread
+     * unlike {@link #readLong(LongConsumer)}.
+     *
+     * @return A {@code long}.
+     */
+    public final long readLong() {
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        readLong(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@code long} and accepts a {@link Consumer}
      * with the {@code long} when it is received.
@@ -613,21 +598,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link LongConsumer}.
      */
     public final void readLongAlways(LongConsumer consumer) {
-		readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
-	}
-	
-	/**
-	 * Reads a {@code short} from the network, but blocks the executing thread
-	 * unlike {@link #readShort(Consumer)}.
-	 *
-	 * @return A {@code short}.
-	 */
-	public final short readShort() {
-		CompletableFuture<Short> future = new CompletableFuture<>();
-		readShort(future::complete);
-		return read(future);
-	}
-    
+        readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
+    }
+
+    /**
+     * Reads a {@code short} from the network, but blocks the executing thread
+     * unlike {@link #readShort(Consumer)}.
+     *
+     * @return A {@code short}.
+     */
+    public final short readShort() {
+        CompletableFuture<Short> future = new CompletableFuture<>();
+        readShort(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@code short} and accepts a {@link Consumer}
      * with the {@code short} when it is received.
@@ -648,21 +633,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer<Short>}.
      */
     public final void readShortAlways(Consumer<Short> consumer) {
-		readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-	}
-	
-	/**
-	 * Reads a {@link String} from the network, but blocks the executing thread
-	 * unlike {@link #readString(Consumer)}.
-	 *
-	 * @return A {@code String}.
-	 */
-	public final String readString() {
-		CompletableFuture<String> future = new CompletableFuture<>();
-		readString(future::complete);
-		return read(future);
-	}
-    
+        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
+    }
+
+    /**
+     * Reads a {@link String} from the network, but blocks the executing thread
+     * unlike {@link #readString(Consumer)}.
+     *
+     * @return A {@code String}.
+     */
+    public final String readString() {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        readString(future::complete);
+        return read(future);
+    }
+
     /**
      * Requests a single {@link String} and accepts a {@link Consumer}
      * with the {@link String} when it is received.  A {@code short}
@@ -707,54 +692,39 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * it is called again.
      */
     public final synchronized void flush() {
-        for (int i = 0; i < outgoingPackets.size(); i++) {
-            ByteBuffer raw = outgoingPackets.poll();
+        ByteBuffer raw = ByteBuffer.allocateDirect(outgoingPackets.stream().mapToInt(Packet::getSize).sum());
 
-            if (encryption != null) {
-                try {
-                    encryption.update(raw, raw.duplicate());
-                    raw.flip();
-                } catch (Exception e) {
-                    throw new IllegalStateException("Exception occurred when encrypting:", e);
-                }
-            }
+        Packet packet;
 
-            if (!writing.getAndSet(true)) {
-                channel.write(raw, this, PACKET_HANDLER);
-            } else {
-                packetsToFlush.offer(raw);
+        while ((packet = outgoingPackets.poll()) != null) {
+            packet.getQueue().forEach(consumer -> consumer.accept(raw));
+        }
+
+        raw.flip();
+
+        if (encryption != null) {
+            try {
+                encryption.update(raw, raw.duplicate());
+                raw.flip();
+            } catch (Exception e) {
+                throw new IllegalStateException("Exception occurred when encrypting:", e);
             }
+        }
+
+        if (!writing.getAndSet(true)) {
+            channel.write(raw, this, PACKET_HANDLER);
+        } else {
+            packetsToFlush.offer(raw);
         }
     }
 
     /**
-     * Gets the {@link Deque} that holds information
-     * regarding requested bytes by this {@link Client}.
-     *
-     * @return A {@link Deque}.
-     */
-    private Deque<IntPair<Consumer<ByteBuffer>>> getQueue() {
-        return queue;
-    }
-
-    /**
-     * Gets the {@link Deque} that keeps track of nested
-     * calls to {@link Client#read(int, Consumer)}.
-     *
-     * @return A {@link Deque}.
-     */
-    private Deque<IntPair<Consumer<ByteBuffer>>> getStack() {
-        return stack;
-    }
-
-    /**
-     * Gets the {@link Queue} that manages outgoing
-     * {@link Packet}s before writing them to the
+     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the
      * {@link Channel}.
      *
      * @return A {@link Queue}.
      */
-    public Queue<ByteBuffer> getOutgoingPackets() {
+    public Queue<Packet> getOutgoingPackets() {
         return outgoingPackets;
     }
 
