@@ -18,10 +18,18 @@ Gradle:
 
     compile 'com.github.jhg023:SimpleNet:1.2.2'
  
- 2. To create a `Client`, you can use the following:
+ 2. Because SimpleNet is compiled with Java 11, you must first require its module in your `module-info.java`:
+ 
+ ```java
+ module MyProject {
+     requires SimpleNet;
+ }
+ ```
+ 
+ 3. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
-Client client = new Client();
+var client = new Client();
 
 // Register one connection listener.
 client.onConnect(() -> {
@@ -38,11 +46,11 @@ client.onDisconnect(() -> System.out.println(client + " has disconnected from th
 client.connect("localhost", 43594);
 ```
 
- 3. To create a `Server`, you can use the following:
+ 4. To create a `Server`, you can use the following:
 
 ```java
 // Instantiate a new Server.
-Server server = new Server();
+var server = new Server();
 
 // Bind the server to an address and port.
 server.bind("localhost", 43594);
@@ -70,4 +78,4 @@ server.onConnect(client -> {
 });
 ```
 
- 4. Congratulations, you're finished!
+ 5. Congratulations, you're finished!
