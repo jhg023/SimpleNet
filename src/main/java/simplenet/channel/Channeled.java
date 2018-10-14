@@ -6,8 +6,7 @@ import java.nio.channels.Channel;
 import simplenet.receiver.Receiver;
 
 /**
- * An {@code interface} that denotes an entity as
- * having a backing {@link Channel}.
+ * An {@code interface} that denotes an entity as having a backing {@link Channel}.
  *
  * @author Jacob G.
  * @since November 6, 2017
@@ -30,7 +29,7 @@ public interface Channeled<T extends AsynchronousChannel> {
         try {
             getChannel().close();
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to close the channel!");
+            throw new IllegalStateException("Unable to close the channel!", e);
         }
     }
 

@@ -10,7 +10,9 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import simplenet.channel.Channeled;
 import simplenet.receiver.Receiver;
@@ -22,6 +24,11 @@ import simplenet.receiver.Receiver;
  * @since November 1, 2017
  */
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+
+    /**
+     * The backing {@link ExecutorService} used for I/O.
+     */
+    private final ExecutorService service;
 
     /**
      * The backing {@link Channel} of the {@link Server}.
@@ -42,7 +49,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         super(bufferSize);
 
         try {
-            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())));
+            service = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(service));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
@@ -81,7 +89,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    Client client = new Client(bufferSize, channel);
+                    var client = new Client(bufferSize, channel);
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
                     channel.read(client.getBuffer(), client, listener);
@@ -99,6 +107,19 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         } catch (IOException e) {
             throw new IllegalStateException("Unable to bind the server!");
         }
+    }
+
+    @Override
+    public void close() {
+        this.service.shutdown();
+
+        try {
+            this.service.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Thread was interrupted:", e);
+        }
+
+        Channeled.super.close();
     }
 
     /**

@@ -32,9 +32,8 @@ public abstract class Receiver<T> {
      */
     protected Receiver(int bufferSize) {
         this.bufferSize = bufferSize;
-
-        connectListeners = new ArrayList<>();
-        disconnectListeners = new ArrayList<>();
+        this.connectListeners = new ArrayList<>();
+        this.disconnectListeners = new ArrayList<>();
     }
 
     protected Receiver(Receiver<T> receiver) {
@@ -57,6 +56,10 @@ public abstract class Receiver<T> {
      */
     public void onConnect(T listener) {
         connectListeners.add(listener);
+    }
+
+    public int getBufferSize() {
+        return bufferSize;
     }
 
 }

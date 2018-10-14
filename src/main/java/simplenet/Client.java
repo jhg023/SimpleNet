@@ -13,7 +13,7 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,6 +47,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void completed(Integer result, Client client) {
+            // A result of -1 normally means that the end-of-stream has been
+            // reached. In that case, close the client's connection.
             if (result == -1) {
                 client.close();
                 return;
@@ -54,13 +56,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
             client.size += result;
 
-            ByteBuffer buffer = (ByteBuffer) client.buffer.flip();
-            Deque<IntPair<Consumer<ByteBuffer>>> queue = client.queue;
-            IntPair<Consumer<ByteBuffer>> peek = queue.pollLast();
+            var buffer = client.buffer.flip();
+            var queue = client.queue;
 
-            if (peek == null) {
-                buffer.flip().limit(buffer.capacity());
-                client.channel.read(buffer, client, this);
+            IntPair<Consumer<ByteBuffer>> peek;
+
+            if ((peek = queue.pollLast()) == null) {
+                client.channel.read(buffer.flip().limit(buffer.capacity()), client, this);
                 return;
             }
 
@@ -68,8 +70,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
             boolean decrypt = client.decryption != null;
 
+            var stack = client.stack;
+
             int key;
-            Deque<IntPair<Consumer<ByteBuffer>>> stack = client.stack;
 
             while (client.size >= (key = peek.getKey())) {
                 if (decrypt) {
@@ -108,9 +111,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 buffer.flip();
             }
 
-            buffer.limit(buffer.capacity());
-
-            client.channel.read(buffer, client, this);
+            client.channel.read(buffer.limit(buffer.capacity()), client, this);
         }
 
         @Override
@@ -123,7 +124,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s
      * to a {@link Server}.
      */
-    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<Integer, Client>() {
+    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<>() {
         @Override
         public void completed(Integer result, Client client) {
             if (!client.channel.isOpen()) {
@@ -132,7 +133,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 return;
             }
 
-            ByteBuffer payload = client.packetsToFlush.poll();
+            var payload = client.packetsToFlush.pollLast();
 
             if (payload == null) {
                 client.writing.set(false);
@@ -190,9 +191,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final Queue<Packet> outgoingPackets;
 
     /**
-     * A {@link Queue} to manage {@link Packet}s that should be flushed as soon as possible.
+     * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
      */
-    private final Queue<ByteBuffer> packetsToFlush;
+    private final Deque<ByteBuffer> packetsToFlush;
 
     /**
      * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)}
@@ -236,7 +237,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         writing = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
-        packetsToFlush = new ConcurrentLinkedQueue<>();
+        packetsToFlush = new ConcurrentLinkedDeque<>();
         queue = new ArrayDeque<>();
         stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
@@ -249,6 +250,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         try {
             this.channel = AsynchronousSocketChannel.open();
             this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
+            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
@@ -339,11 +341,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Requests {@code n} bytes and accepts a {@link Consumer<ByteBuffer>} holding the {@code n}
+     * Requests {@code n} bytes and accepts a {@link Consumer} holding the {@code n}
      * bytes once received.
      *
      * @param n        The number of bytes requested.
-     * @param consumer A {@link Consumer<ByteBuffer>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void read(int n, Consumer<ByteBuffer> consumer) {
         if (size >= n) {
@@ -369,7 +371,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *                 the {@code n} bytes are received.
      */
     public final void readAlways(int n, Consumer<ByteBuffer> consumer) {
-        read(n, new Consumer<ByteBuffer>() {
+        read(n, new Consumer<>() {
             @Override
             public void accept(ByteBuffer buffer) {
                 consumer.accept(buffer);
@@ -386,11 +388,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return The instance of {@code T} contained in the {@link CompletableFuture}.
      */
     private <T> T read(CompletableFuture<T> future) {
-        try {
-            return future.get();
-        } catch (Exception e) {
-            throw new IllegalStateException("Blocking operation was cancelled!");
-        }
+        return future.join();
     }
 
     /**
@@ -400,7 +398,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code byte}.
      */
     public final byte readByte() {
-        CompletableFuture<Byte> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Byte>();
         readByte(future::complete);
         return read(future);
     }
@@ -409,7 +407,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Requests a single {@code byte} and accepts a {@link Consumer} with the {@code byte}
      * when it is received.
      *
-     * @param consumer A {@link Consumer<Byte>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readByte(Consumer<Byte> consumer) {
         read(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
@@ -420,7 +418,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * is called once again with the same parameter; this loops indefinitely whereas
      * {@link #readByte(Consumer)} completes after a single iteration.
      *
-     * @param consumer A {@link Consumer<Byte>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readByteAlways(Consumer<Byte> consumer) {
         readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
@@ -433,7 +431,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code char}.
      */
     public final char readChar() {
-        CompletableFuture<Character> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Character>();
         readChar(future::complete);
         return read(future);
     }
@@ -442,7 +440,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Requests a single {@code char} and accepts a {@link Consumer} with the {@code char}
      * when it is received.
      *
-     * @param consumer A {@link Consumer<Character>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readChar(Consumer<Character> consumer) {
         read(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
@@ -455,7 +453,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * whereas {@link #readChar(Consumer)} completes after
      * a single iteration.
      *
-     * @param consumer A {@link Consumer<Character>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readCharAlways(Consumer<Character> consumer) {
         readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
@@ -468,7 +466,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code double}.
      */
     public final double readDouble() {
-        CompletableFuture<Double> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Double>();
         readDouble(future::complete);
         return read(future);
     }
@@ -503,7 +501,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code float}.
      */
     public final float readFloat() {
-        CompletableFuture<Float> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Float>();
         readFloat(future::complete);
         return read(future);
     }
@@ -512,20 +510,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Requests a single {@code float} and accepts a {@link Consumer}
      * with the {@code float} when it is received.
      *
-     * @param consumer A {@link Consumer<Float>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readFloat(Consumer<Float> consumer) {
         read(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
     }
 
     /**
-     * Calls {@link #readFloat(Consumer)}, however once
-     * finished, {@link #readFloat(Consumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readFloat(Consumer)} completes after
-     * a single iteration.
+     * Calls {@link #readFloat(Consumer)}, however once finished, {@link #readFloat(Consumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readFloat(Consumer)} completes after a single iteration.
      *
-     * @param consumer A {@link Consumer<Float>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readFloatAlways(Consumer<Float> consumer) {
         readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
@@ -538,7 +534,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return An {@code int}.
      */
     public final int readInt() {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Integer>();
         readInt(future::complete);
         return read(future);
     }
@@ -573,7 +569,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code long}.
      */
     public final long readLong() {
-        CompletableFuture<Long> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Long>();
         readLong(future::complete);
         return read(future);
     }
@@ -589,11 +585,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Calls {@link #readLong(LongConsumer)}, however once
-     * finished, {@link #readLong(LongConsumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readLong(LongConsumer)} completes after
-     * a single iteration.
+     * Calls {@link #readLong(LongConsumer)}, however once finished, {@link #readLong(LongConsumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readLong(LongConsumer)} completes after a single iteration.
      *
      * @param consumer A {@link LongConsumer}.
      */
@@ -608,7 +602,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code short}.
      */
     public final short readShort() {
-        CompletableFuture<Short> future = new CompletableFuture<>();
+        var future = new CompletableFuture<Short>();
         readShort(future::complete);
         return read(future);
     }
@@ -617,20 +611,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Requests a single {@code short} and accepts a {@link Consumer}
      * with the {@code short} when it is received.
      *
-     * @param consumer A {@link Consumer<Short>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readShort(Consumer<Short> consumer) {
         read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
     }
 
     /**
-     * Calls {@link #readShort(Consumer)}, however once
-     * finished, {@link #readShort(Consumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readShort(Consumer)} completes after
-     * a single iteration.
+     * Calls {@link #readShort(Consumer)}, however once finished, {@link #readShort(Consumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readShort(Consumer)} completes after a single iteration.
      *
-     * @param consumer A {@link Consumer<Short>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readShortAlways(Consumer<Short> consumer) {
         readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
@@ -643,23 +635,22 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @return A {@code String}.
      */
     public final String readString() {
-        CompletableFuture<String> future = new CompletableFuture<>();
+        var future = new CompletableFuture<String>();
         readString(future::complete);
         return read(future);
     }
 
     /**
-     * Requests a single {@link String} and accepts a {@link Consumer}
-     * with the {@link String} when it is received.  A {@code short}
-     * is used to store the length of the {@link String}, which imposes
-     * a maximum {@link String} length of {@code 65,535}.
+     * Requests a single {@link String} and accepts a {@link Consumer} with the {@link String}
+     * when it is received. A {@code short} is used to store the length of the {@link String},
+     * which imposes a maximum {@link String} length of {@code 65,535}.
      *
-     * @param consumer A {@link Consumer<String>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readString(Consumer<String> consumer) {
         readShort(s -> {
             read(s, buffer -> {
-                byte[] b = new byte[s & 0xFFFF];
+                var b = new byte[s & 0xFFFF];
                 buffer.get(b);
                 consumer.accept(new String(b));
             });
@@ -667,18 +658,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Calls {@link #readString(Consumer)}, however once
-     * finished, {@link #readString(Consumer)} is called once
-     * again with the same parameter; this loops indefinitely
-     * whereas {@link #readString(Consumer)} completes after
-     * a single iteration.
+     * Calls {@link #readString(Consumer)}, however once finished, {@link #readString(Consumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readString(Consumer)} completes after a single iteration.
      *
-     * @param consumer A {@link Consumer<String>}.
+     * @param consumer A {@link Consumer}.
      */
     public final void readStringAlways(Consumer<String> consumer) {
         readShortAlways(s -> {
             read(s, buffer -> {
-                byte[] b = new byte[s & 0xFFFF];
+                var b = new byte[s & 0xFFFF];
                 buffer.get(b);
                 consumer.accept(new String(b));
             });
@@ -691,30 +680,56 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Any {@link Packet}s queued after the call to {@code Client#flush()} will not be flushed until
      * it is called again.
      */
-    public final synchronized void flush() {
-        ByteBuffer raw = ByteBuffer.allocateDirect(outgoingPackets.stream().mapToInt(Packet::getSize).sum());
+    public final void flush() {
+        synchronized (packetsToFlush) {
+            int totalBytes = 0;
 
-        Packet packet;
+            Packet packet;
 
-        while ((packet = outgoingPackets.poll()) != null) {
-            packet.getQueue().forEach(consumer -> consumer.accept(raw));
-        }
+            var queue = new ArrayDeque<Consumer<ByteBuffer>>();
 
-        raw.flip();
+            while ((packet = outgoingPackets.poll()) != null) {
+                int currentBytes = totalBytes;
 
-        if (encryption != null) {
-            try {
-                encryption.update(raw, raw.duplicate());
-                raw.flip();
-            } catch (Exception e) {
-                throw new IllegalStateException("Exception occurred when encrypting:", e);
+                boolean tooBig = (totalBytes += packet.getSize()) >= bufferSize;
+                boolean empty = outgoingPackets.isEmpty();
+
+                if (!tooBig || empty) {
+                    queue.addAll(packet.getQueue());
+                }
+
+                // If we've buffered all of the packets that we can, send them off.
+                if (tooBig || empty) {
+                    var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
+
+                    Consumer<ByteBuffer> consumer;
+
+                    while ((consumer = queue.pollFirst()) != null) {
+                        consumer.accept(raw);
+                    }
+
+                    queue.addAll(packet.getQueue());
+
+                    raw.flip();
+
+                    if (encryption != null) {
+                        try {
+                            encryption.update(raw, raw.duplicate());
+                            raw.flip();
+                        } catch (Exception e) {
+                            throw new IllegalStateException("Exception occurred when encrypting:", e);
+                        }
+                    }
+
+                    if (!writing.getAndSet(true)) {
+                        channel.write(raw, this, PACKET_HANDLER);
+                    } else {
+                        packetsToFlush.offerFirst(raw);
+                    }
+
+                    totalBytes = packet.getSize();
+                }
             }
-        }
-
-        if (!writing.getAndSet(true)) {
-            channel.write(raw, this, PACKET_HANDLER);
-        } else {
-            packetsToFlush.offer(raw);
         }
     }
 
