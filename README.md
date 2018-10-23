@@ -43,7 +43,7 @@ client.onConnect(() -> {
 client.preDisconnect(() -> System.out.println(client + " is about to disconnect from the server!"));
 
 // Register an optional post-disconnection listener.
-client.postDisconnect(() -> System.out.println(client + " has successfully disconnected from the server!"));
+client.postDisconnect(() -> System.out.println(client + " successfully disconnected from the server!"));
 
 // Attempt to connect to a server AFTER registering listeners.
 client.connect("localhost", 43594);
