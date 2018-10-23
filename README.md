@@ -3,27 +3,35 @@ An easy-to-use, event-driven, asynchronous, network application framework.
 
 # How can I start using SimpleNet?
  1. Add SimpleNet as a dependency using either Maven or Gradle:
- 
- Maven:
- 
- ```xml
+
+Maven:
+
+```xml
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.2.2</version>
+    <version>1.2.3</version>
 </dependency>
 ```
 
 Gradle:
 
-    compile 'com.github.jhg023:SimpleNet:1.2.2'
- 
- 2. To create a `Client`, you can use the following:
+    compile 'com.github.jhg023:SimpleNet:1.2.3'
+
+ 2. Because SimpleNet is compiled with Java 11, you must first require its module in your `module-info.java`:
+
+```java
+module my.project {
+    requires SimpleNet;
+}
+```
+
+ 3. To create a `Client`, you can use the following:
 ```java
 // Instantiate a new Client.
-Client client = new Client();
+var client = new Client();
 
-// Register one connection listener.
+// Register a connection listener.
 client.onConnect(() -> {
     System.out.println(client + " has connected to the server!");
     
@@ -31,21 +39,21 @@ client.onConnect(() -> {
     Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
 });
 
-// Register one disconnection listener.
-client.onDisconnect(() -> System.out.println(client + " has disconnected from the server!"));
+// Register an optional pre-disconnection listener.
+client.preDisconnect(() -> System.out.println(client + " is about to disconnect from the server!"));
+
+// Register an optional post-disconnection listener.
+client.postDisconnect(() -> System.out.println(client + " has successfully disconnected from the server!"));
 
 // Attempt to connect to a server AFTER registering listeners.
 client.connect("localhost", 43594);
 ```
 
- 3. To create a `Server`, you can use the following:
+ 4. To create a `Server`, you can use the following:
 
 ```java
 // Instantiate a new Server.
-Server server = new Server();
-
-// Bind the server to an address and port.
-server.bind("localhost", 43594);
+var server = new Server();
 
 // Register one connection listener.
 server.onConnect(client -> {
@@ -65,9 +73,15 @@ server.onConnect(client -> {
         }
     });
 
-    // Register one disconnection listener.
-    client.onDisconnect(() -> System.out.println(client + " has disconnected!"));
+    // Register an optional pre-disconnection listener.
+    client.preDisconnect(() -> System.out.println(client + " is about to disconnect!"));
+
+    // Register an optional post-disconnection listener.
+    client.postDisconnect(() -> System.out.println(client + " has successfully disconnected!"));
 });
+
+// Bind the server to an address and port AFTER registering listeners.
+server.bind("localhost", 43594);
 ```
 
- 4. Congratulations, you're finished!
+ 5. Congratulations, you're finished!

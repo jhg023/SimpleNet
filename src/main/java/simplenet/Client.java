@@ -5,9 +5,11 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.AlreadyConnectedException;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
+import java.nio.channels.ShutdownChannelGroupException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
@@ -15,6 +17,8 @@ import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -186,6 +190,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private Cipher decryption;
 
     /**
+     * The backing {@link ThreadPoolExecutor} used for I/O.
+     */
+    private final ThreadPoolExecutor executor;
+
+    /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
     private final Queue<Packet> outgoingPackets;
@@ -242,13 +251,19 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
 
+        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(false);
+            return thread;
+        });
+
         if (channel != null) {
             this.channel = channel;
             return;
         }
 
         try {
-            this.channel = AsynchronousSocketChannel.open();
+            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
@@ -266,6 +281,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.channel = client.channel;
         this.encryption = client.encryption;
         this.decryption = client.decryption;
+        this.executor = client.executor;
         this.outgoingPackets = client.outgoingPackets;
         this.stack = client.stack;
         this.queue = client.queue;
@@ -308,36 +324,79 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
-            connectListeners.forEach(Runnable::run);
-            channel.read(buffer, this, Listener.INSTANCE);
         } catch (AlreadyConnectedException e) {
-            throw new IllegalStateException("This receiver is already connected!");
+            throw new IllegalStateException("This client is already connected to a server!");
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            throw new IllegalStateException("An ExecutionException has occurred:", e);
         } catch (Exception e) {
             onTimeout.run();
             close();
+            return;
+        }
+
+        connectListeners.forEach(Runnable::run);
+
+        try {
+            channel.read(buffer, this, Listener.INSTANCE);
+        } catch (ShutdownChannelGroupException e) {
+            // This exception is caught whenever a client closes their
+            // connection to the server. In that case, do nothing.
         }
     }
 
+    /**
+     * Closes this {@link Client}'s backing {@link AsynchronousSocketChannel} after
+     * flushing any queued packets.
+     * <p>
+     * Any registered pre-disconnect listeners are fired before remaining packets are
+     * flushed, and registered post-disconnect listeners are fired after the backing
+     * channel has closed successfully.
+     * <p>
+     * Listeners are fired in the same order that they were registered in.
+     */
     @Override
     public void close() {
-        disconnectListeners.forEach(Runnable::run);
+        preDisconnectListeners.forEach(Runnable::run);
+
+        flush();
+
+        while (writing.get()) {
+            Thread.onSpinWait();
+        }
+
         Channeled.super.close();
+
+        executor.shutdownNow();
+
+        while (channel.isOpen()) {
+            Thread.onSpinWait();
+        }
+
+        postDisconnectListeners.forEach(Runnable::run);
     }
 
     /**
-     * Registers a listener that fires when a {@link Client} disconnects from a {@link Server}.
-     * <p>
-     * This listener is able to be used by both the {@link Client} and {@link Server}, but can
-     * be independent of one-another.
+     * Registers a listener that fires right before a {@link Client} disconnects from
+     * a {@link Server}.
      * <p>
      * Calling this method more than once registers multiple listeners.
      *
      * @param listener A {@link Runnable}.
      */
-    public void onDisconnect(Runnable listener) {
-        disconnectListeners.add(listener);
+    public void preDisconnect(Runnable listener) {
+        preDisconnectListeners.add(listener);
+    }
+
+    /**
+     * Registers a listener that fires right after a {@link Client} disconnects from
+     * a {@link Server}.
+     * <p>
+     * Calling this method more than once registers multiple listeners.
+     *
+     * @param listener A {@link Runnable}.
+     */
+    public void postDisconnect(Runnable listener) {
+        postDisconnectListeners.add(listener);
     }
 
     /**
@@ -681,54 +740,52 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * it is called again.
      */
     public final void flush() {
-        synchronized (packetsToFlush) {
-            int totalBytes = 0;
+        int totalBytes = 0;
 
-            Packet packet;
+        Packet packet;
 
-            var queue = new ArrayDeque<Consumer<ByteBuffer>>();
+        var queue = new ArrayDeque<Consumer<ByteBuffer>>();
 
-            while ((packet = outgoingPackets.poll()) != null) {
-                int currentBytes = totalBytes;
+        while ((packet = outgoingPackets.poll()) != null) {
+            int currentBytes = totalBytes;
 
-                boolean tooBig = (totalBytes += packet.getSize()) >= bufferSize;
-                boolean empty = outgoingPackets.isEmpty();
+            boolean tooBig = (totalBytes += packet.getSize()) >= bufferSize;
+            boolean empty = outgoingPackets.isEmpty();
 
-                if (!tooBig || empty) {
-                    queue.addAll(packet.getQueue());
+            if (!tooBig || empty) {
+                queue.addAll(packet.getQueue());
+            }
+
+            // If we've buffered all of the packets that we can, send them off.
+            if (tooBig || empty) {
+                var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
+
+                Consumer<ByteBuffer> consumer;
+
+                while ((consumer = queue.pollFirst()) != null) {
+                    consumer.accept(raw);
                 }
 
-                // If we've buffered all of the packets that we can, send them off.
-                if (tooBig || empty) {
-                    var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
+                queue.addAll(packet.getQueue());
 
-                    Consumer<ByteBuffer> consumer;
+                raw.flip();
 
-                    while ((consumer = queue.pollFirst()) != null) {
-                        consumer.accept(raw);
+                if (encryption != null) {
+                    try {
+                        encryption.update(raw, raw.duplicate());
+                        raw.flip();
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Exception occurred when encrypting:", e);
                     }
-
-                    queue.addAll(packet.getQueue());
-
-                    raw.flip();
-
-                    if (encryption != null) {
-                        try {
-                            encryption.update(raw, raw.duplicate());
-                            raw.flip();
-                        } catch (Exception e) {
-                            throw new IllegalStateException("Exception occurred when encrypting:", e);
-                        }
-                    }
-
-                    if (!writing.getAndSet(true)) {
-                        channel.write(raw, this, PACKET_HANDLER);
-                    } else {
-                        packetsToFlush.offerFirst(raw);
-                    }
-
-                    totalBytes = packet.getSize();
                 }
+
+                if (!writing.getAndSet(true)) {
+                    channel.write(raw, this, PACKET_HANDLER);
+                } else {
+                    packetsToFlush.offerFirst(raw);
+                }
+
+                totalBytes = packet.getSize();
             }
         }
     }

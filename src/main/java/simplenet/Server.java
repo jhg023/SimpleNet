@@ -10,8 +10,8 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import simplenet.channel.Channeled;
@@ -26,9 +26,9 @@ import simplenet.receiver.Receiver;
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
 
     /**
-     * The backing {@link ExecutorService} used for I/O.
+     * The backing {@link ThreadPoolExecutor} used for I/O.
      */
-    private final ExecutorService service;
+    private final ThreadPoolExecutor executor;
 
     /**
      * The backing {@link Channel} of the {@link Server}.
@@ -49,8 +49,17 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         super(bufferSize);
 
         try {
-            service = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
-            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(service));
+            int numThreads = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+
+            executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
+                Thread thread = new Thread(runnable);
+                thread.setDaemon(false);
+                return thread;
+            });
+
+            executor.prestartAllCoreThreads();
+
+            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel!");
@@ -81,7 +90,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             final Client.Listener listener = new Client.Listener() {
                 @Override
                 public void failed(Throwable t, Client client) {
-                    disconnectListeners.forEach(consumer -> consumer.accept(client));
                     client.close();
                 }
             };
@@ -111,15 +119,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
 
     @Override
     public void close() {
-        this.service.shutdown();
-
-        try {
-            this.service.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Thread was interrupted:", e);
-        }
-
         Channeled.super.close();
+        executor.shutdownNow();
     }
 
     /**

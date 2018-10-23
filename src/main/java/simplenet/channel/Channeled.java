@@ -29,7 +29,7 @@ public interface Channeled<T extends AsynchronousChannel> {
         try {
             getChannel().close();
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to close the channel!", e);
+            throw new IllegalStateException("Unable to close the backing AsynchronousChannel:", e);
         }
     }
 
