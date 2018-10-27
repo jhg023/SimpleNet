@@ -257,6 +257,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             return thread;
         });
 
+        executor.prestartAllCoreThreads();
+
         if (channel != null) {
             this.channel = channel;
             return;
