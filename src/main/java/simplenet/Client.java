@@ -165,9 +165,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final ByteBuffer buffer;
 
     /**
-     * The backing {@link Channel} of a {@link Client}.
+     * A {@link Queue} to manage outgoing {@link Packet}s.
      */
-    private final AsynchronousSocketChannel channel;
+    private final Queue<Packet> outgoingPackets;
+
+    /**
+     * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
+     */
+    private final Deque<ByteBuffer> packetsToFlush;
+
+    /**
+     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)}
+     * and assures that they will complete in the expected order.
+     */
+    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
+
+    /**
+     * The {@link Deque} used when requesting a certain amount of bytes from the {@link Client} or
+     * {@link Server}.
+     */
+    private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
 
     /**
      * Whether or not new elements added {@code queue} should be added to the front rather than the back.
@@ -192,29 +209,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * The backing {@link ThreadPoolExecutor} used for I/O.
      */
-    private final ThreadPoolExecutor executor;
+    private ThreadPoolExecutor executor;
 
     /**
-     * A {@link Queue} to manage outgoing {@link Packet}s.
+     * The backing {@link Channel} of a {@link Client}.
      */
-    private final Queue<Packet> outgoingPackets;
-
-    /**
-     * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
-     */
-    private final Deque<ByteBuffer> packetsToFlush;
-
-    /**
-     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)}
-     * and assures that they will complete in the expected order.
-     */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
-
-    /**
-     * The {@link Deque} used when requesting a certain amount of bytes from the {@link Client} or
-     * {@link Server}.
-     */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
+    private AsynchronousSocketChannel channel;
 
     /**
      * Instantiates a new {@link Client} by attempting to open the backing
@@ -251,27 +251,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
 
-        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setDaemon(false);
-            return thread;
-        });
-
-        executor.prestartAllCoreThreads();
-
         if (channel != null) {
             this.channel = channel;
-            return;
-        }
-
-        try {
-            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
-            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
-            this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
-            this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
         }
     }
 
@@ -324,6 +305,24 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalArgumentException("The port must be between 0 and 65535!");
         }
 
+        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(false);
+            return thread;
+        });
+
+        executor.prestartAllCoreThreads();
+
+        try {
+            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
+            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
+            this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
+            this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to open the channel!");
+        }
+
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
         } catch (AlreadyConnectedException e) {
@@ -368,7 +367,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         Channeled.super.close();
 
-        executor.shutdownNow();
+        if (executor != null) {
+            executor.shutdownNow();
+        }
 
         while (channel.isOpen()) {
             Thread.onSpinWait();
@@ -382,6 +383,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * a {@link Server}.
      * <p>
      * Calling this method more than once registers multiple listeners.
+     * <p>
+     * If this {@link Client}'s connection to a {@link Server} is lost unexpectedly,
+     * then its backing {@link AsynchronousSocketChannel} may already be closed.
      *
      * @param listener A {@link Runnable}.
      */
