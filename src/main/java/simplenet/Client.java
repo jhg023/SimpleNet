@@ -490,6 +490,50 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
+     * Reads a {@code byte} array from the network, but blocks the executing thread unlike
+     * {@link #readBytes(int, Consumer)}.
+     *
+     * @param n The number of bytes requested.
+     * @return A {@code byte} array.
+     */
+    public final byte[] readBytes(int n) {
+        var future = new CompletableFuture<byte[]>();
+        readBytes(n, future::complete);
+        return read(future);
+    }
+
+    /**
+     * Requests a byte array of size {@code n} and accepts a {@link Consumer} with the
+     * byte array when all of the bytes are received.
+     *
+     * @param n        The number of bytes requested.
+     * @param consumer A {@link Consumer}.
+     */
+    public final void readBytes(int n, Consumer<byte[]> consumer) {
+        read(n, buffer -> {
+           byte[] b = new byte[n];
+           buffer.get(b);
+           consumer.accept(b);
+        });
+    }
+
+    /**
+     * Calls {@link #readBytes(int, Consumer)}, however once finished, {@link #readBytes(int, Consumer)}
+     * is called once again with the same parameter; this loops indefinitely whereas
+     * {@link #readBytes(int, Consumer)} completes after a single iteration.
+     *
+     * @param n        The number of bytes requested.
+     * @param consumer A {@link Consumer}.
+     */
+    public final void readBytesAlways(int n, Consumer<byte[]> consumer) {
+        readAlways(n, buffer -> {
+            byte[] b = new byte[n];
+            buffer.get(b);
+            consumer.accept(b);
+        });
+    }
+
+    /**
      * Reads a {@code char} from the network, but blocks the executing thread unlike
      * {@link #readChar(Consumer)}.
      *
@@ -742,17 +786,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * Flushes any queued {@link Packet}s held within the internal {@link Queue}.
      * <p>
-     * Any {@link Packet}s queued after the call to {@code Client#flush()} will not be flushed until
-     * it is called again.
+     * Any {@link Packet}s queued after the call to {@link Client#flush()} will not be flushed until
+     * {@link Client#flush} is called again.
      */
     public final void flush() {
         int totalBytes = 0;
+        int amountToPoll = outgoingPackets.size();
 
         Packet packet;
 
         var queue = new ArrayDeque<Consumer<ByteBuffer>>();
 
-        while ((packet = outgoingPackets.poll()) != null) {
+        while (amountToPoll-- > 0 && (packet = outgoingPackets.poll()) != null) {
             int currentBytes = totalBytes;
 
             boolean tooBig = (totalBytes += packet.getSize()) >= bufferSize;
