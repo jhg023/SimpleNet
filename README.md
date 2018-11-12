@@ -89,6 +89,8 @@ server.bind("localhost", 43594);
 # FAQ (Frequently-Asked Questions)
 - Can data be sent and received outside of the `onConnect` callback?
   - Yes, but only if the client is already connected to the server. However, this is not recommended unless you're well-versed in concurrency, as the `onConnect` callback is performed asynchronously.
+- Can a SimpleNet `Client` be used with some unrelated server and vice-versa?
+  - Absolutely!
 - I have large packets that exceed the default buffer size; what can I do to avoid an exception?
   - Ideally, the best option would be to split your single, large packet into multiple, small packets. 
   - If splitting the packet is not possible for any reason, both `Client` and `Server` have an overloaded constructor that accepts a buffer size in bytes. You can simply specify a size larger than 4096 (the default size).
