@@ -1,9 +1,4 @@
-<p align="center">
-  
-</p>
-
 <img src="https://maven-badges.herokuapp.com/maven-central/com.github.jhg023/SimpleNet/badge.svg"> <img src="http://githubbadges.com/star.svg?user=jhg023&repo=SimpleNet&background=0000ff&color=ffffff&style=flat">
-
 # What is SimpleNet?
 An easy-to-use, event-driven, asynchronous, network application framework. SimpleNet provides a built-in `Server` class which the user can instantiate and bind to an existing IP address and port. The user can then create one or more `Client` instances and connect to their `Server` using the same IP address and port.
 
