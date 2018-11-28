@@ -56,7 +56,7 @@ public abstract class Receiver<T> {
 
     /**
      * Registers a listener that fires when a {@link Client} connects to a {@link Server}.
-     * <p>
+     * <br><br>
      * When calling this method more than once, multiple listeners are registered.
      *
      * @param listener A {@link T}.

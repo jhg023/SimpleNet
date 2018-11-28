@@ -177,7 +177,7 @@ public final class Packet {
 
     /**
      * Writes a single {@link String} to this {@link Packet}'s payload.
-     * <p>
+     * <br><br>
      * The {@link String} can have a maximum length of {@code 65,535}.
      *
      * @param s A {@link String}.
@@ -191,7 +191,7 @@ public final class Packet {
 
     /**
      * Prepends data to the front of the {@link Packet}.
-     * <p>
+     * <br><br>
      * This is primarily used for headers, such as when one or more of the headers depend on the size
      * of the data contained within the {@link Packet} itself.
      *
@@ -207,7 +207,7 @@ public final class Packet {
 
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
-     * <p>
+     * <br><br>
      * All queued packets will be written to a {@link Client} when {@link Client#flush()} is called.
      *
      * @param <T> A {@link Client} or any of its children.
@@ -231,7 +231,7 @@ public final class Packet {
 
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
-     * <p>
+     * <br><br>
      * All queued packets will be written to a {@link Client} when {@link Client#flush()} is called.
      *
      * @param clients A {@link Collection} of {@link Client}s.
