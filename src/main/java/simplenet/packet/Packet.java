@@ -5,6 +5,9 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import simplenet.Client;
 import simplenet.Server;
 
@@ -12,6 +15,8 @@ import simplenet.Server;
  * A {@link Packet} that will be sent from a {@link Client} to the {@link Server} or vice versa.
  */
 public final class Packet {
+
+    private static Logger logger = LoggerFactory.getLogger(Packet.class);
 
     /**
      * A {@code boolean} that designates whether data should be added
@@ -216,12 +221,13 @@ public final class Packet {
     @SafeVarargs
     public final <T extends Client> void write(T... clients) {
         if (clients.length == 0) {
-            throw new IllegalArgumentException("You must send this packet to at least one client!");
+            logger.error("You must send this packet to at least one client!");
+            return;
         }
 
         for (Client client : clients) {
             if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
+                logger.error("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
                 continue;
             }
 
@@ -238,12 +244,13 @@ public final class Packet {
      */
     public final void write(Collection<? extends Client> clients) {
         if (clients.isEmpty()) {
-            throw new IllegalArgumentException("You must send this packet to at least one client!");
+            logger.error("You must send this packet to at least one client!");
+            return;
         }
 
         clients.forEach(client -> {
             if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
+                logger.error("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
                 return;
             }
 
@@ -261,12 +268,13 @@ public final class Packet {
     @SafeVarargs
     public final <T extends Client> void writeAndFlush(T... clients) {
         if (clients.length == 0) {
-            throw new IllegalArgumentException("You must send this packet to at least one client!");
+            logger.error("You must send this packet to at least one client!");
+            return;
         }
 
         for (Client client : clients) {
             if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
+                logger.error("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
                 continue;
             }
 
@@ -283,12 +291,13 @@ public final class Packet {
      */
     public final void writeAndFlush(Collection<? extends Client> clients) {
         if (clients.isEmpty()) {
-            throw new IllegalArgumentException("You must send this packet to at least one client!");
+            logger.error("You must send this packet to at least one client!");
+            return;
         }
 
         clients.forEach(client -> {
             if (size > client.getBufferSize()) {
-                throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
+                logger.error("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
             }
 
             client.getOutgoingPackets().offer(Packet.this);

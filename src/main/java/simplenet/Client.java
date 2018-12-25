@@ -26,6 +26,9 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import javax.crypto.Cipher;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
@@ -42,6 +45,8 @@ import simplenet.utility.exposed.ShortConsumer;
  * @since November 1, 2017
  */
 public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel> {
+
+    private static Logger logger = LoggerFactory.getLogger(Client.class);
 
     /**
      * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
@@ -287,7 +292,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void connect(String address, int port) {
         connect(address, port, 30L, TimeUnit.SECONDS, () -> {
-            System.err.println("Couldn't connect within 30 seconds!");
+            logger.error("Couldn't connect within 30 seconds!");
         });
     }
 
@@ -306,7 +311,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
-            throw new IllegalArgumentException("The port must be between 0 and 65535!");
+            logger.error("The port must be between 0 and 65535!");
+            return;
         }
 
         executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
@@ -324,15 +330,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
+            logger.error("Unable to open the channel!");
+            return;
         }
 
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
         } catch (AlreadyConnectedException e) {
-            throw new IllegalStateException("This client is already connected to a server!");
+            logger.error("This client is already connected to a server!");
         } catch (ExecutionException e) {
-            throw new IllegalStateException("An ExecutionException has occurred:", e);
+            logger.error("An ExecutionException has occurred:", e);
         } catch (Exception e) {
             onTimeout.run();
             close();
@@ -819,7 +826,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         encryption.update(raw, raw.duplicate());
                         raw.flip();
                     } catch (Exception e) {
-                        throw new IllegalStateException("Exception occurred when encrypting:", e);
+                        logger.error("Exception occurred when encrypting:", e);
+                        return;
                     }
                 }
 
@@ -867,7 +875,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         Objects.requireNonNull(encryption);
 
         if (!encryption.getAlgorithm().endsWith("NoPadding")) {
-            throw new IllegalArgumentException("The cipher cannot have any padding!");
+            logger.error("The cipher cannot have any padding!");
+            return;
         }
 
         this.encryption = encryption;
@@ -877,7 +886,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         Objects.requireNonNull(decryption);
 
         if (!decryption.getAlgorithm().endsWith("NoPadding")) {
-            throw new IllegalArgumentException("The cipher cannot have any padding!");
+            logger.error("The cipher cannot have any padding!");
+            return;
         }
 
         this.decryption = decryption;

@@ -14,6 +14,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import simplenet.channel.Channeled;
 import simplenet.receiver.Receiver;
 
@@ -24,6 +27,8 @@ import simplenet.receiver.Receiver;
  * @since November 1, 2017
  */
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+
+    private static Logger logger = LoggerFactory.getLogger(Server.class);
 
     /**
      * The backing {@link ThreadPoolExecutor} used for I/O.
@@ -62,7 +67,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
+            logger.error("Unable to open the channel!");
         }
     }
 
@@ -81,7 +86,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
-            throw new IllegalArgumentException("The port must be between 0 and 65535!");
+            logger.error("The port must be between 0 and 65535!");
+            return;
         }
 
         try {
@@ -109,11 +115,11 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 }
             });
 
-            System.out.println(String.format("Successfully bound to %s:%d!", address, port));
+            logger.info(String.format("Successfully bound to %s:%d!", address, port));
         } catch (AlreadyBoundException e) {
-            throw new IllegalStateException("A server is already running!");
+            logger.error("A server is already running!");
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to bind the server!");
+            logger.error("Unable to bind the server!");
         }
     }
 
