@@ -14,7 +14,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -51,8 +50,15 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         /**
          * A {@code static} instance of this class to be reused.
          */
-        private static final Listener INSTANCE = new Listener();
-
+        private static final Listener CLIENT_INSTANCE = new Listener();
+    
+        static final Listener SERVER_INSTANCE = new Listener() {
+            @Override
+            public void failed(Throwable t, Client client) {
+                client.close();
+            }
+        };
+        
         @Override
         public void completed(Integer result, Client client) {
             // A result of -1 normally means that the end-of-stream has been
@@ -61,65 +67,67 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 client.close();
                 return;
             }
-
-            client.size += result;
-
-            var buffer = client.buffer.flip();
-            var queue = client.queue;
-
-            IntPair<Consumer<ByteBuffer>> peek;
-
-            if ((peek = queue.pollLast()) == null) {
-                client.channel.read(buffer.flip().limit(buffer.capacity()), client, this);
-                return;
-            }
-
-            client.prepend = true;
-
-            boolean decrypt = client.decryption != null;
-
-            var stack = client.stack;
-
-            int key;
-
-            while (client.size >= (key = peek.getKey())) {
-                if (decrypt) {
-                    try {
-                        int position = buffer.position();
-                        buffer.limit(buffer.position() + key);
-                        client.decryption.update(buffer, buffer.duplicate());
-                        buffer.flip().position(position);
-                    } catch (Exception e) {
-                        throw new IllegalStateException("Exception occurred when decrypting:", e);
+            
+            synchronized (client.buffer) {
+                client.size += result;
+                
+                var buffer = client.buffer.flip();
+                var queue = client.queue;
+    
+                IntPair<Consumer<ByteBuffer>> peek;
+    
+                if ((peek = queue.pollLast()) == null) {
+                    client.channel.read(buffer.flip().limit(buffer.capacity()), client, this);
+                    return;
+                }
+    
+                client.prepend = true;
+    
+                boolean decrypt = client.decryption != null;
+    
+                var stack = client.stack;
+    
+                int key;
+    
+                while (client.size >= (key = peek.getKey())) {
+                    if (decrypt) {
+                        try {
+                            int position = buffer.position();
+                            buffer.limit(buffer.position() + key);
+                            client.decryption.update(buffer, buffer.duplicate());
+                            buffer.flip().position(position);
+                        } catch (Exception e) {
+                            throw new IllegalStateException("Exception occurred when decrypting:", e);
+                        }
+                    }
+        
+                    client.size -= key;
+        
+                    peek.getValue().accept(buffer);
+        
+                    while (!stack.isEmpty()) {
+                        queue.offer(stack.poll());
+                    }
+        
+                    if ((peek = queue.pollLast()) == null) {
+                        break;
                     }
                 }
-
-                client.size -= key;
-
-                peek.getValue().accept(buffer);
-
-                while (!stack.isEmpty()) {
-                    queue.offer(stack.poll());
+    
+                client.prepend = false;
+    
+                if (peek != null) {
+                    queue.addLast(peek);
                 }
-
-                if ((peek = queue.pollLast()) == null) {
-                    break;
+    
+                if (client.size > 0) {
+                    buffer.compact();
+                } else {
+                    buffer.flip();
                 }
+                
+                client.channel.read(buffer.limit(buffer.capacity()), client, this);
             }
-
-            client.prepend = false;
-
-            if (peek != null) {
-                queue.addLast(peek);
-            }
-
-            if (client.size > 0) {
-                buffer.compact();
-            } else {
-                buffer.flip();
-            }
-
-            client.channel.read(buffer.limit(buffer.capacity()), client, this);
         }
 
         @Override
@@ -162,7 +170,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * to the network.
      */
     private final AtomicBoolean writing;
-
+    
     /**
      * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
      */
@@ -196,11 +204,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private boolean prepend;
 
     /**
-     * The amount of readable {@code byte}s that currently exist within this {@link Client}'s {@code buffer}.
-     */
-    private int size;
-
-    /**
      * The {@link Cipher} used for {@link Packet} encryption.
      */
     private Cipher encryption;
@@ -219,7 +222,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The backing {@link Channel} of a {@link Client}.
      */
     private AsynchronousSocketChannel channel;
-
+    
+    /**
+     * The amount of readable {@code byte}s that currently exist within this {@link Client}'s {@code buffer}.
+     */
+    private volatile int size;
+    
     /**
      * Instantiates a new {@link Client} by attempting to open the backing
      * {@link AsynchronousSocketChannel} with a default buffer size of {@code 4096} bytes.
@@ -247,14 +255,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public Client(int bufferSize, AsynchronousSocketChannel channel) {
         super(bufferSize);
-
+        
         writing = new AtomicBoolean();
-        outgoingPackets = new ArrayDeque<>();
+        outgoingPackets = new ConcurrentLinkedDeque<>();
         packetsToFlush = new ConcurrentLinkedDeque<>();
-        queue = new ArrayDeque<>();
-        stack = new ArrayDeque<>();
+        queue = new ConcurrentLinkedDeque<>();
+        stack = new ConcurrentLinkedDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
-
+        
         if (channel != null) {
             this.channel = channel;
         }
@@ -264,16 +272,17 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         super(client);
 
         this.prepend = client.prepend;
-        this.buffer = client.buffer;
+        this.buffer = client.buffer.duplicate();
         this.channel = client.channel;
         this.encryption = client.encryption;
         this.decryption = client.decryption;
         this.executor = client.executor;
-        this.outgoingPackets = client.outgoingPackets;
-        this.stack = client.stack;
-        this.queue = client.queue;
-        this.writing = client.writing;
-        this.packetsToFlush = client.packetsToFlush;
+        this.outgoingPackets = new ConcurrentLinkedDeque<>(client.outgoingPackets);
+        this.stack = new ConcurrentLinkedDeque<>(client.stack);
+        this.queue = new ConcurrentLinkedDeque<>(client.queue);
+        this.size = client.size;
+        this.writing = new AtomicBoolean(client.writing.get());
+        this.packetsToFlush = new ConcurrentLinkedDeque<>(client.packetsToFlush);
     }
 
     /**
@@ -339,14 +348,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             return;
         }
 
-        connectListeners.forEach(Runnable::run);
-
         try {
-            channel.read(buffer, this, Listener.INSTANCE);
+            channel.read(buffer, this, Listener.CLIENT_INSTANCE);
         } catch (ShutdownChannelGroupException e) {
             // This exception is caught whenever a client closes their
             // connection to the server. In that case, do nothing.
         }
+    
+        connectListeners.forEach(Runnable::run);
     }
 
     /**
@@ -412,16 +421,19 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param consumer A {@link Consumer}.
      */
     public final void read(int n, Consumer<ByteBuffer> consumer) {
-        if (size >= n) {
-            size -= n;
-            consumer.accept(buffer);
-            return;
-        }
-
-        if (prepend) {
-            stack.addFirst(new IntPair<>(n, consumer));
-        } else {
-            queue.offer(new IntPair<>(n, consumer));
+        synchronized (buffer) {
+            if (size >= n) {
+                size -= n;
+        
+                consumer.accept(buffer);
+                return;
+            }
+            
+            if (prepend) {
+                stack.addFirst(new IntPair<>(n, consumer));
+            } else {
+                queue.offer(new IntPair<>(n, consumer));
+            }
         }
     }
 
@@ -445,29 +457,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * A helper method to block until the {@link CompletableFuture} contains a value.
-     *
-     * @param future The {@link CompletableFuture} to wait for.
-     * @param <T>    The type of the {@link CompletableFuture} and the return type.
-     * @return The instance of {@code T} contained in the {@link CompletableFuture}.
-     */
-    private <T> T read(CompletableFuture<T> future) {
-        return future.join();
-    }
-
-    /**
-     * Reads a {@code byte} from the network, but blocks the executing thread unlike
-     * {@link #readByte(ByteConsumer)}.
-     *
-     * @return A {@code byte}.
-     */
-    public final byte readByte() {
-        var future = new CompletableFuture<Byte>();
-        readByte(future::complete);
-        return read(future);
-    }
-
-    /**
      * Requests a single {@code byte} and accepts a {@link ByteConsumer} with the {@code byte}
      * when it is received.
      *
@@ -486,19 +475,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readByteAlways(ByteConsumer consumer) {
         readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
-    }
-
-    /**
-     * Reads a {@code byte} array from the network, but blocks the executing thread unlike
-     * {@link #readBytes(int, Consumer)}.
-     *
-     * @param n The number of bytes requested.
-     * @return A {@code byte} array.
-     */
-    public final byte[] readBytes(int n) {
-        var future = new CompletableFuture<byte[]>();
-        readBytes(n, future::complete);
-        return read(future);
     }
 
     /**
@@ -533,18 +509,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Reads a {@code char} from the network, but blocks the executing thread unlike
-     * {@link #readChar(CharConsumer)}.
-     *
-     * @return A {@code char}.
-     */
-    public final char readChar() {
-        var future = new CompletableFuture<Character>();
-        readChar(future::complete);
-        return read(future);
-    }
-
-    /**
      * Requests a single {@code char} and accepts a {@link CharConsumer} with the {@code char}
      * when it is received.
      *
@@ -563,18 +527,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readCharAlways(CharConsumer consumer) {
         readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
-    }
-
-    /**
-     * Reads a {@code double} from the network, but blocks the executing thread unlike
-     * {@link #readDouble(DoubleConsumer)}.
-     *
-     * @return A {@code double}.
-     */
-    public final double readDouble() {
-        var future = new CompletableFuture<Double>();
-        readDouble(future::complete);
-        return read(future);
     }
 
     /**
@@ -599,18 +551,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Reads a {@code float} from the network, but blocks the executing thread unlike
-     * {@link #readFloat(FloatConsumer)}.
-     *
-     * @return A {@code float}.
-     */
-    public final float readFloat() {
-        var future = new CompletableFuture<Float>();
-        readFloat(future::complete);
-        return read(future);
-    }
-
-    /**
      * Requests a single {@code float} and accepts a {@link FloatConsumer} with the {@code float} when
      * it is received.
      *
@@ -629,18 +569,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readFloatAlways(FloatConsumer consumer) {
         readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
-    }
-
-    /**
-     * Reads an {@code int} from the network, but blocks the executing thread unlike
-     * {@link #readInt(IntConsumer)}.
-     *
-     * @return An {@code int}.
-     */
-    public final int readInt() {
-        var future = new CompletableFuture<Integer>();
-        readInt(future::complete);
-        return read(future);
     }
 
     /**
@@ -665,18 +593,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Reads a {@code long} from the network, but blocks the executing thread
-     * unlike {@link #readLong(LongConsumer)}.
-     *
-     * @return A {@code long}.
-     */
-    public final long readLong() {
-        var future = new CompletableFuture<Long>();
-        readLong(future::complete);
-        return read(future);
-    }
-
-    /**
      * Requests a single {@code long} and accepts a {@link Consumer} with the {@code long} when
      * it is received.
      *
@@ -698,18 +614,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Reads a {@code short} from the network, but blocks the executing thread unlike
-     * {@link #readShort(ShortConsumer)}.
-     *
-     * @return A {@code short}.
-     */
-    public final short readShort() {
-        var future = new CompletableFuture<Short>();
-        readShort(future::complete);
-        return read(future);
-    }
-
-    /**
      * Requests a single {@code short} and accepts a {@link Consumer} with the {@code short} when
      * it is received.
      *
@@ -728,18 +632,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void readShortAlways(ShortConsumer consumer) {
         readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-    }
-
-    /**
-     * Reads a {@link String} from the network, but blocks the executing thread unlike
-     * {@link #readString(Consumer)}.
-     *
-     * @return A {@code String}.
-     */
-    public final String readString() {
-        var future = new CompletableFuture<String>();
-        readString(future::complete);
-        return read(future);
     }
 
     /**
@@ -785,7 +677,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void flush() {
         int totalBytes = 0;
         int amountToPoll = outgoingPackets.size();
-
+        
         Packet packet;
 
         var queue = new ArrayDeque<Consumer<ByteBuffer>>();

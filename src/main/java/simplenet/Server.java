@@ -87,20 +87,13 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         try {
             channel.bind(new InetSocketAddress(address, port));
 
-            final Client.Listener listener = new Client.Listener() {
-                @Override
-                public void failed(Throwable t, Client client) {
-                    client.close();
-                }
-            };
-
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
                     var client = new Client(bufferSize, channel);
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
-                    channel.read(client.getBuffer(), client, listener);
+                    channel.read(client.getBuffer(), client, Client.Listener.SERVER_INSTANCE);
                 }
 
                 @Override
