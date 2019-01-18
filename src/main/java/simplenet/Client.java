@@ -55,14 +55,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         static final Listener SERVER_INSTANCE = new Listener() {
             @Override
             public void failed(Throwable t, Client client) {
-                client.close();
+                // Don't close the client here, as it will call the disconnect listeners twice server-sided.
             }
         };
         
         @Override
         public void completed(Integer result, Client client) {
-            // A result of -1 normally means that the end-of-stream has been
-            // reached. In that case, close the client's connection.
+            // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
+            // client's connection.
             if (result == -1) {
                 client.close();
                 return;
