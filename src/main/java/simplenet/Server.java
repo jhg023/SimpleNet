@@ -36,16 +36,21 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     private final AsynchronousServerSocketChannel channel;
 
     /**
-     * Instantiates a new {@link Server} by attempting
-     * to open the backing {@link AsynchronousServerSocketChannel}.
+     * Instantiates a new {@link Server} (with a buffer size of {@code 4096} bytes) by attempting to open the backing
+     * {@link AsynchronousServerSocketChannel}.
      *
      * @throws IllegalStateException If multiple {@link Server} instances are created.
      */
-    public Server() {
+    public Server() throws IllegalStateException {
         this(4096);
     }
-
-    public Server(int bufferSize) {
+    
+    /**
+     * Instantiates a new {@link Server} by attempting to open the backing {@link AsynchronousServerSocketChannel}.
+     *
+     * @throws IllegalStateException If multiple {@link Server} instances are created.
+     */
+    public Server(int bufferSize) throws IllegalStateException {
         super(bufferSize);
 
         try {
@@ -62,20 +67,18 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
+            throw new IllegalStateException("Unable to open the channel:", e);
         }
     }
 
     /**
-     * Attempts to bind the {@link Server} to a
-     * specific {@code address} and {@code port}.
+     * Attempts to bind the {@link Server} to a specific {@code address} and {@code port}.
      *
      * @param address The IP address to bind to.
      * @param port    The port to bind to {@code 0 <= port <= 65535}.
      * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
      * @throws AlreadyBoundException    If a server is already running on any address/port.
-     * @throws RuntimeException         If the server is unable to be bound to a specific
-     *                                  address or port.
+     * @throws RuntimeException         If the server is unable to be bound to a specific address or port.
      */
     public void bind(String address, int port) {
         Objects.requireNonNull(address);
@@ -102,11 +105,11 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 }
             });
 
-            System.out.println(String.format("Successfully bound to %s:%d!", address, port));
+            System.out.printf("Successfully bound to %s:%d!\n", address, port);
         } catch (AlreadyBoundException e) {
-            throw new IllegalStateException("A server is already running!");
+            throw new IllegalStateException("This server is already bound:", e);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to bind the server!");
+            throw new IllegalStateException("Unable to bind the server:", e);
         }
     }
 

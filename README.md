@@ -11,14 +11,14 @@ Maven:
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.2.8</version>
+    <version>1.2.9</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-compile 'com.github.jhg023:SimpleNet:1.2.8'
+compile 'com.github.jhg023:SimpleNet:1.2.9'
 ```
 
  2. Because SimpleNet is compiled with Java 11, you must first require its module in your `module-info.java`:

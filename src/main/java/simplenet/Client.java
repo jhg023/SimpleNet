@@ -333,13 +333,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!");
+            throw new IllegalStateException("Unable to open the channel:", e);
         }
 
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
         } catch (AlreadyConnectedException e) {
-            throw new IllegalStateException("This client is already connected to a server!");
+            throw new IllegalStateException("This client is already connected to a server:", e);
         } catch (ExecutionException e) {
             throw new IllegalStateException("An ExecutionException has occurred:", e);
         } catch (Exception e) {
