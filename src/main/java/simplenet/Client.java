@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.AlreadyConnectedException;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -21,18 +22,20 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.DoubleConsumer;
-import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 import javax.crypto.Cipher;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
-import simplenet.utility.exposed.ByteConsumer;
-import simplenet.utility.exposed.CharConsumer;
-import simplenet.utility.exposed.FloatConsumer;
-import simplenet.utility.exposed.ShortConsumer;
+import simplenet.utility.data.BooleanReader;
+import simplenet.utility.data.ByteReader;
+import simplenet.utility.data.CharReader;
+import simplenet.utility.data.DataReader;
+import simplenet.utility.data.DoubleReader;
+import simplenet.utility.data.FloatReader;
+import simplenet.utility.data.IntReader;
+import simplenet.utility.data.LongReader;
+import simplenet.utility.data.StringReader;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -40,7 +43,8 @@ import simplenet.utility.exposed.ShortConsumer;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel> {
+public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel>, DataReader,
+        BooleanReader, ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
 
     /**
      * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
@@ -55,7 +59,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         static final Listener SERVER_INSTANCE = new Listener() {
             @Override
             public void failed(Throwable t, Client client) {
-                // Don't close the client here, as it will call the disconnect listeners twice server-sided.
+                // It's important that we close the client here ONLY if the stacktrace's message begins with this
+                // specific message, as it means that the client has disconnected without the server properly closing
+                // it. If we weren't to close the client here, then its disconnect listeners would not run. However,
+                // if we always close the client here, then its disconnect listeners will run twice, which we do not
+                // want to occur.
+                if (t.getMessage().startsWith("The specified network name is no longer available.")) {
+                    client.close();
+                }
             }
         };
         
@@ -102,11 +113,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
         
                     client.size -= key;
-        
+                    
                     peek.getValue().accept(buffer);
         
                     while (!stack.isEmpty()) {
-                        queue.offer(stack.poll());
+                        queue.offerFirst(stack.pollFirst());
                     }
         
                     if ((peek = queue.pollLast()) == null) {
@@ -268,23 +279,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
     }
 
-    public Client(Client client) {
-        super(client);
-
-        this.prepend = client.prepend;
-        this.buffer = client.buffer.duplicate();
-        this.channel = client.channel;
-        this.encryption = client.encryption;
-        this.decryption = client.decryption;
-        this.executor = client.executor;
-        this.outgoingPackets = new ConcurrentLinkedDeque<>(client.outgoingPackets);
-        this.stack = new ConcurrentLinkedDeque<>(client.stack);
-        this.queue = new ConcurrentLinkedDeque<>(client.queue);
-        this.size = client.size;
-        this.writing = new AtomicBoolean(client.writing.get());
-        this.packetsToFlush = new ConcurrentLinkedDeque<>(client.packetsToFlush);
-    }
-
     /**
      * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
      * and a default timeout of {@code 30} seconds.
@@ -318,7 +312,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalArgumentException("The port must be between 0 and 65535!");
         }
 
-        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
+        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(), runnable -> {
             Thread thread = new Thread(runnable);
             thread.setDaemon(false);
             return thread;
@@ -351,8 +346,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         try {
             channel.read(buffer, this, Listener.CLIENT_INSTANCE);
         } catch (ShutdownChannelGroupException e) {
-            // This exception is caught whenever a client closes their
-            // connection to the server. In that case, do nothing.
+            // This exception is caught whenever a client closes their connection to the server. In that case, do
+            // nothing.
         }
     
         connectListeners.forEach(Runnable::run);
@@ -413,259 +408,23 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public void postDisconnect(Runnable listener) {
         postDisconnectListeners.add(listener);
     }
-
-    /**
-     * Requests {@code n} bytes and accepts a {@link Consumer} holding the {@code n} bytes once received.
-     *
-     * @param n        The number of bytes requested.
-     * @param consumer A {@link Consumer}.
-     */
-    public final void read(int n, Consumer<ByteBuffer> consumer) {
+    
+    @Override
+    public void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         synchronized (buffer) {
             if (size >= n) {
                 size -= n;
-        
-                consumer.accept(buffer);
+                
+                consumer.accept(buffer.order(order));
                 return;
             }
-            
+        
             if (prepend) {
-                stack.addFirst(new IntPair<>(n, consumer));
+                stack.offerLast(new IntPair<>(n, buffer -> consumer.accept(buffer.order(order))));
             } else {
-                queue.offer(new IntPair<>(n, consumer));
+                queue.offerFirst(new IntPair<>(n, buffer -> consumer.accept(buffer.order(order))));
             }
         }
-    }
-
-    /**
-     * Calls {@link #read(int, Consumer)}, however once finished, {@link #read(int, Consumer)}
-     * is called once again with the same parameters; this loops indefinitely whereas
-     * {@link #read(int, Consumer)} completes after a single iteration.
-     *
-     * @param n        The number of bytes requested.
-     * @param consumer Holds the operations that should be performed once
-     *                 the {@code n} bytes are received.
-     */
-    public final void readAlways(int n, Consumer<ByteBuffer> consumer) {
-        read(n, new Consumer<>() {
-            @Override
-            public void accept(ByteBuffer buffer) {
-                consumer.accept(buffer);
-                read(n, this);
-            }
-        });
-    }
-
-    /**
-     * Requests a single {@code byte} and accepts a {@link ByteConsumer} with the {@code byte}
-     * when it is received.
-     *
-     * @param consumer A {@link ByteConsumer}.
-     */
-    public final void readByte(ByteConsumer consumer) {
-        read(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
-    }
-
-    /**
-     * Calls {@link #readByte(ByteConsumer)}, however once finished, {@link #readByte(ByteConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readByte(ByteConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link ByteConsumer}.
-     */
-    public final void readByteAlways(ByteConsumer consumer) {
-        readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
-    }
-
-    /**
-     * Requests a byte array of size {@code n} and accepts a {@link Consumer} with the byte array when
-     * all of the bytes are received.
-     *
-     * @param n        The number of bytes requested.
-     * @param consumer A {@link Consumer}.
-     */
-    public final void readBytes(int n, Consumer<byte[]> consumer) {
-        read(n, buffer -> {
-           byte[] b = new byte[n];
-           buffer.get(b);
-           consumer.accept(b);
-        });
-    }
-
-    /**
-     * Calls {@link #readBytes(int, Consumer)}, however once finished, {@link #readBytes(int, Consumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readBytes(int, Consumer)} completes after a single iteration.
-     *
-     * @param n        The number of bytes requested.
-     * @param consumer A {@link Consumer}.
-     */
-    public final void readBytesAlways(int n, Consumer<byte[]> consumer) {
-        readAlways(n, buffer -> {
-            byte[] b = new byte[n];
-            buffer.get(b);
-            consumer.accept(b);
-        });
-    }
-
-    /**
-     * Requests a single {@code char} and accepts a {@link CharConsumer} with the {@code char}
-     * when it is received.
-     *
-     * @param consumer A {@link CharConsumer}.
-     */
-    public final void readChar(CharConsumer consumer) {
-        read(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
-    }
-
-    /**
-     * Calls {@link #readChar(CharConsumer)}, however once finished, {@link #readChar(CharConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readChar(CharConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link CharConsumer}.
-     */
-    public final void readCharAlways(CharConsumer consumer) {
-        readAlways(Character.BYTES, buffer -> consumer.accept(buffer.getChar()));
-    }
-
-    /**
-     * Requests a single {@code double} and accepts a {@link Consumer} with the {@code double} when
-     * it is received.
-     *
-     * @param consumer A {@link DoubleConsumer}.
-     */
-    public final void readDouble(DoubleConsumer consumer) {
-        read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
-    }
-
-    /**
-     * Calls {@link #readDouble(DoubleConsumer)}, however once finished,
-     * {@link #readDouble(DoubleConsumer)} is called once again with the same parameter; this loops
-     * indefinitely whereas {@link #readDouble(DoubleConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link DoubleConsumer}.
-     */
-    public final void readDoubleAlways(DoubleConsumer consumer) {
-        readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()));
-    }
-
-    /**
-     * Requests a single {@code float} and accepts a {@link FloatConsumer} with the {@code float} when
-     * it is received.
-     *
-     * @param consumer A {@link FloatConsumer}.
-     */
-    public final void readFloat(FloatConsumer consumer) {
-        read(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
-    }
-
-    /**
-     * Calls {@link #readFloat(FloatConsumer)}, however once finished, {@link #readFloat(FloatConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readFloat(FloatConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link FloatConsumer}.
-     */
-    public final void readFloatAlways(FloatConsumer consumer) {
-        readAlways(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()));
-    }
-
-    /**
-     * Requests a single {@code int} and accepts a {@link Consumer} with the {@code int} when
-     * it is received.
-     *
-     * @param consumer An {@link IntConsumer}.
-     */
-    public final void readInt(IntConsumer consumer) {
-        read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
-    }
-
-    /**
-     * Calls {@link #readInt(IntConsumer)}, however once finished, {@link #readInt(IntConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readInt(IntConsumer)} completes after a single iteration.
-     *
-     * @param consumer An {@link IntConsumer}.
-     */
-    public final void readIntAlways(IntConsumer consumer) {
-        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()));
-    }
-
-    /**
-     * Requests a single {@code long} and accepts a {@link Consumer} with the {@code long} when
-     * it is received.
-     *
-     * @param consumer A {@link LongConsumer}.
-     */
-    public final void readLong(LongConsumer consumer) {
-        read(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
-    }
-
-    /**
-     * Calls {@link #readLong(LongConsumer)}, however once finished, {@link #readLong(LongConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readLong(LongConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link LongConsumer}.
-     */
-    public final void readLongAlways(LongConsumer consumer) {
-        readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()));
-    }
-
-    /**
-     * Requests a single {@code short} and accepts a {@link Consumer} with the {@code short} when
-     * it is received.
-     *
-     * @param consumer A {@link ShortConsumer}.
-     */
-    public final void readShort(ShortConsumer consumer) {
-        read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-    }
-
-    /**
-     * Calls {@link #readShort(ShortConsumer)}, however once finished, {@link #readShort(ShortConsumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readShort(ShortConsumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link ShortConsumer}.
-     */
-    public final void readShortAlways(ShortConsumer consumer) {
-        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()));
-    }
-
-    /**
-     * Requests a single {@link String} and accepts a {@link Consumer} with the {@link String}
-     * when it is received. A {@code short} is used to store the length of the {@link String},
-     * which imposes a maximum {@link String} length of {@code 65,535}.
-     *
-     * @param consumer A {@link Consumer}.
-     */
-    public final void readString(Consumer<String> consumer) {
-        readShort(s -> {
-            read(s, buffer -> {
-                var b = new byte[s & 0xFFFF];
-                buffer.get(b);
-                consumer.accept(new String(b));
-            });
-        });
-    }
-
-    /**
-     * Calls {@link #readString(Consumer)}, however once finished, {@link #readString(Consumer)}
-     * is called once again with the same parameter; this loops indefinitely whereas
-     * {@link #readString(Consumer)} completes after a single iteration.
-     *
-     * @param consumer A {@link Consumer}.
-     */
-    public final void readStringAlways(Consumer<String> consumer) {
-        readShortAlways(s -> {
-            read(s, buffer -> {
-                var b = new byte[s & 0xFFFF];
-                buffer.get(b);
-                consumer.accept(new String(b));
-            });
-        });
     }
 
     /**
