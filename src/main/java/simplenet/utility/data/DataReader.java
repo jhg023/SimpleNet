@@ -2,6 +2,7 @@ package simplenet.utility.data;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -12,6 +13,17 @@ import java.util.function.Consumer;
  */
 @FunctionalInterface
 public interface DataReader {
+    
+    /**
+     * A helper method to block until the {@link CompletableFuture} contains a value.
+     *
+     * @param future The {@link CompletableFuture} to wait for.
+     * @param <T>    The type of the {@link CompletableFuture} and the return type.
+     * @return The instance of {@code T} contained in the {@link CompletableFuture}.
+     */
+    default <T> T read(CompletableFuture<T> future) {
+        return future.join();
+    }
     
     /**
      * Calls {@link #read(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

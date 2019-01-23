@@ -1,6 +1,7 @@
 package simplenet.utility.data;
 
 import java.nio.ByteOrder;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import simplenet.utility.exposed.BooleanConsumer;
 
@@ -11,6 +12,29 @@ import simplenet.utility.exposed.BooleanConsumer;
  * @version January 21, 2019
  */
 public interface BooleanReader extends DataReader {
+    
+    /**
+     * Reads a {@code boolean} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * unlike {@link #readBoolean(BooleanConsumer)}.
+     *
+     * @return A {@code boolean}.
+     * @see #readBoolean(ByteOrder)
+     */
+    default boolean readBoolean() {
+        return readBoolean(ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Reads a {@code boolean} with the specified {@link ByteOrder} from the network, but blocks the executing thread
+     * unlike {@link #readBoolean(BooleanConsumer)}.
+     *
+     * @return A {@code boolean}.
+     */
+    default boolean readBoolean(ByteOrder order) {
+        var future = new CompletableFuture<Boolean>();
+        readBoolean(future::complete, order);
+        return read(future);
+    }
     
     /**
      * Calls {@link #readBoolean(BooleanConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

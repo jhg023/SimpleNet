@@ -1,6 +1,7 @@
 package simplenet.utility.data;
 
 import java.nio.ByteOrder;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import simplenet.utility.exposed.CharConsumer;
 
@@ -11,6 +12,29 @@ import simplenet.utility.exposed.CharConsumer;
  * @version January 21, 2019
  */
 public interface CharReader extends DataReader {
+    
+    /**
+     * Reads a {@code char} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * unlike {@link #readChar(CharConsumer)}.
+     *
+     * @return A {@code char}.
+     * @see #readChar(ByteOrder)
+     */
+    default char readChar() {
+        return readChar(ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Reads a {@code char} with the specified {@link ByteOrder} from the network, but blocks the executing thread
+     * unlike {@link #readChar(CharConsumer)}.
+     *
+     * @return A {@code char}.
+     */
+    default char readChar(ByteOrder order) {
+        var future = new CompletableFuture<Character>();
+        readChar(future::complete, order);
+        return read(future);
+    }
     
     /**
      * Calls {@link #readChar(CharConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

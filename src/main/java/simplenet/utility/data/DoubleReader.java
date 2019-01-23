@@ -1,6 +1,7 @@
 package simplenet.utility.data;
 
 import java.nio.ByteOrder;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 
@@ -11,6 +12,29 @@ import java.util.function.DoubleConsumer;
  * @version January 21, 2019
  */
 public interface DoubleReader extends DataReader {
+    
+    /**
+     * Reads a {@code double} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * unlike {@link #readDouble(DoubleConsumer)}.
+     *
+     * @return A {@code double}.
+     * @see #readDouble(ByteOrder)
+     */
+    default double readDouble() {
+        return readDouble(ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Reads a {@code double} with the specified {@link ByteOrder} from the network, but blocks the executing thread
+     * unlike {@link #readDouble(DoubleConsumer)}.
+     *
+     * @return A {@code double}.
+     */
+    default double readDouble(ByteOrder order) {
+        var future = new CompletableFuture<Double>();
+        readDouble(future::complete, order);
+        return read(future);
+    }
     
     /**
      * Calls {@link #readDouble(DoubleConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

@@ -154,20 +154,22 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<>() {
         @Override
         public void completed(Integer result, Client client) {
-            if (!client.channel.isOpen()) {
-                client.outgoingPackets.clear();
-                client.packetsToFlush.clear();
-                return;
+            synchronized (client.packetsToFlush) {
+                if (!client.channel.isOpen()) {
+                    client.outgoingPackets.clear();
+                    client.packetsToFlush.clear();
+                    return;
+                }
+    
+                var payload = client.packetsToFlush.pollLast();
+    
+                if (payload == null) {
+                    client.writing.set(false);
+                    return;
+                }
+    
+                client.channel.write(payload, client, this);
             }
-
-            var payload = client.packetsToFlush.pollLast();
-
-            if (payload == null) {
-                client.writing.set(false);
-                return;
-            }
-
-            client.channel.write(payload, client, this);
         }
 
         @Override
@@ -269,7 +271,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
         writing = new AtomicBoolean();
         outgoingPackets = new ConcurrentLinkedDeque<>();
-        packetsToFlush = new ConcurrentLinkedDeque<>();
+        packetsToFlush = new ArrayDeque<>();
         queue = new ConcurrentLinkedDeque<>();
         stack = new ConcurrentLinkedDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
@@ -474,10 +476,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
                 }
 
-                if (!writing.getAndSet(true)) {
-                    channel.write(raw, this, PACKET_HANDLER);
-                } else {
-                    packetsToFlush.offerFirst(raw);
+                // It is important to synchronize on the packetsToFlush here, as we don't want the callback to
+                // complete before the packet is queued.
+                synchronized (packetsToFlush) {
+                    if (!writing.getAndSet(true)) {
+                        channel.write(raw, this, PACKET_HANDLER);
+                    } else {
+                        packetsToFlush.offerFirst(raw);
+                    }
                 }
 
                 totalBytes = packet.getSize();

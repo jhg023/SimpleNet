@@ -1,6 +1,7 @@
 package simplenet.utility.data;
 
 import java.nio.ByteOrder;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
@@ -11,6 +12,29 @@ import java.util.function.LongConsumer;
  * @version January 21, 2019
  */
 public interface LongReader extends DataReader {
+    
+    /**
+     * Reads a {@code long} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * unlike {@link #readLong(LongConsumer)}.
+     *
+     * @return A {@code long}.
+     * @see #readLong(ByteOrder)
+     */
+    default long readLong() {
+        return readLong(ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Reads a {@code long} with the specified {@link ByteOrder} from the network, but blocks the executing thread
+     * unlike {@link #readLong(LongConsumer)}.
+     *
+     * @return A {@code long}.
+     */
+    default long readLong(ByteOrder order) {
+        var future = new CompletableFuture<Long>();
+        readLong(future::complete, order);
+        return read(future);
+    }
     
     /**
      * Calls {@link #readLong(LongConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
