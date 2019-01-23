@@ -64,7 +64,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 // it. If we weren't to close the client here, then its disconnect listeners would not run. However,
                 // if we always close the client here, then its disconnect listeners will run twice, which we do not
                 // want to occur.
-                if (t.getMessage().startsWith("The specified network name is no longer available.")) {
+                String message;
+                
+                if ((message = t.getMessage()) == null) {
+                    return;
+                }
+                
+                if (message.startsWith("The specified network name is no longer available.")) {
                     client.close();
                 }
             }
