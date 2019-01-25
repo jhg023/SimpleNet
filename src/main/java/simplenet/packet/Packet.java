@@ -357,11 +357,29 @@ public final class Packet {
         prepend = false;
         return this;
     }
-
+    
+    /**
+     * Queues this {@link Packet} to a single {@link Client}.
+     * <br><br>
+     * The {@link Client} will not receive this {@link Packet} until {@link Client#flush()} is called.
+     *
+     * @param <T> A {@link Client} or any of its children.
+     * @param client The {@link Client} to queue this {@link Packet} to.
+     */
+    public final <T extends Client> void write(T client) {
+        if (size > client.getBufferSize()) {
+            throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size" +
+                    " (Limit: " + client.getBufferSize() + ")");
+        }
+    
+        client.getOutgoingPackets().offer(this);
+    }
+    
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
      * <br><br>
-     * All queued packets will be written to a {@link Client} when {@link Client#flush()} is called.
+     * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
+     * {@link Client}.
      *
      * @param <T> A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s.
@@ -373,19 +391,15 @@ public final class Packet {
         }
 
         for (Client client : clients) {
-            if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
-                continue;
-            }
-
-            client.getOutgoingPackets().offer(this);
+            write(client);
         }
     }
 
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
      * <br><br>
-     * All queued packets will be written to a {@link Client} when {@link Client#flush()} is called.
+     * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
+     * {@link Client}.
      *
      * @param clients A {@link Collection} of {@link Client}s.
      */
@@ -394,14 +408,24 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        clients.forEach(client -> {
-            if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
-                return;
-            }
-
-            client.getOutgoingPackets().offer(Packet.this);
-        });
+        clients.forEach(this::write);
+    }
+    
+    /**
+     * Queues this {@link Packet} to a single {@link Client} and calls {@link Client#flush()}, flushing all
+     * previously-queued packets as well.
+     *
+     * @param <T> A {@link Client} or any of its children.
+     * @param client The {@link Client} to queue (and flush) this {@link Packet} to.
+     */
+    public final <T extends Client> void writeAndFlush(T client) {
+        if (size > client.getBufferSize()) {
+            throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size" +
+                    " (Limit: " + client.getBufferSize() + ")");
+        }
+    
+        client.getOutgoingPackets().offer(this);
+        client.flush();
     }
 
     /**
@@ -418,13 +442,7 @@ public final class Packet {
         }
 
         for (Client client : clients) {
-            if (size > client.getBufferSize()) {
-                System.err.println("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
-                continue;
-            }
-
-            client.getOutgoingPackets().offer(this);
-            client.flush();
+            writeAndFlush(client);
         }
     }
 
@@ -439,20 +457,13 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        clients.forEach(client -> {
-            if (size > client.getBufferSize()) {
-                throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size (Limit: " + client.getBufferSize() + ")");
-            }
-
-            client.getOutgoingPackets().offer(Packet.this);
-            client.flush();
-        });
+        clients.forEach(this::writeAndFlush);
     }
 
     /**
-     * Gets the number of bytes in this {@link Packet}'s payload.
+     * Gets the size of this {@link Packet}'s payload in {@code byte}s.
      *
-     * @return The current size of this {@link Packet} measured in bytes.
+     * @return The current size of this {@link Packet} in {@code byte}s.
      */
     public int getSize() {
         return size;

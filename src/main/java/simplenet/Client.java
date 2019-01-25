@@ -231,6 +231,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link Cipher} used for {@link Packet} decryption.
      */
     private Cipher decryption;
+    
+    /**
+     * The {@link Server} that this {@link Client} is connected to.
+     */
+    private Server server;
 
     /**
      * The backing {@link ThreadPoolExecutor} used for I/O.
@@ -286,10 +291,25 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             this.channel = channel;
         }
     }
+    
+    /**
+     * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
+     * {@link Server}.
+     * <br><br>
+     * This is primarily used to keep track of the {@link Client}s that are connected to a {@link Server}.
+     *
+     * @param bufferSize The size of this {@link Client}'s buffer, in {@code byte}s.
+     * @param channel    The channel to back this {@link Client} with.
+     * @param server     The {@link Server} that this {@link Client} is connected to.
+     */
+    Client(int bufferSize, AsynchronousSocketChannel channel, Server server) {
+        this(bufferSize, channel);
+        this.server = server;
+    }
 
     /**
-     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
-     * and a default timeout of {@code 30} seconds.
+     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port} and a default
+     * timeout of {@code 30} seconds.
      *
      * @param address The IP address to connect to.
      * @param port    The port to connect to {@code 0 <= port <= 65535}.
@@ -303,9 +323,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}
-     * and a specified timeout.  If the timeout is reached, then the {@link Runnable} is run and
-     * the backing {@link AsynchronousSocketChannel} is closed.
+     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port} and a specified
+     * timeout. If the timeout is reached, then the {@link Runnable} is run and the backing
+     * {@link AsynchronousSocketChannel} is closed.
      *
      * @param address   The IP address to connect to.
      * @param port      The port to connect to {@code 0 <= port <= 65535}.
@@ -389,6 +409,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             Thread.onSpinWait();
         }
 
+        if (server != null) {
+            server.connectedClients.remove(this);
+        }
+        
         postDisconnectListeners.forEach(Runnable::run);
     }
 
@@ -438,8 +462,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * Flushes any queued {@link Packet}s held within the internal {@link Queue}.
      * <br><br>
-     * Any {@link Packet}s queued after the call to this method will not be flushed until
-     * this method is called again.
+     * Any {@link Packet}s queued after the call to this method will not be flushed until this method is called again.
      */
     public final void flush() {
         int totalBytes = 0;
@@ -498,8 +521,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the
-     * {@link Channel}.
+     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the {@link Channel}.
      *
      * @return A {@link Queue}.
      */
@@ -516,7 +538,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final AsynchronousSocketChannel getChannel() {
         return channel;
     }
-
+    
+    /**
+     * Gets the {@link Server} that this {@link Client} is connected to.
+     *
+     * @return This {@link Client}'s {@link Server}.
+     */
+    Server getServer() {
+        return server;
+    }
+    
     /**
      * Gets the {@link ByteBuffer} of this {@link Client}.
      *

@@ -43,18 +43,6 @@ public abstract class Receiver<T> {
     }
 
     /**
-     * A copy-constructor to create a {@link Receiver}.
-     *
-     * @param receiver Another {@link Receiver}.
-     */
-    protected Receiver(Receiver<T> receiver) {
-        this.bufferSize = receiver.bufferSize;
-        this.connectListeners = receiver.connectListeners;
-        this.preDisconnectListeners = receiver.preDisconnectListeners;
-        this.postDisconnectListeners = receiver.postDisconnectListeners;
-    }
-
-    /**
      * Registers a listener that fires when a {@link Client} connects to a {@link Server}.
      * <br><br>
      * When calling this method more than once, multiple listeners are registered.
