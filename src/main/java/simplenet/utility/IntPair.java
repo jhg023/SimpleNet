@@ -13,12 +13,12 @@ public final class IntPair<T> {
     /**
      * The key of this {@link IntPair}.
      */
-    private int key;
+    public int key;
     
     /**
      * The value of this {@link IntPair}.
      */
-    private T value;
+    public T value;
     
     /**
      * Creates a new {@link IntPair} with the specified key and value.
@@ -50,24 +50,6 @@ public final class IntPair<T> {
     @Override
     public String toString() {
         return "IntPair[key: " + key + ", value: " + value + "]";
-    }
-    
-    /**
-     * Gets this {@link IntPair}'s key.
-     *
-     * @return the key as an {@code int}.
-     */
-    public int getKey() {
-        return key;
-    }
-    
-    /**
-     * Gets this {@link IntPair}'s value.
-     *
-     * @return the value as a {@link T}.
-     */
-    public T getValue() {
-        return value;
     }
     
 }

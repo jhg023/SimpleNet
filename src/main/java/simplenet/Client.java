@@ -80,13 +80,15 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         public void completed(Integer result, Client client) {
             // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
             // client's connection.
-            if (result == -1) {
+            int intResult = result;
+            
+            if (intResult == -1) {
                 client.close();
                 return;
             }
             
             synchronized (client.buffer) {
-                client.size += result;
+                client.size += intResult;
                 
                 var buffer = client.buffer.flip();
                 var queue = client.queue;
@@ -106,7 +108,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     
                 int key;
     
-                while (client.size >= (key = peek.getKey())) {
+                while (client.size >= (key = peek.key)) {
                     if (decrypt) {
                         try {
                             int position = buffer.position();
@@ -120,7 +122,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
                     client.size -= key;
                     
-                    peek.getValue().accept(buffer);
+                    peek.value.accept(buffer);
         
                     while (!stack.isEmpty()) {
                         queue.offerFirst(stack.pollFirst());
@@ -137,9 +139,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     queue.addLast(peek);
                 }
     
-                if (client.size > 0) {
-                    buffer.compact();
-                } else {
+                if (client.size == 0) {
                     buffer.flip();
                 }
                 
@@ -283,7 +283,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         writing = new AtomicBoolean();
         outgoingPackets = new ConcurrentLinkedDeque<>();
         packetsToFlush = new ArrayDeque<>();
-        queue = new ConcurrentLinkedDeque<>();
+        queue = new ArrayDeque<>();
         stack = new ConcurrentLinkedDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
         

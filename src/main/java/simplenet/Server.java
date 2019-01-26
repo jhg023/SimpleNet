@@ -120,7 +120,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
 
         try {
             channel.bind(new InetSocketAddress(address, port));
-
+            
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
