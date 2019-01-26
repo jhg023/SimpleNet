@@ -139,7 +139,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     queue.addLast(peek);
                 }
     
-                if (client.size == 0) {
+                if (client.size > 0) {
+                    buffer.compact();
+                } else {
                     buffer.flip();
                 }
                 
