@@ -1,2 +1,0 @@
-module Client         {
-	requires SimpleNet ;}
