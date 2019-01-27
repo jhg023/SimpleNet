@@ -22,7 +22,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import javax.crypto.Cipher;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
@@ -101,25 +100,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
     
                 client.prepend = true;
-    
-                boolean decrypt = client.decryption != null;
-    
+                
                 var stack = client.stack;
     
                 int key;
     
                 while (client.size >= (key = peek.key)) {
-                    if (decrypt) {
-                        try {
-                            int position = buffer.position();
-                            buffer.limit(buffer.position() + key);
-                            client.decryption.update(buffer, buffer.duplicate());
-                            buffer.flip().position(position);
-                        } catch (Exception e) {
-                            throw new IllegalStateException("Exception occurred when decrypting:", e);
-                        }
-                    }
-        
                     client.size -= key;
                     
                     peek.value.accept(buffer);
@@ -223,16 +209,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Whether or not new elements added {@code queue} should be added to the front rather than the back.
      */
     private boolean prepend;
-
-    /**
-     * The {@link Cipher} used for {@link Packet} encryption.
-     */
-    private Cipher encryption;
-
-    /**
-     * The {@link Cipher} used for {@link Packet} decryption.
-     */
-    private Cipher decryption;
     
     /**
      * The {@link Server} that this {@link Client} is connected to.
@@ -392,7 +368,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Listeners are fired in the same order that they were registered in.
      */
     @Override
-    public void close() {
+    public final void close() {
         preDisconnectListeners.forEach(Runnable::run);
 
         flush();
@@ -428,7 +404,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @param listener A {@link Runnable}.
      */
-    public void preDisconnect(Runnable listener) {
+    public final void preDisconnect(Runnable listener) {
         preDisconnectListeners.add(listener);
     }
 
@@ -439,12 +415,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @param listener A {@link Runnable}.
      */
-    public void postDisconnect(Runnable listener) {
+    public final void postDisconnect(Runnable listener) {
         postDisconnectListeners.add(listener);
     }
     
     @Override
-    public void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
+    public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         synchronized (buffer) {
             if (size >= n) {
                 size -= n;
@@ -498,15 +474,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                 raw.flip();
 
-                if (encryption != null) {
-                    try {
-                        encryption.update(raw, raw.duplicate());
-                        raw.flip();
-                    } catch (Exception e) {
-                        throw new IllegalStateException("Exception occurred when encrypting:", e);
-                    }
-                }
-
                 // It is important to synchronize on the packetsToFlush here, as we don't want the callback to
                 // complete before the packet is queued.
                 synchronized (packetsToFlush) {
@@ -524,10 +491,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
     /**
      * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the {@link Channel}.
+     * <br><br>
+     * This method should only be used internally; modifying this queue in any way can produce unintended results!
      *
      * @return A {@link Queue}.
      */
-    public Queue<Packet> getOutgoingPackets() {
+    public final Queue<Packet> getOutgoingPackets() {
         return outgoingPackets;
     }
 
@@ -542,41 +511,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
     
     /**
-     * Gets the {@link Server} that this {@link Client} is connected to.
-     *
-     * @return This {@link Client}'s {@link Server}.
-     */
-    Server getServer() {
-        return server;
-    }
-    
-    /**
      * Gets the {@link ByteBuffer} of this {@link Client}.
      *
      * @return This {@link Client}'s buffer.
      */
     ByteBuffer getBuffer() {
         return buffer;
-    }
-
-    public void setEncryption(Cipher encryption) {
-        Objects.requireNonNull(encryption);
-
-        if (!encryption.getAlgorithm().endsWith("NoPadding")) {
-            throw new IllegalArgumentException("The cipher cannot have any padding!");
-        }
-
-        this.encryption = encryption;
-    }
-
-    public void setDecryption(Cipher decryption) {
-        Objects.requireNonNull(decryption);
-
-        if (!decryption.getAlgorithm().endsWith("NoPadding")) {
-            throw new IllegalArgumentException("The cipher cannot have any padding!");
-        }
-
-        this.decryption = decryption;
     }
 
 }
