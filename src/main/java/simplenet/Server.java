@@ -184,6 +184,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
      * @param consumer The action to perform for each {@link Client}.
      * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
      */
+    @SafeVarargs
     private <T extends Client> void writeHelper(Consumer<Client> consumer, T... clients) {
         var toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.length));
         toExclude.addAll(List.of(clients));

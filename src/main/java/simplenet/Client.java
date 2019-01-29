@@ -22,10 +22,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import javax.crypto.Cipher;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
+import simplenet.utility.Utility;
 import simplenet.utility.data.BooleanReader;
 import simplenet.utility.data.ByteReader;
 import simplenet.utility.data.CharReader;
@@ -91,7 +93,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 
                 var buffer = client.buffer.flip();
                 var queue = client.queue;
-    
+                
                 IntPair<Consumer<ByteBuffer>> peek;
     
                 if ((peek = queue.pollLast()) == null) {
@@ -100,15 +102,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
     
                 client.prepend = true;
-                
+    
+                var shouldDecrypt = client.decryption != null;
                 var stack = client.stack;
-    
                 int key;
-    
+                
                 while (client.size >= (key = peek.key)) {
                     client.size -= key;
                     
-                    peek.value.accept(buffer);
+                    if (shouldDecrypt) {
+                        var encryptedData = new byte[key];
+                        buffer.get(encryptedData);
+                      
+                        try {
+                            peek.value.accept(ByteBuffer.wrap(client.decryption.doFinal(encryptedData)));
+                        } catch (Exception e) {
+                            throw new IllegalStateException("An exception has occurred when encrypting data:", e);
+                        }
+                    } else {
+                        peek.value.accept(buffer);
+                    }
         
                     while (!stack.isEmpty()) {
                         queue.offerFirst(stack.pollFirst());
@@ -209,6 +222,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Whether or not new elements added {@code queue} should be added to the front rather than the back.
      */
     private boolean prepend;
+    
+    /**
+     * The {@link Cipher} used for {@link Packet} encryption.
+     */
+    private Cipher encryption;
+    
+    /**
+     * The {@link Cipher} used for {@link Packet} decryption.
+     */
+    private Cipher decryption;
     
     /**
      * The {@link Server} that this {@link Client} is connected to.
@@ -421,9 +444,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     
     @Override
     public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
+        if (decryption != null) {
+            n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
+        }
+        
         synchronized (buffer) {
             if (size >= n) {
                 size -= n;
+               
+                if (decryption != null) {
+                    var encryptedData = new byte[n];
+                    
+                    buffer.order(order).get(encryptedData);
+    
+                    try {
+                        consumer.accept(ByteBuffer.wrap(decryption.doFinal(encryptedData)));
+                        return;
+                    } catch (Exception e) {
+                        throw new IllegalStateException("An exception has occurred when encrypting data:", e);
+                    }
+                }
                 
                 consumer.accept(buffer.order(order));
                 return;
@@ -448,12 +488,14 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
         Packet packet;
 
-        var queue = new ArrayDeque<Consumer<ByteBuffer>>();
+        boolean shouldEncrypt = encryption != null;
+        
+        var queue = new ArrayDeque<byte[]>();
 
         while (amountToPoll-- > 0 && (packet = outgoingPackets.poll()) != null) {
             int currentBytes = totalBytes;
 
-            boolean tooBig = (totalBytes += packet.getSize()) >= bufferSize;
+            boolean tooBig = (totalBytes += packet.getSize(this)) >= bufferSize;
             boolean empty = outgoingPackets.isEmpty();
 
             if (!tooBig || empty) {
@@ -464,14 +506,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             if (tooBig || empty) {
                 var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
 
-                Consumer<ByteBuffer> consumer;
-
-                while ((consumer = queue.pollFirst()) != null) {
-                    consumer.accept(raw);
+                byte[] input;
+    
+                try {
+                    while ((input = queue.pollFirst()) != null) {
+                        raw.put(shouldEncrypt ? encryption.doFinal(input) : input);
+                    }
+                } catch (Exception e) {
+                    throw new IllegalStateException("An exception has occurred when encrypting data:", e);
                 }
 
                 queue.addAll(packet.getQueue());
-
+    
                 raw.flip();
 
                 // It is important to synchronize on the packetsToFlush here, as we don't want the callback to
@@ -484,7 +530,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
                 }
 
-                totalBytes = packet.getSize();
+                totalBytes = packet.getSize(this);
             }
         }
     }
@@ -517,6 +563,42 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     ByteBuffer getBuffer() {
         return buffer;
+    }
+    
+    /**
+     * Gets the encryption {@link Cipher} used by this {@link Client}.
+     *
+     * @return This {@link Client}'s encryption {@link Cipher}; possibly {@code null} if not yet set.
+     */
+    public Cipher getEncryption() {
+        return encryption;
+    }
+    
+    /**
+     * Gets the decryption {@link Cipher} used by this {@link Client}.
+     *
+     * @return This {@link Client}'s decryption {@link Cipher}; possibly {@code null} if not yet set.
+     */
+    public Cipher getDecryption() {
+        return decryption;
+    }
+    
+    /**
+     * Sets the encryption {@link Cipher} used by this {@link Client}.
+     *
+     * @param encryption The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
+     */
+    public void setEncryption(Cipher encryption) {
+        this.encryption = encryption;
+    }
+    
+    /**
+     * Sets the decryption {@link Cipher} used by this {@link Client}.
+     *
+     * @param decryption The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
+     */
+    public void setDecryption(Cipher decryption) {
+        this.decryption = decryption;
     }
 
 }

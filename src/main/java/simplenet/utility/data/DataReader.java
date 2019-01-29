@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import javax.crypto.Cipher;
 
 /**
  * An interface that defines the methods required to read data over a network with SimpleNet.
@@ -27,8 +28,12 @@ public interface DataReader {
     
     /**
      * Calls {@link #read(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * <br><br>
+     * If encryption is active with a {@link Cipher} that uses padding, then this method should <strong>not</strong> be
+     * called directly, as each grouping of bytes ({@code byte}, {@code short}, {@code int}, etc.) is encrypted
+     * separately and will most-likely not reflect the amount of {@code byte}s requested.
      *
-     * @param n        The amount of bytes requested.
+     * @param n        The amount of {@code byte}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
      * @see #read(int, Consumer, ByteOrder)
      */
@@ -43,18 +48,22 @@ public interface DataReader {
      * If the amount of {@code byte}s requested already reside in the buffer, then this method may block to accept
      * the {@link Consumer} with the {@code byte}s. Otherwise, it simply queues up a request for the {@code byte}s,
      * which does not block.
+     * <br><br>
+     * If encryption is active with a {@link Cipher} that uses padding, then this method should <strong>not</strong> be
+     * called directly, as each grouping of bytes ({@code byte}, {@code short}, {@code int}, etc.) is encrypted
+     * separately and will most-likely not reflect the amount of {@code byte}s requested.
      *
-     * @param n        The amount of bytes requested.
+     * @param n        The amount of {@code byte}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
-     * @param order    The order of the bytes inside the {@link ByteBuffer}.
+     * @param order    The order of the {@code byte}s inside the {@link ByteBuffer}.
      */
     void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order);
     
     /**
      * Calls {@link #readAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
-     * @param n        The amount of bytes requested.
-     * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
+     * @param n        The amount of {@code byte}s requested.
+     * @param consumer Holds the operations that should be performed once the {@code n} {@code byte}s are received.
      * @see #readAlways(int, Consumer, ByteOrder)
      */
     default void readAlways(int n, Consumer<ByteBuffer> consumer) {
@@ -66,9 +75,9 @@ public interface DataReader {
      * called once again with the same parameters; this loops indefinitely, whereas
      * {@link #read(int, Consumer, ByteOrder)} completes after a single iteration.
      *
-     * @param n        The amount of bytes requested.
+     * @param n        The amount of {@code byte}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
-     * @param order    The order of the bytes inside the {@link ByteBuffer}.
+     * @param order    The order of the {@code byte}s inside the {@link ByteBuffer}.
      */
     default void readAlways(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         read(n, new Consumer<>() {

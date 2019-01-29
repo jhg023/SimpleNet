@@ -8,8 +8,10 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
+import javax.crypto.Cipher;
 import simplenet.Client;
 import simplenet.Server;
+import simplenet.utility.Utility;
 
 /**
  * A {@link Packet} that will be sent from a {@link Client} to the {@link Server} or vice versa.
@@ -25,14 +27,9 @@ public final class Packet {
     private boolean prepend;
 
     /**
-     * An {@code int} representing the amount of bytes that this {@link Packet} will contain in its payload.
-     */
-    private int size;
-
-    /**
      * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
      */
-    private final Deque<Consumer<ByteBuffer>> queue;
+    private final Deque<byte[]> queue;
 
     /**
      * A {@code private} constructor.
@@ -42,7 +39,7 @@ public final class Packet {
     }
 
     /**
-     * Instantiates a raw {@link Packet} builder.
+     * Instantiates a new {@link Packet}.
      *
      * @return An instance of {@link Packet}.
      */
@@ -51,57 +48,43 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code boolean} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * A helper method that eliminates duplicate code and enqueues a {@code byte[]} to the backing {@link Deque}
+     * (either at the front or back depending on the value of {@code prepend}).
+     *
+     * @param data The data to enqueue.
+     * @return This {@link Packet} to allow for chained writes.
+     */
+    private Packet enqueue(byte[] data) {
+        if (prepend) {
+            queue.offerFirst(data);
+        } else {
+            queue.offerLast(data);
+        }
+        
+        return this;
+    }
+    
+    /**
+     * Writes a single {@code boolean} to this {@link Packet}'s payload.
+     * <br><br>
+     * The {@code boolean} is sent over the network as a {@code byte} with a value of {@code 1} for {@code true} and a
+     * value of {@code 0} for {@code false}.
      *
      * @param b A {@code boolean}, that is internally written as a {@code byte}.
      * @return The {@link Packet} to allow for chained writes.
-     * @see #putBoolean(boolean, ByteOrder)
      */
     public Packet putBoolean(boolean b) {
-        return putBoolean(b, ByteOrder.BIG_ENDIAN);
+        return enqueue(new byte[] { (byte) (b ? 1 : 0) });
     }
     
     /**
-     * Writes a single {@code boolean} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
-     *
-     * @param b A {@code boolean}, that is internally written as a {@code byte}.
-     * @return The {@link Packet} to allow for chained writes.
-     */
-    public Packet putBoolean(boolean b, ByteOrder order) {
-        size += Byte.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).put((byte) (b ? 1 : 0)));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).put((byte) (b ? 1 : 0)));
-        }
-        return this;
-    }
-    
-    /**
-     * Writes a single {@code byte} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code byte} to this {@link Packet}'s payload.
      *
      * @param b An {@code int} for ease-of-use, but internally down-casted to a {@code byte}.
      * @return The {@link Packet} to allow for chained writes.
-     * @see #putByte(int, ByteOrder)
      */
     public Packet putByte(int b) {
-        return putByte(b, ByteOrder.BIG_ENDIAN);
-    }
-    
-    /**
-     * Writes a single {@code byte} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
-     *
-     * @param b An {@code int} for ease-of-use, but internally down-casted to a {@code byte}.
-     * @return The {@link Packet} to allow for chained writes.
-     */
-    public Packet putByte(int b, ByteOrder order) {
-        size += Byte.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).put((byte) b));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).put((byte) b));
-        }
-        return this;
+        return enqueue(new byte[] { (byte) b });
     }
 
     /**
@@ -123,13 +106,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putBytes(ByteOrder order, byte... src) {
-        size += src.length * Byte.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).put(src));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).put(src));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(src.length).put(src).order(order).array());
     }
 
     /**
@@ -150,13 +127,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putChar(char c, ByteOrder order) {
-        size += Character.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putChar(c));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putChar(c));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Character.BYTES).order(order).putChar(c).array());
     }
     
     /**
@@ -177,13 +148,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putDouble(double d, ByteOrder order) {
-        size += Double.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putDouble(d));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putDouble(d));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Double.BYTES).order(order).putDouble(d).array());
     }
     
     /**
@@ -204,13 +169,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putFloat(float f, ByteOrder order) {
-        size += Float.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putFloat(f));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putFloat(f));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Float.BYTES).order(order).putFloat(f).array());
     }
     
     /**
@@ -231,13 +190,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putInt(int i, ByteOrder order) {
-        size += Integer.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putInt(i));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putInt(i));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Integer.BYTES).order(order).putInt(i).array());
     }
     
     /**
@@ -258,13 +211,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putLong(long l, ByteOrder order) {
-        size += Long.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putLong(l));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putLong(l));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Long.BYTES).order(order).putLong(l).array());
     }
     
     /**
@@ -285,13 +232,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putShort(int s, ByteOrder order) {
-        size += Short.BYTES;
-        if (prepend) {
-            queue.offerFirst(buffer -> buffer.order(order).putShort((short) s));
-        } else {
-            queue.offerLast(buffer -> buffer.order(order).putShort((short) s));
-        }
-        return this;
+        return enqueue(ByteBuffer.allocate(Short.BYTES).order(order).putShort((short) s).array());
     }
 
     /**
@@ -343,17 +284,17 @@ public final class Packet {
     }
 
     /**
-     * Prepends data to the front of the {@link Packet}.
+     * Prepends data to the front of this {@link Packet}.
      * <br><br>
      * This is primarily used for headers, such as when one or more of the headers depend on the size
      * of the data contained within the {@link Packet} itself.
      *
-     * @param runnable The {@link Runnable} containing calls to add more data to this {@link Packet}.
-     * @return The {@link Packet} to allow for chained writes.
+     * @param consumer The {@link Consumer} containing calls to add more data to this {@link Packet}.
+     * @return This {@link Packet} to allow for chained writes.
      */
-    public Packet prepend(Runnable runnable) {
+    public Packet prepend(Consumer<Packet> consumer) {
         prepend = true;
-        runnable.run();
+        consumer.accept(this);
         prepend = false;
         return this;
     }
@@ -367,6 +308,8 @@ public final class Packet {
      * @param client The {@link Client} to queue this {@link Packet} to.
      */
     public final <T extends Client> void write(T client) {
+        int size = getSize(client);
+        
         if (size > client.getBufferSize()) {
             throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size" +
                     " (Limit: " + client.getBufferSize() + ")");
@@ -419,12 +362,7 @@ public final class Packet {
      * @param client The {@link Client} to queue (and flush) this {@link Packet} to.
      */
     public final <T extends Client> void writeAndFlush(T client) {
-        if (size > client.getBufferSize()) {
-            throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size" +
-                    " (Limit: " + client.getBufferSize() + ")");
-        }
-    
-        client.getOutgoingPackets().offer(this);
+        write(client);
         client.flush();
     }
 
@@ -462,19 +400,44 @@ public final class Packet {
 
     /**
      * Gets the size of this {@link Packet}'s payload in {@code byte}s.
+     * <br><br>
+     * This method has been deprecated, as it does not take packet encryption into account.
      *
      * @return The current size of this {@link Packet} in {@code byte}s.
+     * @deprecated Use {@link #getSize(Client)} instead.
      */
+    @Deprecated
     public int getSize() {
-        return size;
+        return queue.stream().mapToInt(array -> array.length).sum();
+    }
+    
+    /**
+     * Gets the size of this {@link Packet}'s payload in {@code byte}s, while taking the specified {@link Client}'s
+     * encryption into account, as a {@link Cipher}'s padding may increase the size of this {@link Packet}.
+     *
+     * @param client The {@link Client} that this {@link Packet} will be sent to.
+     * @return The current size of this {@link Packet} in {@code byte}s.
+     */
+    public int getSize(Client client) {
+        Cipher encryption;
+        
+        if ((encryption = client.getEncryption()) == null) {
+            return queue.stream().mapToInt(array -> array.length).sum();
+        }
+        
+        int blockSize = encryption.getBlockSize();
+        
+        return queue.stream().mapToInt(array -> Utility.roundUpToNextMultiple(array.length, blockSize)).sum();
     }
 
     /**
      * Gets the backing {@link Deque} of this {@link Packet}.
+     * <br><br>
+     * This method should only be used internally; modifying this deque in any way can produce unintended results!
      *
      * @return A {@link Deque}.
      */
-    public Deque<Consumer<ByteBuffer>> getQueue() {
+    public Deque<byte[]> getQueue() {
         return queue;
     }
 

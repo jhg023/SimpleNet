@@ -4,6 +4,8 @@ import java.util.Objects;
 
 /**
  * A class that acts as an {@code int}-{@link T} tuple.
+ * <br><br>
+ * This class is for internal use, but was made visible to prevent packaging conflicts.
  *
  * @author Jacob G.
  * @version January 12, 2019
