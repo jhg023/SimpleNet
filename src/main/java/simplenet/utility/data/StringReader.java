@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 public interface StringReader extends ShortReader {
     
     /**
-     * Reads a {@link String} with {@link StandardCharsets#UTF_8} as the encoding and {@link ByteOrder#BIG_ENDIAN} as
+     * Reads a {@link String} with {@link StandardCharsets#UTF_8} as the encoding and {@link ByteOrder#LITTLE_ENDIAN} as
      * the {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
      *
      * @return A {@link String}.
@@ -26,14 +26,14 @@ public interface StringReader extends ShortReader {
     }
     
     /**
-     * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN} as the
+     * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder#LITTLE_ENDIAN} as the
      * {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
      *
      * @return A {@link String}.
      * @see #readString(Charset, ByteOrder)
      */
     default String readString(Charset charset) {
-        return readString(charset, ByteOrder.BIG_ENDIAN);
+        return readString(charset, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -50,24 +50,24 @@ public interface StringReader extends ShortReader {
     
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)} with {@link StandardCharsets#UTF_8} as the encoding and
-     * {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@link String} is received.
      * @see #readString(Consumer, Charset, ByteOrder)
      */
     default void readString(Consumer<String> consumer) {
-        readString(consumer, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
+        readString(consumer, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)} with the specified {@link Charset} as the encoding and
-     * {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@link String} is received.
      * @see #readString(Consumer, Charset, ByteOrder)
      */
     default void readString(Consumer<String> consumer, Charset charset) {
-        readString(consumer, charset, ByteOrder.BIG_ENDIAN);
+        readString(consumer, charset, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -84,35 +84,32 @@ public interface StringReader extends ShortReader {
      */
     default void readString(Consumer<String> consumer, Charset charset, ByteOrder order) {
         readShort(length -> {
-            int finalLength = order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(length) : length;
-            read(finalLength, buffer -> {
-                var b = new byte[finalLength & 0xFFFF];
-                buffer.get(b);
-                consumer.accept(new String(b, charset));
-            }, order);
+            read(Byte.SIZE * length, buffer -> {
+                consumer.accept(new String(buffer.getBytes(length & 0xFFFF), charset));
+            });
         }, order);
     }
     
     /**
      * Calls {@link #readStringAlways(Consumer, Charset, ByteOrder)} with {@link StandardCharsets#UTF_8} as the encoding
-     * and {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * and {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@link String} is received.
      * @see #readStringAlways(Consumer, Charset, ByteOrder)
      */
     default void readStringAlways(Consumer<String> consumer) {
-        readStringAlways(consumer, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
+        readStringAlways(consumer, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
      * Calls {@link #readStringAlways(Consumer, Charset, ByteOrder)} with the specified {@link Charset} as the encoding
-     * and {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * and {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@link String} is received.
      * @see #readStringAlways(Consumer, Charset, ByteOrder)
      */
     default void readStringAlways(Consumer<String> consumer, Charset charset) {
-        readStringAlways(consumer, charset, ByteOrder.BIG_ENDIAN);
+        readStringAlways(consumer, charset, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -130,13 +127,10 @@ public interface StringReader extends ShortReader {
      */
     default void readStringAlways(Consumer<String> consumer, Charset charset, ByteOrder order) {
         readShortAlways(length -> {
-            int finalLength = order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(length) : length;
-            read(finalLength, buffer -> {
-                var b = new byte[finalLength & 0xFFFF];
-                buffer.get(b);
-                consumer.accept(new String(b, charset));
-            }, order);
-        }, order);
+            read(Byte.SIZE * length, buffer -> {
+                consumer.accept(new String(buffer.getBytes(length & 0xFFFF), charset));
+            });
+        });
     }
     
 }

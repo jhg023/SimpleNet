@@ -1,5 +1,6 @@
 package simplenet.utility.data;
 
+import bitbuffer.BitBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -14,14 +15,14 @@ import java.util.function.LongConsumer;
 public interface LongReader extends DataReader {
     
     /**
-     * Reads a {@code long} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * Reads a {@code long} with {@link ByteOrder#LITTLE_ENDIAN} order from the network, but blocks the executing thread
      * unlike {@link #readLong(LongConsumer)}.
      *
      * @return A {@code long}.
      * @see #readLong(ByteOrder)
      */
     default long readLong() {
-        return readLong(ByteOrder.BIG_ENDIAN);
+        return readLong(ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -37,13 +38,13 @@ public interface LongReader extends DataReader {
     }
     
     /**
-     * Calls {@link #readLong(LongConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readLong(LongConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code long} is received.
      * @see #readLong(LongConsumer, ByteOrder)
      */
     default void readLong(LongConsumer consumer) {
-        readLong(consumer, ByteOrder.BIG_ENDIAN);
+        readLong(consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -54,17 +55,17 @@ public interface LongReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readLong(LongConsumer consumer, ByteOrder order) {
-        read(Long.BYTES, buffer -> consumer.accept(buffer.getLong()), order);
+        read(Long.SIZE, buffer -> consumer.accept(buffer.getLong(order)));
     }
     
     /**
-     * Calls {@link #readLongAlways(LongConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readLongAlways(LongConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code long} is received.
      * @see #readLongAlways(LongConsumer, ByteOrder)
      */
     default void readLongAlways(LongConsumer consumer) {
-        readLongAlways(consumer, ByteOrder.BIG_ENDIAN);
+        readLongAlways(consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -76,18 +77,18 @@ public interface LongReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readLongAlways(LongConsumer consumer, ByteOrder order) {
-        readAlways(Long.BYTES, buffer -> consumer.accept(buffer.getLong()), order);
+        readAlways(Long.SIZE, buffer -> consumer.accept(buffer.getLong(order)));
     }
     
     /**
-     * Calls {@link #readLongs(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readLongs(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code long}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code long}s are received.
      * @see #readLongs(int, Consumer, ByteOrder)
      */
     default void readLongs(int n, Consumer<long[]> consumer) {
-        readLongs(n, consumer, ByteOrder.BIG_ENDIAN);
+        readLongs(n, consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -99,21 +100,17 @@ public interface LongReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readLongs(int n, Consumer<long[]> consumer, ByteOrder order) {
-        read(n, buffer -> {
-            var l = new long[n];
-            buffer.asLongBuffer().get(l);
-            consumer.accept(l);
-        }, order);
+        read(Long.SIZE * n, buffer -> processLongs(buffer, n, consumer, order));
     }
     
     /**
-     * Calls {@link #readLongsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readLongsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code long}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code long}s are received.
      */
     default void readLongsAlways(int n, Consumer<long[]> consumer) {
-        readLongsAlways(n, consumer, ByteOrder.BIG_ENDIAN);
+        readLongsAlways(n, consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -126,11 +123,25 @@ public interface LongReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readLongsAlways(int n, Consumer<long[]> consumer, ByteOrder order) {
-        readAlways(n, buffer -> {
-            var l = new long[n];
-            buffer.asLongBuffer().get(l);
-            consumer.accept(l);
-        }, order);
+        readAlways(Long.SIZE * n, buffer -> processLongs(buffer, n, consumer, order));
+    }
+    
+    /**
+     * A helper method to eliminate duplicate code.
+     *
+     * @param buffer     The {@link BitBuffer} that contains the bits needed to map to {@code long}s.
+     * @param n          The amount of {@code long}s requested.
+     * @param consumer   Holds the operations that should be performed once the {@code n} {@code long}s are received.
+     * @param order      The byte order of the {@code long}s being received.
+     */
+    private void processLongs(BitBuffer buffer, int n, Consumer<long[]> consumer, ByteOrder order) {
+        var l = new long[n];
+        
+        for (int i = 0; i < n; i++) {
+            l[i] = buffer.getLong(order);
+        }
+        
+        consumer.accept(l);
     }
     
 }

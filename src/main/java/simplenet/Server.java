@@ -129,7 +129,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                     connectedClients.add(client);
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     server.channel.accept(null, this);
-                    channel.read(client.getBuffer(), client, Client.Listener.SERVER_INSTANCE);
+                    channel.read(client.getBuffer().toByteBuffer(), client, Client.Listener.SERVER_INSTANCE);
                 }
 
                 @Override

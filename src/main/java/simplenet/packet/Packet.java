@@ -88,7 +88,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a variable amount of {@code byte}s with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s
+     * Writes a variable amount of {@code byte}s with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s
      * payload.
      *
      * @param src A variable amount of {@code byte}s.
@@ -96,7 +96,7 @@ public final class Packet {
      * @see #putBytes(ByteOrder, byte...)
      */
     public Packet putBytes(byte... src) {
-        return putBytes(ByteOrder.BIG_ENDIAN, src);
+        return putBytes(ByteOrder.LITTLE_ENDIAN, src);
     }
     
     /**
@@ -110,14 +110,14 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@code char} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code char} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param c A {@code char}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putChar(char, ByteOrder)
      */
     public Packet putChar(char c) {
-        return putChar(c, ByteOrder.BIG_ENDIAN);
+        return putChar(c, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -131,14 +131,14 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code double} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code double} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param d A {@code double}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putDouble(double, ByteOrder)
      */
     public Packet putDouble(double d) {
-        return putDouble(d, ByteOrder.BIG_ENDIAN);
+        return putDouble(d, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -152,14 +152,14 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code float} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code float} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param f A {@code float}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putFloat(float, ByteOrder)
      */
     public Packet putFloat(float f) {
-        return putFloat(f, ByteOrder.BIG_ENDIAN);
+        return putFloat(f, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -173,14 +173,14 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code int} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code int} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param i An {@code int}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putInt(int, ByteOrder)
      */
     public Packet putInt(int i) {
-        return putInt(i, ByteOrder.BIG_ENDIAN);
+        return putInt(i, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -194,14 +194,14 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code long} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code long} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param l A {@code long}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putLong(long, ByteOrder)
      */
     public Packet putLong(long l) {
-        return putLong(l, ByteOrder.BIG_ENDIAN);
+        return putLong(l, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -215,14 +215,14 @@ public final class Packet {
     }
     
     /**
-     * Writes a single {@code short} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code short} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param s An {@code int} for ease-of-use, but internally down-casted to a {@code short}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putShort(int, ByteOrder)
      */
     public Packet putShort(int s) {
-        return putShort(s, ByteOrder.BIG_ENDIAN);
+        return putShort(s, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -236,7 +236,7 @@ public final class Packet {
     }
 
     /**
-     * Writes a single {@link StandardCharsets#UTF_8}-encoded {@link String} with {@link ByteOrder#BIG_ENDIAN} order to
+     * Writes a single {@link StandardCharsets#UTF_8}-encoded {@link String} with {@link ByteOrder#LITTLE_ENDIAN} order to
      * this {@link Packet}'s payload.
      * <br><br>
      * The {@link String} can have a maximum length of {@code 65,535}.
@@ -246,11 +246,11 @@ public final class Packet {
      * @see #putString(String, Charset, ByteOrder)
      */
     public Packet putString(String s) {
-        return putString(s, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
+        return putString(s, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
-     * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN}
+     * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder#LITTLE_ENDIAN}
      * order to this {@link Packet}'s payload.
      * <br><br>
      * A {@code short} is used to store the length of the {@link String} in the payload header, which imposes a
@@ -262,7 +262,7 @@ public final class Packet {
      * @see #putString(String, Charset, ByteOrder)
      */
     public Packet putString(String s, Charset charset) {
-        return putString(s, charset, ByteOrder.BIG_ENDIAN);
+        return putString(s, charset, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**

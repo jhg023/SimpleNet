@@ -1,5 +1,6 @@
 package simplenet.utility.data;
 
+import bitbuffer.BitBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -14,14 +15,14 @@ import java.util.function.IntConsumer;
 public interface IntReader extends DataReader {
     
     /**
-     * Reads an {@code int} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
+     * Reads an {@code int} with {@link ByteOrder#LITTLE_ENDIAN} order from the network, but blocks the executing thread
      * unlike {@link #readInt(IntConsumer)}.
      *
      * @return An {@code int}.
      * @see #readInt(ByteOrder)
      */
     default int readInt() {
-        return readInt(ByteOrder.BIG_ENDIAN);
+        return readInt(ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -37,13 +38,13 @@ public interface IntReader extends DataReader {
     }
     
     /**
-     * Calls {@link #readInt(IntConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readInt(IntConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code int} is received.
      * @see #readInt(IntConsumer, ByteOrder)
      */
     default void readInt(IntConsumer consumer) {
-        readInt(consumer, ByteOrder.BIG_ENDIAN);
+        readInt(consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -54,17 +55,17 @@ public interface IntReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readInt(IntConsumer consumer, ByteOrder order) {
-        read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()), order);
+        read(Integer.SIZE, buffer -> consumer.accept(buffer.getInt(order)));
     }
     
     /**
-     * Calls {@link #readIntAlways(IntConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readIntAlways(IntConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code int} is received.
      * @see #readIntAlways(IntConsumer, ByteOrder)
      */
     default void readIntAlways(IntConsumer consumer) {
-        readIntAlways(consumer, ByteOrder.BIG_ENDIAN);
+        readIntAlways(consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -76,18 +77,18 @@ public interface IntReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readIntAlways(IntConsumer consumer, ByteOrder order) {
-        readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()), order);
+        readAlways(Integer.SIZE, buffer -> consumer.accept(buffer.getInt(order)));
     }
     
     /**
-     * Calls {@link #readInts(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readInts(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code int}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code int}s are received.
      * @see #readInts(int, Consumer, ByteOrder)
      */
     default void readInts(int n, Consumer<int[]> consumer) {
-        readInts(n, consumer, ByteOrder.BIG_ENDIAN);
+        readInts(n, consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -99,21 +100,17 @@ public interface IntReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readInts(int n, Consumer<int[]> consumer, ByteOrder order) {
-        read(n, buffer -> {
-            var i = new int[n];
-            buffer.asIntBuffer().get(i);
-            consumer.accept(i);
-        }, order);
+        read(Integer.SIZE * n, buffer -> processInts(buffer, n, consumer, order));
     }
     
     /**
-     * Calls {@link #readIntsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
+     * Calls {@link #readIntsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code int}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code int}s are received.
      */
     default void readIntsAlways(int n, Consumer<int[]> consumer) {
-        readIntsAlways(n, consumer, ByteOrder.BIG_ENDIAN);
+        readIntsAlways(n, consumer, ByteOrder.LITTLE_ENDIAN);
     }
     
     /**
@@ -126,11 +123,25 @@ public interface IntReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readIntsAlways(int n, Consumer<int[]> consumer, ByteOrder order) {
-        readAlways(n, buffer -> {
-            var i = new int[n];
-            buffer.asIntBuffer().get(i);
-            consumer.accept(i);
-        }, order);
+        readAlways(Integer.SIZE * n, buffer -> processInts(buffer, n, consumer, order));
+    }
+    
+    /**
+     * A helper method to eliminate duplicate code.
+     *
+     * @param buffer     The {@link BitBuffer} that contains the bits needed to map to {@code int}s.
+     * @param n          The amount of {@code int}s requested.
+     * @param consumer   Holds the operations that should be performed once the {@code n} {@code int}s are received.
+     * @param order      The byte order of the {@code int}s being received.
+     */
+    private void processInts(BitBuffer buffer, int n, Consumer<int[]> consumer, ByteOrder order) {
+        var i = new int[n];
+        
+        for (int j = 0; j < n; j++) {
+            i[j] = buffer.getInt(order);
+        }
+        
+        consumer.accept(i);
     }
     
 }

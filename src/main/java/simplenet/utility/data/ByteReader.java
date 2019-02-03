@@ -29,7 +29,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code byte} is received.
      */
     default void readByte(ByteConsumer consumer) {
-        read(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
+        read(Byte.SIZE, buffer -> consumer.accept(buffer.getByte()));
     }
     
     /**
@@ -40,7 +40,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code byte} is received.
      */
     default void readByteAlways(ByteConsumer consumer) {
-        readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()));
+        readAlways(Byte.SIZE, buffer -> consumer.accept(buffer.getByte()));
     }
     
     /**
@@ -51,11 +51,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code n} {@code byte}s are received.
      */
     default void readBytes(int n, Consumer<byte[]> consumer) {
-        read(n, buffer -> {
-            var b = new byte[n];
-            buffer.get(b);
-            consumer.accept(b);
-        });
+        read(Byte.SIZE * n, buffer -> consumer.accept(buffer.getBytes(n)));
     }
     
     /**
@@ -67,11 +63,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code n} {@code byte}s are received.
      */
     default void readBytesAlways(int n, Consumer<byte[]> consumer) {
-        readAlways(n, buffer -> {
-            var b = new byte[n];
-            buffer.get(b);
-            consumer.accept(b);
-        });
+        readAlways(Byte.SIZE * n, buffer -> consumer.accept(buffer.getBytes(n)));
     }
     
 }
