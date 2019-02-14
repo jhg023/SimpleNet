@@ -11,20 +11,12 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.3.8</version>
+    <version>1.3.9</version>
     <packaging>jar</packaging>
 
     <name>SimpleNet</name>
     <description>An easy-to-use, event-driven, asynchronous, network application framework.</description>
     <url>https://github.com/jhg023/SimpleNet</url>
-
-    <dependencies>
-        <dependency>
-            <groupId>com.github.jhg023</groupId>
-            <artifactId>BitBuffer</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-    </dependencies>
 
     <licenses>
         <license>

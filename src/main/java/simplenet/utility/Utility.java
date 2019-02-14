@@ -23,12 +23,7 @@ public final class Utility {
      * @return An {@code int}, greater than or equal to {@code num}, and a multiple of {@code multiple}.
      */
     public static int roundUpToNextMultiple(int num, int multiple) {
-        if (multiple == 0) {
-            return num;
-        }
-        
-        int remainder = num % multiple;
-        return remainder == 0 ? num + multiple : num + multiple - remainder;
+        return multiple == 0 ? num : num + multiple - (num % multiple);
     }
     
 }

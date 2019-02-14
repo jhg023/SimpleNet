@@ -1,6 +1,7 @@
 package simplenet.utility.data;
 
-import bitbuffer.BitBuffer;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import javax.crypto.Cipher;
@@ -26,36 +27,38 @@ public interface DataReader {
     }
     
     /**
-     * Requests {@code n} bits and accepts a {@link Consumer} with them (in a {@link BitBuffer}) once received.
+     * Requests {@code n} bytes and accepts a {@link Consumer} with them (in a {@link ByteBuffer}) once received.
      * <br><br>
-     * If the amount of bits requested already reside in the buffer, then this method may block to accept the
-     * {@link Consumer} with the bits. Otherwise, it simply queues up a request for the bits, which does not block.
+     * If the amount of bytes requested already reside in the buffer, then this method may block to accept the
+     * {@link Consumer} with the bytes. Otherwise, it simply queues up a request for the bytes, which does not block.
      * <br><br>
      * If encryption is active with a {@link Cipher} that uses padding, then this method should <strong>not</strong> be
      * called directly, as each grouping of bytes ({@code byte}, {@code short}, {@code int}, etc.) is encrypted
-     * separately and will most-likely not reflect the amount of bits requested.
+     * separately and will most-likely not reflect the amount of bytes requested.
      *
-     * @param n        The amount of bits requested.
-     * @param consumer Holds the operations that should be performed once the {@code n} bits are received.
+     * @param n        The amount of bytes requested.
+     * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
+     * @param order    The byte order of the data being received.
      */
-    void read(int n, Consumer<BitBuffer> consumer);
+    void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order);
     
     /**
-     * Calls {@link #read(int, Consumer)}, however once finished, {@link #read(int, Consumer)} is called once again
-     * with the same parameters; this loops indefinitely, whereas {@link #read(int, Consumer)} completes after a
-     * single iteration.
+     * Calls {@link #read(int, Consumer, ByteOrder)}, however once finished, {@link #read(int, Consumer, ByteOrder)} is
+     * called once again with the same parameters; this loops indefinitely, whereas
+     * {@link #read(int, Consumer, ByteOrder)} completes after a single iteration.
      *
-     * @param n        The amount of bits requested.
-     * @param consumer Holds the operations that should be performed once the {@code n} bits are received.
+     * @param n        The amount of bytes requested.
+     * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
+     * @param order    The byte order of the data being received.
      */
-    default void readAlways(int n, Consumer<BitBuffer> consumer) {
+    default void readAlways(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         read(n, new Consumer<>() {
             @Override
-            public void accept(BitBuffer buffer) {
+            public void accept(ByteBuffer buffer) {
                 consumer.accept(buffer);
-                read(n, this);
+                read(n, this, order);
             }
-        });
+        }, order);
     }
     
 }

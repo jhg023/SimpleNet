@@ -1,6 +1,6 @@
 package simplenet.utility.data;
 
-import bitbuffer.BitBuffer;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -15,14 +15,14 @@ import java.util.function.DoubleConsumer;
 public interface DoubleReader extends DataReader {
     
     /**
-     * Reads a {@code double} with {@link ByteOrder#LITTLE_ENDIAN} order from the network, but blocks the executing thread
+     * Reads a {@code double} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
      * unlike {@link #readDouble(DoubleConsumer)}.
      *
      * @return A {@code double}.
      * @see #readDouble(ByteOrder)
      */
     default double readDouble() {
-        return readDouble(ByteOrder.LITTLE_ENDIAN);
+        return readDouble(ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -38,13 +38,13 @@ public interface DoubleReader extends DataReader {
     }
     
     /**
-     * Calls {@link #readDouble(DoubleConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readDouble(DoubleConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code double} is received.
      * @see #readDouble(DoubleConsumer, ByteOrder)
      */
     default void readDouble(DoubleConsumer consumer) {
-        readDouble(consumer, ByteOrder.LITTLE_ENDIAN);
+        readDouble(consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -55,17 +55,17 @@ public interface DoubleReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readDouble(DoubleConsumer consumer, ByteOrder order) {
-        read(Double.SIZE, buffer -> consumer.accept(buffer.getDouble(order)));
+        read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()), order);
     }
     
     /**
-     * Calls {@link #readDoubleAlways(DoubleConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readDoubleAlways(DoubleConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code double} is received.
      * @see #readDoubleAlways(DoubleConsumer, ByteOrder)
      */
     default void readDoubleAlways(DoubleConsumer consumer) {
-        readDoubleAlways(consumer, ByteOrder.LITTLE_ENDIAN);
+        readDoubleAlways(consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -77,18 +77,18 @@ public interface DoubleReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readDoubleAlways(DoubleConsumer consumer, ByteOrder order) {
-        readAlways(Double.SIZE, buffer -> consumer.accept(buffer.getDouble(order)));
+        readAlways(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()), order);
     }
     
     /**
-     * Calls {@link #readDoubles(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readDoubles(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code double}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code double}s are received.
      * @see #readDoubles(int, Consumer, ByteOrder)
      */
     default void readDoubles(int n, Consumer<double[]> consumer) {
-        readDoubles(n, consumer, ByteOrder.LITTLE_ENDIAN);
+        readDoubles(n, consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -100,17 +100,17 @@ public interface DoubleReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readDoubles(int n, Consumer<double[]> consumer, ByteOrder order) {
-        read(Double.SIZE * n, buffer -> processDoubles(buffer, n, consumer, order));
+        read(Double.BYTES * n, buffer -> processDoubles(buffer, n, consumer), order);
     }
     
     /**
-     * Calls {@link #readDoublesAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readDoublesAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code double}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code double}s are received.
      */
     default void readDoublesAlways(int n, Consumer<double[]> consumer) {
-        readDoublesAlways(n, consumer, ByteOrder.LITTLE_ENDIAN);
+        readDoublesAlways(n, consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -123,24 +123,19 @@ public interface DoubleReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readDoublesAlways(int n, Consumer<double[]> consumer, ByteOrder order) {
-        readAlways(Double.SIZE * n, buffer -> processDoubles(buffer, n, consumer, order));
+        readAlways(Double.BYTES * n, buffer -> processDoubles(buffer, n, consumer), order);
     }
     
     /**
      * A helper method to eliminate duplicate code.
      *
-     * @param buffer     The {@link BitBuffer} that contains the bits needed to map to {@code double}s.
+     * @param buffer     The {@link ByteBuffer} that contains the bytes needed to map to {@code double}s.
      * @param n          The amount of {@code double}s requested.
      * @param consumer   Holds the operations that should be performed once the {@code n} {@code double}s are received.
-     * @param order      The byte order of the {@code double}s being received.
      */
-    private void processDoubles(BitBuffer buffer, int n, Consumer<double[]> consumer, ByteOrder order) {
+    private void processDoubles(ByteBuffer buffer, int n, Consumer<double[]> consumer) {
         var d = new double[n];
-        
-        for (int i = 0; i < n; i++) {
-            d[i] = buffer.getDouble(order);
-        }
-        
+        buffer.asDoubleBuffer().get(d);
         consumer.accept(d);
     }
     

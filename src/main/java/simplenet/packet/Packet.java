@@ -19,7 +19,7 @@ import simplenet.utility.Utility;
  * This class is <strong>NOT</strong> safe for concurrent use among multiple threads.
  */
 public final class Packet {
-
+    
     /**
      * A {@code boolean} that designates whether data should be added to the front of the {@link Deque} rather than
      * the end.
@@ -51,7 +51,7 @@ public final class Packet {
      * A helper method that eliminates duplicate code and enqueues a {@code byte[]} to the backing {@link Deque}
      * (either at the front or back depending on the value of {@code prepend}).
      *
-     * @param data The data to enqueue.
+     * @param data The data to be written.
      * @return This {@link Packet} to allow for chained writes.
      */
     private Packet enqueue(byte[] data) {
@@ -74,7 +74,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putBoolean(boolean b) {
-        return enqueue(new byte[] { (byte) (b ? 1 : 0) });
+        return enqueue(new byte[] { b ? (byte) 1 : 0 });
     }
     
     /**
@@ -88,181 +88,183 @@ public final class Packet {
     }
 
     /**
-     * Writes a variable amount of {@code byte}s with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s
-     * payload.
+     * Writes a variable amount of {@code byte}s to this {@link Packet}'s payload.
      *
      * @param src A variable amount of {@code byte}s.
      * @return The {@link Packet} to allow for chained writes.
-     * @see #putBytes(ByteOrder, byte...)
      */
     public Packet putBytes(byte... src) {
-        return putBytes(ByteOrder.LITTLE_ENDIAN, src);
-    }
-    
-    /**
-     * Writes a variable amount of {@code byte}s with the specified {@link ByteOrder} to this {@link Packet}'s payload.
-     *
-     * @param src A variable amount of {@code byte}s.
-     * @return The {@link Packet} to allow for chained writes.
-     */
-    public Packet putBytes(ByteOrder order, byte... src) {
-        return enqueue(ByteBuffer.allocate(src.length).put(src).order(order).array());
+        return enqueue(src);
     }
 
     /**
-     * Writes a single {@code char} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code char} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param c A {@code char}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putChar(char, ByteOrder)
      */
     public Packet putChar(char c) {
-        return putChar(c, ByteOrder.LITTLE_ENDIAN);
+        return putChar(c, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code char} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param c A {@code char}.
+     * @param c     A {@code char}.
+     * @param order The internal byte order of the {@code char}.
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putChar(char c, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Character.BYTES).order(order).putChar(c).array());
+        return enqueue(ByteBuffer.allocate(Character.BYTES).putChar(order == ByteOrder.LITTLE_ENDIAN ?
+                Character.reverseBytes(c) : c).array());
     }
     
     /**
-     * Writes a single {@code double} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code double} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param d A {@code double}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putDouble(double, ByteOrder)
      */
     public Packet putDouble(double d) {
-        return putDouble(d, ByteOrder.LITTLE_ENDIAN);
+        return putDouble(d, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code double} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param d A {@code double}.
+     * @param d     A {@code double}.
+     * @param order The internal byte order of the {@code double}.
      * @return The {@link Packet} to allow for chained writes.
+     * @see #putLong(long, ByteOrder)
      */
     public Packet putDouble(double d, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Double.BYTES).order(order).putDouble(d).array());
+        return putLong(Double.doubleToRawLongBits(d), order);
     }
     
     /**
-     * Writes a single {@code float} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code float} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param f A {@code float}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putFloat(float, ByteOrder)
      */
     public Packet putFloat(float f) {
-        return putFloat(f, ByteOrder.LITTLE_ENDIAN);
+        return putFloat(f, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code float} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param f A {@code float}.
+     * @param f     A {@code float}.
+     * @param order The internal byte order of the {@code float}.
      * @return The {@link Packet} to allow for chained writes.
+     * @see #putInt(int, ByteOrder)
      */
     public Packet putFloat(float f, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Float.BYTES).order(order).putFloat(f).array());
+        return putInt(Float.floatToRawIntBits(f), order);
     }
     
     /**
-     * Writes a single {@code int} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code int} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param i An {@code int}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putInt(int, ByteOrder)
      */
     public Packet putInt(int i) {
-        return putInt(i, ByteOrder.LITTLE_ENDIAN);
+        return putInt(i, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code int} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param i An {@code int}.
+     * @param i     An {@code int}.
+     * @param order The internal byte order of the {@code int}.
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putInt(int i, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Integer.BYTES).order(order).putInt(i).array());
+        return enqueue(ByteBuffer.allocate(Integer.BYTES).putInt(order == ByteOrder.LITTLE_ENDIAN ?
+                Integer.reverseBytes(i) : i).array());
     }
     
     /**
-     * Writes a single {@code long} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code long} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param l A {@code long}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putLong(long, ByteOrder)
      */
     public Packet putLong(long l) {
-        return putLong(l, ByteOrder.LITTLE_ENDIAN);
+        return putLong(l, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code long} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param l A {@code long}.
+     * @param l     A {@code long}.
+     * @param order The internal byte order of the {@code long}.
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putLong(long l, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Long.BYTES).order(order).putLong(l).array());
+        return enqueue(ByteBuffer.allocate(Long.BYTES).putLong(order == ByteOrder.LITTLE_ENDIAN ?
+                Long.reverseBytes(l) : l).array());
     }
     
     /**
-     * Writes a single {@code short} with {@link ByteOrder#LITTLE_ENDIAN} order to this {@link Packet}'s payload.
+     * Writes a single {@code short} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
      * @param s An {@code int} for ease-of-use, but internally down-casted to a {@code short}.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putShort(int, ByteOrder)
      */
     public Packet putShort(int s) {
-        return putShort(s, ByteOrder.LITTLE_ENDIAN);
+        return putShort(s, ByteOrder.BIG_ENDIAN);
     }
     
     /**
      * Writes a single {@code short} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
-     * @param s An {@code int} for ease-of-use, but internally down-casted to a {@code short}.
+     * @param s     An {@code int} for ease-of-use, but internally down-casted to a {@code short}.
+     * @param order The internal byte order of the {@code short}.
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putShort(int s, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Short.BYTES).order(order).putShort((short) s).array());
+        short value = (short) s;
+        return enqueue(ByteBuffer.allocate(Short.BYTES).putShort(order == ByteOrder.LITTLE_ENDIAN ?
+                Short.reverseBytes(value) : value).array());
     }
 
     /**
-     * Writes a single {@link StandardCharsets#UTF_8}-encoded {@link String} with {@link ByteOrder#LITTLE_ENDIAN} order to
+     * Writes a single {@link StandardCharsets#UTF_8}-encoded {@link String} with {@link ByteOrder#BIG_ENDIAN} order to
      * this {@link Packet}'s payload.
      * <br><br>
      * The {@link String} can have a maximum length of {@code 65,535}.
      *
-     * @param s A {@link String}.
+     * @param s The {@link String} to write.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putString(String, Charset, ByteOrder)
      */
     public Packet putString(String s) {
-        return putString(s, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
+        return putString(s, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
     
     /**
-     * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder#LITTLE_ENDIAN}
+     * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN}
      * order to this {@link Packet}'s payload.
      * <br><br>
      * A {@code short} is used to store the length of the {@link String} in the payload header, which imposes a
      * maximum {@link String} length of {@code 65,535} with a {@link StandardCharsets#UTF_8} encoding or
      * {@code 32,767} (or less) with a different encoding.
      *
-     * @param s A {@link String}.
+     * @param s       The {@link String} write.
+     * @param charset The {@link Charset} of the {@link String} being written.
      * @return The {@link Packet} to allow for chained writes.
      * @see #putString(String, Charset, ByteOrder)
      */
     public Packet putString(String s, Charset charset) {
-        return putString(s, charset, ByteOrder.LITTLE_ENDIAN);
+        return putString(s, charset, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -273,13 +275,15 @@ public final class Packet {
      * maximum {@link String} length of {@code 65,535} with a {@link StandardCharsets#UTF_8} encoding or
      * {@code 32,767} (or less) with a different encoding.
      *
-     * @param s A {@link String}.
+     * @param s       The {@link String} to write.
+     * @param charset The {@link Charset} of the {@link String} being written.
+     * @param order   The internal byte order of the {@link String}.
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putString(String s, Charset charset, ByteOrder order) {
         var bytes = s.getBytes(charset);
         putShort(bytes.length, order);
-        putBytes(order, bytes);
+        putBytes(bytes);
         return this;
     }
 
@@ -333,7 +337,7 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        for (Client client : clients) {
+        for (var client : clients) {
             write(client);
         }
     }
@@ -379,7 +383,7 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        for (Client client : clients) {
+        for (var client : clients) {
             writeAndFlush(client);
         }
     }
@@ -397,19 +401,6 @@ public final class Packet {
 
         clients.forEach(this::writeAndFlush);
     }
-
-    /**
-     * Gets the size of this {@link Packet}'s payload in {@code byte}s.
-     * <br><br>
-     * This method has been deprecated, as it does not take packet encryption into account.
-     *
-     * @return The current size of this {@link Packet} in {@code byte}s.
-     * @deprecated Use {@link #getSize(Client)} instead.
-     */
-    @Deprecated
-    public int getSize() {
-        return queue.stream().mapToInt(array -> array.length).sum();
-    }
     
     /**
      * Gets the size of this {@link Packet}'s payload in {@code byte}s, while taking the specified {@link Client}'s
@@ -418,7 +409,7 @@ public final class Packet {
      * @param client The {@link Client} that this {@link Packet} will be sent to.
      * @return The current size of this {@link Packet} in {@code byte}s.
      */
-    public int getSize(Client client) {
+    public <T extends Client> int getSize(T client) {
         Cipher encryption;
         
         if ((encryption = client.getEncryption()) == null) {

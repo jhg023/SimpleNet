@@ -1,5 +1,7 @@
 package simplenet.utility.data;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import simplenet.utility.exposed.ByteConsumer;
@@ -29,7 +31,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code byte} is received.
      */
     default void readByte(ByteConsumer consumer) {
-        read(Byte.SIZE, buffer -> consumer.accept(buffer.getByte()));
+        read(Byte.BYTES, buffer -> consumer.accept(buffer.get()), ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -40,7 +42,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code byte} is received.
      */
     default void readByteAlways(ByteConsumer consumer) {
-        readAlways(Byte.SIZE, buffer -> consumer.accept(buffer.getByte()));
+        readAlways(Byte.BYTES, buffer -> consumer.accept(buffer.get()), ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -51,7 +53,7 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code n} {@code byte}s are received.
      */
     default void readBytes(int n, Consumer<byte[]> consumer) {
-        read(Byte.SIZE * n, buffer -> consumer.accept(buffer.getBytes(n)));
+        read(Byte.BYTES * n, buffer -> processBytes(buffer, n, consumer), ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -63,7 +65,20 @@ public interface ByteReader extends DataReader {
      * @param consumer Holds the operations that should be performed once the {@code n} {@code byte}s are received.
      */
     default void readBytesAlways(int n, Consumer<byte[]> consumer) {
-        readAlways(Byte.SIZE * n, buffer -> consumer.accept(buffer.getBytes(n)));
+        readAlways(Byte.BYTES * n, buffer -> processBytes(buffer, n, consumer), ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * A helper method to eliminate duplicate code.
+     *
+     * @param buffer     The {@link ByteBuffer} that contains the bytes needed.
+     * @param n          The amount of bytes requested.
+     * @param consumer   Holds the operations that should be performed once the {@code n} bytes are received.
+     */
+    private void processBytes(ByteBuffer buffer, int n, Consumer<byte[]> consumer) {
+        var b = new byte[n];
+        buffer.get(b);
+        consumer.accept(b);
     }
     
 }

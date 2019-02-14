@@ -1,6 +1,6 @@
 package simplenet.utility.data;
 
-import bitbuffer.BitBuffer;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -15,14 +15,14 @@ import simplenet.utility.exposed.ShortConsumer;
 public interface ShortReader extends DataReader {
     
     /**
-     * Reads a {@code short} with {@link ByteOrder#LITTLE_ENDIAN} order from the network, but blocks the executing thread
+     * Reads a {@code short} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
      * unlike {@link #readShort(ShortConsumer)}.
      *
      * @return A {@code short}.
      * @see #readShort(ByteOrder)
      */
     default short readShort() {
-        return readShort(ByteOrder.LITTLE_ENDIAN);
+        return readShort(ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -38,13 +38,13 @@ public interface ShortReader extends DataReader {
     }
     
     /**
-     * Calls {@link #readShort(ShortConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readShort(ShortConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code short} is received.
      * @see #readShort(ShortConsumer, ByteOrder)
      */
     default void readShort(ShortConsumer consumer) {
-        readShort(consumer, ByteOrder.LITTLE_ENDIAN);
+        readShort(consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -55,17 +55,17 @@ public interface ShortReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readShort(ShortConsumer consumer, ByteOrder order) {
-        read(Short.SIZE, buffer -> consumer.accept(buffer.getShort(order)));
+        read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()), order);
     }
     
     /**
-     * Calls {@link #readShortAlways(ShortConsumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readShortAlways(ShortConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param consumer Holds the operations that should be performed once the {@code short} is received.
      * @see #readShortAlways(ShortConsumer, ByteOrder)
      */
     default void readShortAlways(ShortConsumer consumer) {
-        readShortAlways(consumer, ByteOrder.LITTLE_ENDIAN);
+        readShortAlways(consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -77,18 +77,18 @@ public interface ShortReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readShortAlways(ShortConsumer consumer, ByteOrder order) {
-        readAlways(Short.SIZE, buffer -> consumer.accept(buffer.getShort(order)));
+        readAlways(Short.BYTES, buffer -> consumer.accept(buffer.getShort()), order);
     }
     
     /**
-     * Calls {@link #readShorts(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readShorts(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code short}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code short}s are received.
      * @see #readShorts(int, Consumer, ByteOrder)
      */
     default void readShorts(int n, Consumer<short[]> consumer) {
-        readShorts(n, consumer, ByteOrder.LITTLE_ENDIAN);
+        readShorts(n, consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -100,17 +100,17 @@ public interface ShortReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readShorts(int n, Consumer<short[]> consumer, ByteOrder order) {
-        read(Short.SIZE * n, buffer -> processShorts(buffer, n, consumer, order));
+        read(Short.BYTES * n, buffer -> processShorts(buffer, n, consumer), order);
     }
     
     /**
-     * Calls {@link #readShortsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#LITTLE_ENDIAN} as the {@code order}.
+     * Calls {@link #readShortsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
      * @param n        The amount of {@code short}s requested.
      * @param consumer Holds the operations that should be performed once the {@code n} {@code short}s are received.
      */
     default void readShortsAlways(int n, Consumer<short[]> consumer) {
-        readShortsAlways(n, consumer, ByteOrder.LITTLE_ENDIAN);
+        readShortsAlways(n, consumer, ByteOrder.BIG_ENDIAN);
     }
     
     /**
@@ -123,24 +123,19 @@ public interface ShortReader extends DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readShortsAlways(int n, Consumer<short[]> consumer, ByteOrder order) {
-        readAlways(Short.SIZE * n, buffer -> processShorts(buffer, n, consumer, order));
+        readAlways(Short.BYTES * n, buffer -> processShorts(buffer, n, consumer), order);
     }
     
     /**
      * A helper method to eliminate duplicate code.
      *
-     * @param buffer     The {@link BitBuffer} that contains the bits needed to map to {@code short}s.
+     * @param buffer     The {@link ByteBuffer} that contains the bytes needed to map to {@code short}s.
      * @param n          The amount of {@code short}s requested.
      * @param consumer   Holds the operations that should be performed once the {@code n} {@code short}s are received.
-     * @param order      The byte order of the {@code short}s being received.
      */
-    private void processShorts(BitBuffer buffer, int n, Consumer<short[]> consumer, ByteOrder order) {
+    private void processShorts(ByteBuffer buffer, int n, Consumer<short[]> consumer) {
         var s = new short[n];
-        
-        for (int i = 0; i < n; i++) {
-            s[i] = buffer.getShort(order);
-        }
-        
+        buffer.asShortBuffer().get(s);
         consumer.accept(s);
     }
     

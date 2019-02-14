@@ -48,7 +48,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     private final AsynchronousServerSocketChannel channel;
     
     /**
-     * Instantiates a new {@link Server} (with a buffer size of {@code 4,096} {@code byte}s) by attempting to open the
+     * Instantiates a new {@link Server} (with a buffer size of {@code 4,096} bytes) by attempting to open the
      * backing {@link AsynchronousServerSocketChannel}.
      *
      * @throws IllegalStateException If multiple {@link Server} instances are created.
@@ -90,6 +90,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
                 Thread thread = new Thread(runnable);
                 thread.setDaemon(false);
+                thread.setName(thread.getName().replace("Thread", "SimpleNet"));
                 return thread;
             });
         
@@ -120,7 +121,6 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
 
         try {
             channel.bind(new InetSocketAddress(address, port));
-            
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
@@ -129,7 +129,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                     connectedClients.add(client);
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     server.channel.accept(null, this);
-                    channel.read(client.getBuffer().toByteBuffer(), client, Client.Listener.SERVER_INSTANCE);
+                    channel.read(client.buffer, client, Client.Listener.SERVER_INSTANCE);
                 }
 
                 @Override
