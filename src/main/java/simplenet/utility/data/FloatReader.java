@@ -19,9 +19,10 @@ public interface FloatReader extends DataReader {
      * unlike {@link #readFloat(FloatConsumer)}.
      *
      * @return A {@code float}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readFloat(ByteOrder)
      */
-    default float readFloat() {
+    default float readFloat() throws IllegalStateException {
         return readFloat(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,10 @@ public interface FloatReader extends DataReader {
      * unlike {@link #readFloat(FloatConsumer)}.
      *
      * @return A {@code float}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default float readFloat(ByteOrder order) {
+    default float readFloat(ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Float>();
         readFloat(future::complete, order);
         return read(future);

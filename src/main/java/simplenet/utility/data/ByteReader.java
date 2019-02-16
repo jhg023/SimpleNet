@@ -18,8 +18,10 @@ public interface ByteReader extends DataReader {
      * Reads a {@code byte} from the network, but blocks the executing thread unlike {@link #readByte(ByteConsumer)}.
      *
      * @return A {@code byte}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default byte readByte() {
+    default byte readByte() throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Byte>();
         readByte(future::complete);
         return read(future);

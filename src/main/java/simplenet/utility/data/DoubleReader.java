@@ -19,9 +19,10 @@ public interface DoubleReader extends DataReader {
      * unlike {@link #readDouble(DoubleConsumer)}.
      *
      * @return A {@code double}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readDouble(ByteOrder)
      */
-    default double readDouble() {
+    default double readDouble() throws IllegalStateException {
         return readDouble(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,9 @@ public interface DoubleReader extends DataReader {
      * unlike {@link #readDouble(DoubleConsumer)}.
      *
      * @return A {@code double}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default double readDouble(ByteOrder order) {
+    default double readDouble(ByteOrder order) throws IllegalStateException {
         var future = new CompletableFuture<Double>();
         readDouble(future::complete, order);
         return read(future);

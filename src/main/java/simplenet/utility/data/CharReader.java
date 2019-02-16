@@ -19,9 +19,10 @@ public interface CharReader extends DataReader {
      * unlike {@link #readChar(CharConsumer)}.
      *
      * @return A {@code char}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readChar(ByteOrder)
      */
-    default char readChar() {
+    default char readChar() throws IllegalStateException {
         return readChar(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,10 @@ public interface CharReader extends DataReader {
      * unlike {@link #readChar(CharConsumer)}.
      *
      * @return A {@code char}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default char readChar(ByteOrder order) {
+    default char readChar(ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Character>();
         readChar(future::complete, order);
         return read(future);

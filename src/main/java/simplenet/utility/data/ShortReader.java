@@ -19,9 +19,10 @@ public interface ShortReader extends DataReader {
      * unlike {@link #readShort(ShortConsumer)}.
      *
      * @return A {@code short}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readShort(ByteOrder)
      */
-    default short readShort() {
+    default short readShort() throws IllegalStateException {
         return readShort(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,10 @@ public interface ShortReader extends DataReader {
      * unlike {@link #readShort(ShortConsumer)}.
      *
      * @return A {@code short}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default short readShort(ByteOrder order) {
+    default short readShort(ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Short>();
         readShort(future::complete, order);
         return read(future);

@@ -137,9 +137,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 if (peek != null) {
                     queue.addLast(peek);
                 }
-    
+                
                 if (client.size > 0) {
-                    buffer.compact();
+                    buffer.compact().flip();
                 } else {
                     buffer.clear();
                 }
@@ -506,7 +506,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
             // If we've buffered all of the packets that we can, send them off.
             if (tooBig || empty) {
-                var raw = ByteBuffer.allocate(empty ? totalBytes : currentBytes);
+                var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
 
                 byte[] input;
                 

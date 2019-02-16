@@ -19,9 +19,10 @@ public interface LongReader extends DataReader {
      * unlike {@link #readLong(LongConsumer)}.
      *
      * @return A {@code long}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readLong(ByteOrder)
      */
-    default long readLong() {
+    default long readLong() throws IllegalStateException {
         return readLong(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,10 @@ public interface LongReader extends DataReader {
      * unlike {@link #readLong(LongConsumer)}.
      *
      * @return A {@code long}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default long readLong(ByteOrder order) {
+    default long readLong(ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Long>();
         readLong(future::complete, order);
         return read(future);

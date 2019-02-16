@@ -23,8 +23,10 @@ public interface BooleanReader extends DataReader {
      *
      * @return A {@code boolean}.
      * @see #readBoolean(BooleanConsumer)
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default boolean readBoolean() {
+    default boolean readBoolean() throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Boolean>();
         readBoolean(future::complete);
         return read(future);

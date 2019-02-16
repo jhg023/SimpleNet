@@ -19,9 +19,10 @@ public interface StringReader extends ShortReader {
      * the {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
      *
      * @return A {@link String}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readString(Charset)
      */
-    default String readString() {
+    default String readString() throws IllegalStateException {
         return readString(StandardCharsets.UTF_8);
     }
     
@@ -30,9 +31,10 @@ public interface StringReader extends ShortReader {
      * {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
      *
      * @return A {@link String}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readString(Charset, ByteOrder)
      */
-    default String readString(Charset charset) {
+    default String readString(Charset charset) throws IllegalStateException {
         return readString(charset, ByteOrder.BIG_ENDIAN);
     }
     
@@ -41,8 +43,10 @@ public interface StringReader extends ShortReader {
      * thread unlike {@link #readString(Consumer)}.
      *
      * @return A {@link String}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default String readString(Charset charset, ByteOrder order) {
+    default String readString(Charset charset, ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<String>();
         readString(future::complete, charset, order);
         return read(future);

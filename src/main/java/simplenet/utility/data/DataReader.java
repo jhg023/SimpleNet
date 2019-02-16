@@ -61,4 +61,10 @@ public interface DataReader {
         }, order);
     }
     
+    default void blockingInsideCallback() {
+        if (Thread.currentThread().getName().startsWith("SimpleNet")) {
+            throw new IllegalStateException("Blocking methods cannot be called from within callbacks!");
+        }
+    }
+    
 }

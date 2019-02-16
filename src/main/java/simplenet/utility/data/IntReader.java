@@ -19,9 +19,10 @@ public interface IntReader extends DataReader {
      * unlike {@link #readInt(IntConsumer)}.
      *
      * @return An {@code int}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      * @see #readInt(ByteOrder)
      */
-    default int readInt() {
+    default int readInt() throws IllegalStateException {
         return readInt(ByteOrder.BIG_ENDIAN);
     }
     
@@ -30,8 +31,10 @@ public interface IntReader extends DataReader {
      * unlike {@link #readInt(IntConsumer)}.
      *
      * @return An {@code int}.
+     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
-    default int readInt(ByteOrder order) {
+    default int readInt(ByteOrder order) throws IllegalStateException {
+        blockingInsideCallback();
         var future = new CompletableFuture<Integer>();
         readInt(future::complete, order);
         return read(future);
