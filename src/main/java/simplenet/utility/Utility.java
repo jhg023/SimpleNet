@@ -23,58 +23,30 @@
  */
 package simplenet.utility;
 
-import java.util.Objects;
-
 /**
- * A class that acts as an {@code int}-{@link T} tuple.
- * <br><br>
- * This class is for internal use, but was made visible to prevent packaging conflicts.
+ * A class that holds miscellaneous utility methods.
  *
  * @author Jacob G.
- * @version January 12, 2019
+ * @version January 27, 2019
  */
-public final class IntPair<T> {
+public final class Utility {
     
     /**
-     * The key of this {@link IntPair}.
+     * A {@code private} constructor that throws an {@link UnsupportedOperationException} when invoked.
      */
-    public int key;
+    private Utility() throws UnsupportedOperationException {
+        throw new UnsupportedOperationException("This is a utility class and cannot be instantiated!");
+    }
     
     /**
-     * The value of this {@link IntPair}.
-     */
-    public T value;
-    
-    /**
-     * Creates a new {@link IntPair} with the specified key and value.
+     * A method that rounds the specified value up to the next multiple of the specified multiple.
      *
-     * @param key   the key.
-     * @param value the value.
+     * @param num      The number to round.
+     * @param multiple The multiple to round the number to.
+     * @return An {@code int}, greater than or equal to {@code num}, and a multiple of {@code multiple}.
      */
-    public IntPair(int key, T value) {
-        this.key = key;
-        this.value = value;
-    }
-    
-    @Override
-    public boolean equals(Object o) {
-        if (!(o instanceof IntPair<?>)) {
-            return false;
-        }
-        
-        var pair = (IntPair<?>) o;
-        
-        return key == pair.key && Objects.equals(value, pair.value);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(key, value);
-    }
-    
-    @Override
-    public String toString() {
-        return "IntPair[key: " + key + ", value: " + value + "]";
+    public static int roundUpToNextMultiple(int num, int multiple) {
+        return multiple == 0 ? num : num + multiple - (num % multiple);
     }
     
 }
