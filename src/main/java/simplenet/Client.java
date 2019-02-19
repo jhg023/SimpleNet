@@ -49,6 +49,7 @@ import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
+import simplenet.utility.MutableInt;
 import simplenet.utility.Utility;
 import simplenet.utility.data.BooleanReader;
 import simplenet.utility.data.ByteReader;
@@ -111,7 +112,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
             
             synchronized (client.buffer) {
-                client.size += bytesReceived;
+                client.size.add(bytesReceived);
                 
                 var buffer = client.buffer.flip();
                 var queue = client.queue;
@@ -129,9 +130,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 var stack = client.stack;
                 int key;
                 
-                while (client.size >= (key = peek.key)) {
-                    client.size -= key;
-                    
+                while (client.size.get() >= (key = peek.key)) {
+                    client.size.add(-key);
+    
                     if (shouldDecrypt) {
                         var encryptedData = new byte[key];
     
@@ -147,7 +148,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
         
                     while (!stack.isEmpty()) {
-                        queue.offerFirst(stack.pollFirst());
+                        queue.offerLast(stack.pop());
                     }
         
                     if ((peek = queue.pollLast()) == null) {
@@ -158,10 +159,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 client.prepend = false;
     
                 if (peek != null) {
-                    queue.addLast(peek);
+                    queue.offerLast(peek);
                 }
                 
-                if (client.size > 0) {
+                if (client.size.get() > 0) {
                     buffer.compact().flip();
                 } else {
                     buffer.clear();
@@ -217,7 +218,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
      */
     private final AtomicBoolean writing;
-
+    
+    /**
+     * The amount of readable bytes that currently exist within this {@link Client}'s {@code buffer}.
+     */
+    private final MutableInt size;
+    
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
@@ -270,11 +276,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private AsynchronousSocketChannel channel;
     
     /**
-     * The amount of readable bits that currently exist within this {@link Client}'s {@code buffer}.
-     */
-    private volatile int size;
-    
-    /**
      * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
      * {@link Server}.
      * <br><br>
@@ -317,10 +318,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public Client(int bufferSize, AsynchronousSocketChannel channel) {
         super(bufferSize);
         
+        size = new MutableInt();
         writing = new AtomicBoolean();
         outgoingPackets = new ConcurrentLinkedDeque<>();
         packetsToFlush = new ArrayDeque<>();
-        queue = new ArrayDeque<>();
+        queue = new ConcurrentLinkedDeque<>();
         stack = new ConcurrentLinkedDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
         
@@ -498,8 +500,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
         
         synchronized (buffer) {
-            if (size >= n) {
-                size -= n;
+            if (size.get() >= n) {
+                size.add(-n);
                 
                 buffer.order(order);
                 
@@ -523,7 +525,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             var pair = new IntPair<Consumer<ByteBuffer>>(n, buffer -> consumer.accept(buffer.order(order)));
             
             if (prepend) {
-                stack.offerLast(pair);
+                stack.push(pair);
             } else {
                 queue.offerFirst(pair);
             }
