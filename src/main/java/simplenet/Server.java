@@ -1,3 +1,26 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2019 Jacob Glickman
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 package simplenet;
 
 import java.io.IOException;
@@ -228,6 +251,26 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
      */
     public final void writeToAllExcept(Packet packet, Collection<? extends Client> clients) {
         writeHelper(packet::write, clients);
+    }
+    
+    /**
+     * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
+     *
+     * @param <T> A {@link Client} or any of its children.
+     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
+     */
+    @SafeVarargs
+    public final <T extends Client> void flushToAllExcept(T... clients) {
+        writeHelper(Client::flush, clients);
+    }
+    
+    /**
+     * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
+     *
+     * @param clients A {@link Collection} of {@link Client}s to exclude from having their queued packets flushed.
+     */
+    public final void flushToAllExcept(Collection<? extends Client> clients) {
+        writeHelper(Client::flush, clients);
     }
     
     /**

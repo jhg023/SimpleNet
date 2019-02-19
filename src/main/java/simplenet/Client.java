@@ -1,3 +1,26 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2019 Jacob Glickman
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 package simplenet;
 
 import java.io.IOException;
@@ -252,6 +275,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private volatile int size;
     
     /**
+     * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
+     * {@link Server}.
+     * <br><br>
+     * This is primarily used to keep track of the {@link Client}s that are connected to a {@link Server}.
+     *
+     * @param bufferSize The size of this {@link Client}'s buffer, in {@code byte}s.
+     * @param channel    The channel to back this {@link Client} with.
+     * @param server     The {@link Server} that this {@link Client} is connected to.
+     */
+    Client(int bufferSize, AsynchronousSocketChannel channel, Server server) {
+        this(bufferSize, channel);
+        this.server = server;
+    }
+    
+    /**
      * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel} with a
      * default buffer size of {@code 4,096} bytes.
      */
@@ -292,18 +330,31 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
     
     /**
-     * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
-     * {@link Server}.
+     * Instantiates a new {@link Client} (whose fields directly refer to the fields of the specified {@link Client})
+     * from an existing {@link Client}, essentially acting as a copy-constructor.
      * <br><br>
-     * This is primarily used to keep track of the {@link Client}s that are connected to a {@link Server}.
+     * This exists so that, if a user creates a class that extends {@link Client}, they can pass in an existing
+     * {@link Client}, allowing them to invoke {@code super(client)} inside their constructor. Doing so will allow
+     * them to invoke {@code wrapper.readByte()} (for example) instead of {@code wrapper.getClient().readByte()}.
      *
-     * @param bufferSize The size of this {@link Client}'s buffer, in {@code byte}s.
-     * @param channel    The channel to back this {@link Client} with.
-     * @param server     The {@link Server} that this {@link Client} is connected to.
+     * @param client An existing {@link Client} whose backing {@link AsynchronousSocketChannel} is already connected.
      */
-    Client(int bufferSize, AsynchronousSocketChannel channel, Server server) {
-        this(bufferSize, channel);
-        this.server = server;
+    public Client(Client client) {
+        super(client);
+        
+        this.buffer = client.buffer;
+        this.writing = client.writing;
+        this.outgoingPackets = client.outgoingPackets;
+        this.packetsToFlush = client.packetsToFlush;
+        this.stack = client.stack;
+        this.queue = client.queue;
+        this.prepend = client.prepend;
+        this.encryption = client.encryption;
+        this.decryption = client.decryption;
+        this.server = client.server;
+        this.executor = client.executor;
+        this.channel = client.channel;
+        this.size = client.size;
     }
 
     /**
