@@ -141,7 +141,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         try {
                             peek.value.accept(ByteBuffer.wrap(client.decryption.doFinal(encryptedData)));
                         } catch (Exception e) {
-                            throw new IllegalStateException("An exception has occurred when encrypting data:", e);
+                            throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                         }
                     } else {
                         peek.value.accept(buffer);
@@ -388,7 +388,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
-            throw new IllegalArgumentException("The port must be between 0 and 65535!");
+            throw new IllegalArgumentException("The specified port must be between 0 and 65535!");
         }
 
         executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
@@ -514,7 +514,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         consumer.accept(ByteBuffer.wrap(decryption.doFinal(encryptedData)).order(order));
                         return;
                     } catch (Exception e) {
-                        throw new IllegalStateException("An exception has occurred when decrypting data:", e);
+                        throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
                     }
                 }
                 
@@ -568,7 +568,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         raw.put(shouldEncrypt ? encryption.doFinal(input) : input);
                     }
                 } catch (Exception e) {
-                    throw new IllegalStateException("An exception has occurred when encrypting data:", e);
+                    throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                 }
                 
                 raw.flip();
