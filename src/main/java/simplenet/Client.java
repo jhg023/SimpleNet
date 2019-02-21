@@ -322,8 +322,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         writing = new AtomicBoolean();
         outgoingPackets = new ConcurrentLinkedDeque<>();
         packetsToFlush = new ArrayDeque<>();
-        queue = new ConcurrentLinkedDeque<>();
-        stack = new ConcurrentLinkedDeque<>();
+        queue = new ArrayDeque<>();
+        stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
         
         if (channel != null) {

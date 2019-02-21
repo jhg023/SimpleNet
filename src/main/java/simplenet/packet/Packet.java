@@ -48,7 +48,12 @@ public final class Packet {
      * the end.
      */
     private boolean prepend;
-
+    
+    /**
+     * A {@link Deque} that is used when prepending data to this packet so that the data is written in order.
+     */
+    private final Deque<byte[]> stack;
+    
     /**
      * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
      */
@@ -58,7 +63,8 @@ public final class Packet {
      * A {@code private} constructor.
      */
     private Packet() {
-        this.queue = new ArrayDeque<>();
+        this.queue = new ArrayDeque<>(4);
+        this.stack = new ArrayDeque<>(0);
     }
 
     /**
@@ -79,7 +85,7 @@ public final class Packet {
      */
     private Packet enqueue(byte[] data) {
         if (prepend) {
-            queue.offerFirst(data);
+            stack.push(data);
         } else {
             queue.offerLast(data);
         }
@@ -322,6 +328,11 @@ public final class Packet {
     public Packet prepend(Consumer<Packet> consumer) {
         prepend = true;
         consumer.accept(this);
+        
+        while (!stack.isEmpty()) {
+            queue.offerFirst(stack.pop());
+        }
+        
         prepend = false;
         return this;
     }
