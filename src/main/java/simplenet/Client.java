@@ -120,7 +120,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 IntPair<Consumer<ByteBuffer>> peek;
     
                 if ((peek = queue.pollLast()) == null) {
-                    client.channel.read(buffer.clear(), client, this);
+                    client.channel.read(buffer.position(client.size.get()).limit(buffer.capacity()), client, this);
                     return;
                 }
     
@@ -132,20 +132,24 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 
                 while (client.size.get() >= (key = peek.key)) {
                     client.size.add(-key);
+                    
+                    var data = new byte[key];
     
+                    buffer.get(data);
+                    
                     if (shouldDecrypt) {
-                        var encryptedData = new byte[key];
-    
-                        buffer.get(encryptedData);
-                        
                         try {
-                            peek.value.accept(ByteBuffer.wrap(client.decryption.doFinal(encryptedData)));
+                            data = client.decryption.doFinal(data);
                         } catch (Exception e) {
                             throw new IllegalStateException("An exception has occurred when encrypting data:", e);
                         }
-                    } else {
-                        peek.value.accept(buffer);
                     }
+    
+                    ByteBuffer wrappedBuffer = ByteBuffer.wrap(data);
+                    
+                    peek.value.accept(wrappedBuffer);
+    
+                    // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
         
                     while (!stack.isEmpty()) {
                         queue.offerLast(stack.pop());
@@ -163,7 +167,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
                 
                 if (client.size.get() > 0) {
-                    buffer.compact().flip();
+                    buffer.compact().position(client.size.get()).limit(buffer.capacity());
                 } else {
                     buffer.clear();
                 }
@@ -396,6 +400,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             Thread thread = new Thread(runnable);
             thread.setDaemon(false);
             thread.setName(thread.getName().replace("Thread", "SimpleNet"));
+            thread.setUncaughtExceptionHandler(($, throwable) -> throwable.printStackTrace());
             return thread;
         });
 
@@ -500,25 +505,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
         
         synchronized (buffer) {
-            if (size.get() >= n) {
+            if (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
                 size.add(-n);
                 
-                buffer.order(order);
+                var data = new byte[n];
+    
+                buffer.order(order).get(data);
                 
                 if (shouldDecrypt) {
-                    var encryptedData = new byte[n];
-                    
-                    buffer.get(encryptedData);
-                    
                     try {
-                        consumer.accept(ByteBuffer.wrap(decryption.doFinal(encryptedData)).order(order));
-                        return;
+                        data = decryption.doFinal(data);
                     } catch (Exception e) {
                         throw new IllegalStateException("An exception has occurred when decrypting data:", e);
                     }
                 }
                 
-                consumer.accept(buffer);
+                var wrappedBuffer = ByteBuffer.wrap(data).order(order);
+                
+                consumer.accept(wrappedBuffer);
+    
+                // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
                 return;
             }
             
