@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
@@ -153,9 +154,10 @@ public final class Packet {
      */
     public Packet putChar(char c, ByteOrder order) {
         var buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
+        var array = buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c).array();
         
         try {
-            return enqueue(buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c).array());
+            return enqueue(Arrays.copyOfRange(array, 0, Character.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
@@ -227,9 +229,10 @@ public final class Packet {
      */
     public Packet putInt(int i, ByteOrder order) {
         var buffer = HEAP_BUFFER_POOL.take(Integer.BYTES);
+        var array = buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i).array();
         
         try {
-            return enqueue(buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i).array());
+            return enqueue(Arrays.copyOfRange(array, 0, Integer.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
@@ -255,9 +258,10 @@ public final class Packet {
      */
     public Packet putLong(long l, ByteOrder order) {
         var buffer = HEAP_BUFFER_POOL.take(Long.BYTES);
+        var array = buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l).array();
         
         try {
-            return enqueue(buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l).array());
+            return enqueue(Arrays.copyOfRange(array, 0, Long.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
@@ -282,11 +286,12 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putShort(int s, ByteOrder order) {
-        var buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
+        var buffer = HEAP_BUFFER_POOL.take(Short.BYTES);
         var value = (short) s;
+        var array = buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value).array();
         
         try {
-            return enqueue(buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value).array());
+            return enqueue(Arrays.copyOfRange(array, 0, Short.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
