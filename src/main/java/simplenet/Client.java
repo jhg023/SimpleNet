@@ -45,11 +45,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.crypto.Cipher;
+import pbbl.ByteBufferPool;
+import pbbl.direct.DirectByteBufferPool;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
 import simplenet.utility.MutableInt;
+import simplenet.utility.Tuple;
 import simplenet.utility.Utility;
 import simplenet.utility.data.BooleanReader;
 import simplenet.utility.data.ByteReader;
@@ -186,10 +189,15 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s to a
      * {@link Server}.
      */
-    private static final CompletionHandler<Integer, Client> PACKET_HANDLER = new CompletionHandler<>() {
+    private static final CompletionHandler<Integer, Tuple<Client, ByteBuffer>> PACKET_HANDLER = new CompletionHandler<>() {
         @Override
-        public void completed(Integer result, Client client) {
+        public void completed(Integer result, Tuple<Client, ByteBuffer> tuple) {
+            var client = tuple.key;
+            var buffer = tuple.value;
+            
             synchronized (client.packetsToFlush) {
+                DIRECT_BUFFER_POOL.give(buffer);
+                
                 if (!client.channel.isOpen()) {
                     client.outgoingPackets.clear();
                     client.packetsToFlush.clear();
@@ -203,15 +211,20 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     return;
                 }
     
-                client.channel.write(payload, client, this);
+                client.channel.write(payload, new Tuple<>(client, payload), this);
             }
         }
 
         @Override
-        public void failed(Throwable t, Client client) {
+        public void failed(Throwable t, Tuple<Client, ByteBuffer> tuple) {
             t.printStackTrace();
         }
     };
+    
+    /**
+     * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
+     */
+    private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
     
     /**
      * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
@@ -565,8 +578,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
             // If we've buffered all of the packets that we can, send them off.
             if (tooBig || empty) {
-                var raw = ByteBuffer.allocateDirect(empty ? totalBytes : currentBytes);
-
+                var raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
+                
                 byte[] input;
                 
                 try {
@@ -585,7 +598,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 // complete before the packet is queued.
                 synchronized (packetsToFlush) {
                     if (!writing.getAndSet(true)) {
-                        channel.write(raw, this, PACKET_HANDLER);
+                        channel.write(raw, new Tuple<>(this, raw), PACKET_HANDLER);
                     } else {
                         packetsToFlush.offerFirst(raw);
                     }

@@ -1,4 +1,6 @@
 module SimpleNet {
+    requires Pbbl;
+    
     exports simplenet;
     exports simplenet.channel;
     exports simplenet.packet;

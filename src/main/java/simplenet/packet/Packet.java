@@ -32,6 +32,8 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
 import javax.crypto.Cipher;
+import pbbl.ByteBufferPool;
+import pbbl.heap.HeapByteBufferPool;
 import simplenet.Client;
 import simplenet.Server;
 import simplenet.utility.Utility;
@@ -42,6 +44,11 @@ import simplenet.utility.Utility;
  * This class is <strong>NOT</strong> safe for concurrent use among multiple threads.
  */
 public final class Packet {
+    
+    /**
+     * A {@link ByteBufferPool} that dispatches reusable {@code HeapByteBuffer}s.
+     */
+    private static final ByteBufferPool HEAP_BUFFER_POOL = new HeapByteBufferPool();
     
     /**
      * A {@code boolean} that designates whether data should be added to the front of the {@link Deque} rather than
@@ -145,8 +152,13 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putChar(char c, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Character.BYTES).putChar(order == ByteOrder.LITTLE_ENDIAN ?
-                Character.reverseBytes(c) : c).array());
+        var buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
+        
+        try {
+            return enqueue(buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c).array());
+        } finally {
+            HEAP_BUFFER_POOL.give(buffer);
+        }
     }
     
     /**
@@ -214,8 +226,13 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putInt(int i, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Integer.BYTES).putInt(order == ByteOrder.LITTLE_ENDIAN ?
-                Integer.reverseBytes(i) : i).array());
+        var buffer = HEAP_BUFFER_POOL.take(Integer.BYTES);
+        
+        try {
+            return enqueue(buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i).array());
+        } finally {
+            HEAP_BUFFER_POOL.give(buffer);
+        }
     }
     
     /**
@@ -237,8 +254,13 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putLong(long l, ByteOrder order) {
-        return enqueue(ByteBuffer.allocate(Long.BYTES).putLong(order == ByteOrder.LITTLE_ENDIAN ?
-                Long.reverseBytes(l) : l).array());
+        var buffer = HEAP_BUFFER_POOL.take(Long.BYTES);
+        
+        try {
+            return enqueue(buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l).array());
+        } finally {
+            HEAP_BUFFER_POOL.give(buffer);
+        }
     }
     
     /**
@@ -260,9 +282,14 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putShort(int s, ByteOrder order) {
-        short value = (short) s;
-        return enqueue(ByteBuffer.allocate(Short.BYTES).putShort(order == ByteOrder.LITTLE_ENDIAN ?
-                Short.reverseBytes(value) : value).array());
+        var buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
+        var value = (short) s;
+        
+        try {
+            return enqueue(buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value).array());
+        } finally {
+            HEAP_BUFFER_POOL.give(buffer);
+        }
     }
 
     /**

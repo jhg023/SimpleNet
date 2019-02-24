@@ -11,8 +11,16 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.4.4</version>
+    <version>1.4.5</version>
     <packaging>jar</packaging>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.jhg023</groupId>
+            <artifactId>Pbbl</artifactId>
+            <version>1.0.1</version>
+        </dependency>
+    </dependencies>
 
     <name>SimpleNet</name>
     <description>An easy-to-use, event-driven, asynchronous, network application framework.</description>

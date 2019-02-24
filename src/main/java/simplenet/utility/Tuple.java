@@ -26,43 +26,43 @@ package simplenet.utility;
 import java.util.Objects;
 
 /**
- * A class that acts as an {@code int}-{@link T} tuple.
+ * A class that acts as an {@link K}-{@link V} tuple.
  *
  * @author Jacob G.
- * @version January 12, 2019
+ * @version February 22, 2019
  */
-public final class IntPair<T> {
+public final class Tuple<K, V> {
     
     /**
-     * The key of this {@link IntPair}.
+     * The key of this {@link Tuple}.
      */
-    public int key;
+    public K key;
     
     /**
-     * The value of this {@link IntPair}.
+     * The value of this {@link Tuple}.
      */
-    public T value;
+    public V value;
     
     /**
-     * Creates a new {@link IntPair} with the specified key and value.
+     * Creates a new {@link Tuple} with the specified key and value.
      *
      * @param key   the key.
      * @param value the value.
      */
-    public IntPair(int key, T value) {
+    public Tuple(K key, V value) {
         this.key = key;
         this.value = value;
     }
     
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof IntPair<?>)) {
+        if (!(o instanceof Tuple<?, ?>)) {
             return false;
         }
         
-        var pair = (IntPair<?>) o;
+        var pair = (Tuple<?, ?>) o;
         
-        return key == pair.key && Objects.equals(value, pair.value);
+        return Objects.equals(key, pair.key) && Objects.equals(value, pair.value);
     }
     
     @Override
@@ -72,7 +72,7 @@ public final class IntPair<T> {
     
     @Override
     public String toString() {
-        return "IntPair[key: " + key + ", value: " + value + "]";
+        return "Tuple[key: " + key + ", value: " + value + "]";
     }
     
 }
