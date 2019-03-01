@@ -469,16 +469,28 @@ public final class Packet {
     }
     
     /**
-     * Gets the size of this {@link Packet}'s payload in {@code byte}s, while taking the specified {@link Client}'s
+     * Gets the size of this {@link Packet}'s payload in bytes.
+     * <br><br>
+     * This method does <strong>not</strong> take encryption into account, so this may not accurately reflect the
+     * amount of data being sent to a {@link Client}.
+     *
+     * @return The current size of this {@link Packet} in bytes.
+     */
+    public int getSize() {
+        return getSize(null);
+    }
+    
+    /**
+     * Gets the size of this {@link Packet}'s payload in bytes, while taking the specified {@link Client}'s
      * encryption into account, as a {@link Cipher}'s padding may increase the size of this {@link Packet}.
      *
      * @param client The {@link Client} that this {@link Packet} will be sent to.
-     * @return The current size of this {@link Packet} in {@code byte}s.
+     * @return The current size of this {@link Packet} in bytes.
      */
     public <T extends Client> int getSize(T client) {
         Cipher encryption;
         
-        if ((encryption = client.getEncryption()) == null) {
+        if (client == null || (encryption = client.getEncryption()) == null) {
             return queue.stream().mapToInt(array -> array.length).sum();
         }
         
