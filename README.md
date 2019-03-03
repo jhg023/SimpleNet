@@ -1,8 +1,8 @@
 <img src="https://maven-badges.herokuapp.com/maven-central/com.github.jhg023/SimpleNet/badge.svg"> <img src="http://githubbadges.com/star.svg?user=jhg023&repo=SimpleNet&background=0000ff&color=ffffff&style=flat">
-# What is SimpleNet?
-An easy-to-use, event-driven, asynchronous, network application framework. SimpleNet provides a built-in `Server` class which the user can instantiate and bind to an existing IP address and port. The user can then create one or more `Client` instances and connect to their `Server` using the same IP address and port.
 
-# How can I start using SimpleNet?
+# What is SimpleNet?
+SimpleNet is a simplistic, client-server framework written in Java. One or more `Client` objects can connect to a `Server` and send data back-and-forth via TCP. Most methods that read data from the network are non-blocking and are invoked asynchronously when the requested data arrives. Not having to block a thread and wait for data is what makes SimpleNet scalable for different types of applications such as chat servers, multiplayer game servers, and so much more!
+# Maven/Gradle Dependency
  1. Add SimpleNet as a dependency using either Maven or Gradle:
 
 Maven:
@@ -11,14 +11,14 @@ Maven:
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.4.8</version>
+    <version>1.4.9</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.jhg023:SimpleNet:1.4.8'
+implementation 'com.github.jhg023:SimpleNet:1.4.9'
 ```
 
  2. Because SimpleNet is compiled with Java 11, you must first require its module in your `module-info.java`:
@@ -28,10 +28,36 @@ module my.project {
     requires SimpleNet;
 }
 ```
-
- 3. To create a `Client`, you can use the following:
+# What do I need to know before using SimpleNet?
+- As stated above, SimpleNet is mostly callback-based. This means that you can request a specific amount of bytes, `n`, and specify what should be done with those `n` bytes, as if the `Client` or `Server` has already received them.
 ```java
-// Instantiate a new Client.
+// Request a single byte and print it out when it arrives.
+client.readByte(System.out::println);
+
+// Continuously request a single byte and print it out when it arrives.
+// 
+// After the callback completes, another byte will be requested automatically, 
+// and the same callback will be invoked. This continues until the connection is closed.
+client.readByteAlways(System.out::println);
+```
+- Packets are sent from a `Client` to a `Server` (and vice versa) via the `Packet` class.
+```java
+// Create a packet that contains two bytes (with the value 42) and send it to a client.
+Packet.builder().putByte(42).putByte(42).writeAndFlush(client);
+
+// Create two packets with the specified data and write them (but don't flush) to a client.
+Packet.builder().putInt(123456).write(client);
+Packet.builder().putString("Hello World!").write(client);
+
+// Flush the queued packets to the client (these packets will be transformed into a single,
+// big packet to improve throughput.
+// 
+// This method only needs to be called when using Packet#write and not Packet#writeAndFlush.
+client.flush();
+```
+# Client Example
+```java
+// Instantiate a new client.
 var client = new Client();
 
 // Register a connection listener.
@@ -51,11 +77,9 @@ client.postDisconnect(() -> System.out.println(client + " successfully disconnec
 // Attempt to connect to a server AFTER registering listeners.
 client.connect("localhost", 43594);
 ```
-
- 4. To create a `Server`, you can use the following:
-
+# Server Example
 ```java
-// Instantiate a new Server.
+// Instantiate a new server.
 var server = new Server();
 
 // Register one connection listener.
@@ -64,10 +88,11 @@ server.onConnect(client -> {
 
     /*
      * When one byte arrives from the client, switch on it.
-     * If the byte equals 1, then print an int when it arrives.
+     * If the byte equals 1, then request an int and print it
+     * when it arrives.
      *
      * Because `readByteAlways` is used, this will loop when
-     * the callback completes, but does not hang the main thread.
+     * the callback completes, but does not hang the executing thread.
      */
     client.readByteAlways(opcode -> {
         switch (opcode) {
@@ -86,8 +111,85 @@ server.onConnect(client -> {
 // Bind the server to an address and port AFTER registering listeners.
 server.bind("localhost", 43594);
 ```
-
- 5. Congratulations, you're finished!
+# Chat Server Example
+ To emphasize how easy it is to use SimpleNet, I have written an implementation of a scalable chat server below. Note how only two classes are required, `ChatServer` and `ChatClient`. Ideally, a chat server should use a GUI and not the console, as this leads to message cut-off in the window, but this is only to serve as a proof-of-concept.
+ 
+ The full `ChatServer` implementation is as follows:
+```java
+public class ChatServer {
+    public static void main(String[] args) {
+        // Initialize a new server.
+        var server = new Server();
+        
+        // Create a map that will keep track of nicknames on our chat server.
+        var nicknameMap = new ConcurrentHashMap<Client, String>();
+        
+        // This callback is invoked when a client connects to this server.
+        server.onConnect(client -> {
+            // When a client disconnects, remove them from the nickname map.
+            client.postDisconnect(() -> nicknameMap.remove(client));
+            
+            // Repeatedly read a single byte.
+            client.readByteAlways(opcode -> {
+                switch (opcode) {
+                    case 1: // Change nickname
+                        client.readString(nickname -> nicknameMap.put(client, nickname));
+                        break;
+                    case 2: // Send message to connected clients.
+                        client.readString(message -> {
+                            message = nicknameMap.get(client) + ": " + message;
+                            server.writeAndFlushToAllExcept(Packet.builder().putString(message), client);
+                        });
+                        break;    
+                }
+            });
+        });
+        
+        // Bind the server to our local network AFTER registering listeners.
+        server.bind("localhost", 43594);
+    }
+}
+```
+ The full `ChatClient` implementation is as follows:
+```java
+public class ChatClient {
+    public static void main(String[] args) {
+        // Initialize a new client.
+        var client = new Client();
+        
+        // This callback is invoked when this client connects to a server.
+        client.onConnect(() -> {
+            var scanner = new Scanner(System.in);
+            
+            // If messages arrive from other clients, print them to the console.
+            client.readStringAlways(System.out::println);
+            
+            System.out.print("Enter your nickname: ");
+            Packet.builder().putByte(1).putString(scanner.nextLine()).writeAndFlush(client);
+            
+            // Infinite loop to accept user-input for the chat server.
+            while (true) {
+                System.out.print("> ");
+                
+                // Read the client's message from the console.
+                var message = scanner.nextLine();
+                
+                // If this client types "/leave", close their connection to the server.
+                if ("/leave".equals(message)) {
+                    client.close();
+                    break;
+                }
+                
+                // Otherwise, send a packet to the server containing the client's message.
+                Packet.builder().putByte(2).putString(message).writeAndFlush(client);
+            }
+        });
+        
+        // Attempt to connect to a server AFTER registering listeners.
+        client.connect("localhost", 43594);
+    }
+}
+```
 
 # FAQ (Frequently-Asked Questions)
 - Can data be sent and received outside of the `onConnect` callback?
@@ -98,6 +200,6 @@ server.bind("localhost", 43594);
   - Ideally, the best option would be to split your single, large packet into multiple, small packets. 
   - If splitting the packet is not possible for any reason, both `Client` and `Server` have an overloaded constructor that accepts a buffer size in bytes. You can simply specify a size larger than 4096 (the default size).
 - Will Java 8 ever be supported again?
-  - No, as Java 8 is approaching its EOL (January, 2019). SimpleNet will do its best to keep up with LTS releases.
+  - No, as Java 8 is no longer supported commercial as of January, 2019. SimpleNet will do its best to keep up with LTS releases. However, you're free to clone the project and build it on an older version of Java, as not many code changes are required.
 - What's next for SimpleNet?
-  - Once Project Loom is complete and integrated into the mainline JDK, SimpleNet will be rewritten entirely; blocking I/O will be using fibers at that point, which will be much more scalable than my current implementation that uses a thread pool.
+  - Once Project Loom is complete and integrated into the mainline JDK, SimpleNet will be rewritten entirely; blocking I/O will be using fibers at that point, which will be much more scalable than my current implementation that uses a fixed thread pool.

@@ -39,6 +39,7 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -123,7 +124,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 IntPair<Consumer<ByteBuffer>> peek;
     
                 if ((peek = queue.pollLast()) == null) {
-                    client.channel.read(buffer.position(client.size.get()).limit(buffer.capacity()), client, this);
+                    client.channel.read(buffer.position(client.size.get()), client, this);
                     return;
                 }
     
@@ -170,7 +171,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
                 
                 if (client.size.get() > 0) {
-                    buffer.compact().position(client.size.get()).limit(buffer.capacity());
+                    buffer.compact().position(client.size.get());
                 } else {
                     buffer.clear();
                 }
@@ -446,7 +447,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             // nothing.
         }
     
-        connectListeners.forEach(Runnable::run);
+        ForkJoinPool.commonPool().execute(() -> connectListeners.forEach(Runnable::run));
     }
 
     /**
