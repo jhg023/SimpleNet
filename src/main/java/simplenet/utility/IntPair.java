@@ -32,17 +32,17 @@ import java.util.Objects;
  * @version January 12, 2019
  */
 public final class IntPair<T> {
-    
+
     /**
      * The key of this {@link IntPair}.
      */
     public int key;
-    
+
     /**
      * The value of this {@link IntPair}.
      */
     public T value;
-    
+
     /**
      * Creates a new {@link IntPair} with the specified key and value.
      *
@@ -53,26 +53,26 @@ public final class IntPair<T> {
         this.key = key;
         this.value = value;
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof IntPair<?>)) {
             return false;
         }
-        
-        var pair = (IntPair<?>) o;
-        
+
+        IntPair<?> pair = (IntPair<?>) o;
+
         return key == pair.key && Objects.equals(value, pair.value);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(key, value);
     }
-    
+
     @Override
     public String toString() {
         return "IntPair[key: " + key + ", value: " + value + "]";
     }
-    
+
 }

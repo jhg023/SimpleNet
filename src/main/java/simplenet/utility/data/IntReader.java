@@ -36,7 +36,7 @@ import java.util.function.IntConsumer;
  * @version January 21, 2019
  */
 public interface IntReader extends DataReader {
-    
+
     /**
      * Reads an {@code int} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
      * unlike {@link #readInt(IntConsumer)}.
@@ -48,7 +48,7 @@ public interface IntReader extends DataReader {
     default int readInt() throws IllegalStateException {
         return readInt(ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Reads an {@code int} with the specified {@link ByteOrder} from the network, but blocks the executing thread
      * unlike {@link #readInt(IntConsumer)}.
@@ -58,11 +58,11 @@ public interface IntReader extends DataReader {
      */
     default int readInt(ByteOrder order) throws IllegalStateException {
         blockingInsideCallback();
-        var future = new CompletableFuture<Integer>();
+        CompletableFuture<Integer> future = new CompletableFuture<Integer>();
         readInt(future::complete, order);
         return read(future);
     }
-    
+
     /**
      * Calls {@link #readInt(IntConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
@@ -72,7 +72,7 @@ public interface IntReader extends DataReader {
     default void readInt(IntConsumer consumer) {
         readInt(consumer, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Requests a single {@code int}, with the specified {@link ByteOrder}, and accepts a {@link IntConsumer} with
      * the {@code int} when it is received.
@@ -83,7 +83,7 @@ public interface IntReader extends DataReader {
     default void readInt(IntConsumer consumer, ByteOrder order) {
         read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()), order);
     }
-    
+
     /**
      * Calls {@link #readIntAlways(IntConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
@@ -93,7 +93,7 @@ public interface IntReader extends DataReader {
     default void readIntAlways(IntConsumer consumer) {
         readIntAlways(consumer, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Calls {@link #readInt(IntConsumer, ByteOrder)}; however, once finished,
      * {@link #readInt(IntConsumer, ByteOrder)} is called once again with the same consumer; this method loops
@@ -105,7 +105,7 @@ public interface IntReader extends DataReader {
     default void readIntAlways(IntConsumer consumer, ByteOrder order) {
         readAlways(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()), order);
     }
-    
+
     /**
      * Calls {@link #readInts(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
@@ -116,7 +116,7 @@ public interface IntReader extends DataReader {
     default void readInts(int n, Consumer<int[]> consumer) {
         readInts(n, consumer, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Requests a {@code int[]} of length {@code n} in the specified {@link ByteOrder} and accepts a {@link Consumer}
      * when all of the {@code int}s are received.
@@ -128,7 +128,7 @@ public interface IntReader extends DataReader {
     default void readInts(int n, Consumer<int[]> consumer, ByteOrder order) {
         read(Integer.BYTES * n, buffer -> processInts(buffer, n, consumer), order);
     }
-    
+
     /**
      * Calls {@link #readIntsAlways(int, Consumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
      *
@@ -138,7 +138,7 @@ public interface IntReader extends DataReader {
     default void readIntsAlways(int n, Consumer<int[]> consumer) {
         readIntsAlways(n, consumer, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Calls {@link #readInts(int, Consumer, ByteOrder)}; however, once finished,
      * {@link #readInts(int, Consumer, ByteOrder)} is called once again with the same parameter; this loops
@@ -151,18 +151,18 @@ public interface IntReader extends DataReader {
     default void readIntsAlways(int n, Consumer<int[]> consumer, ByteOrder order) {
         readAlways(Integer.BYTES * n, buffer -> processInts(buffer, n, consumer), order);
     }
-    
+
     /**
      * A helper method to eliminate duplicate code.
      *
-     * @param buffer     The {@link ByteBuffer} that contains the bytes needed to map to {@code int}s.
-     * @param n          The amount of {@code int}s requested.
-     * @param consumer   Holds the operations that should be performed once the {@code n} {@code int}s are received.
+     * @param buffer   The {@link ByteBuffer} that contains the bytes needed to map to {@code int}s.
+     * @param n        The amount of {@code int}s requested.
+     * @param consumer Holds the operations that should be performed once the {@code n} {@code int}s are received.
      */
-    private void processInts(ByteBuffer buffer, int n, Consumer<int[]> consumer) {
-        var i = new int[n];
+    default void processInts(ByteBuffer buffer, int n, Consumer<int[]> consumer) {
+        int[] i = new int[n];
         buffer.asIntBuffer().get(i);
         consumer.accept(i);
     }
-    
+
 }

@@ -23,29 +23,6 @@
  */
 package simplenet;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.AlreadyConnectedException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
-import java.nio.channels.ShutdownChannelGroupException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Objects;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-import javax.crypto.Cipher;
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
 import simplenet.channel.Channeled;
@@ -55,15 +32,22 @@ import simplenet.utility.IntPair;
 import simplenet.utility.MutableInt;
 import simplenet.utility.Tuple;
 import simplenet.utility.Utility;
-import simplenet.utility.data.BooleanReader;
-import simplenet.utility.data.ByteReader;
-import simplenet.utility.data.CharReader;
-import simplenet.utility.data.DataReader;
-import simplenet.utility.data.DoubleReader;
-import simplenet.utility.data.FloatReader;
-import simplenet.utility.data.IntReader;
-import simplenet.utility.data.LongReader;
-import simplenet.utility.data.StringReader;
+import simplenet.utility.data.*;
+
+import javax.crypto.Cipher;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.*;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -83,7 +67,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
          * A {@code static} instance of this class to be reused.
          */
         private static final Listener CLIENT_INSTANCE = new Listener();
-    
+
         static final Listener SERVER_INSTANCE = new Listener() {
             @Override
             public void failed(Throwable t, Client client) {
@@ -93,54 +77,54 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 // if we always close the client here, then its disconnect listeners will run twice, which we do not
                 // want to occur.
                 String message;
-                
+
                 if ((message = t.getMessage()) == null) {
                     return;
                 }
-                
+
                 if (message.startsWith("The specified network name is no longer available.")) {
                     client.close();
                 }
             }
         };
-        
+
         @Override
         public void completed(Integer result, Client client) {
             // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
             // client's connection.
             int bytesReceived = result;
-            
+
             if (bytesReceived == -1) {
                 client.close();
                 return;
             }
-            
+
             synchronized (client.buffer) {
                 client.size.add(bytesReceived);
-                
-                var buffer = client.buffer.flip();
-                var queue = client.queue;
-                
+
+                ByteBuffer buffer = client.buffer.flip();
+                Deque<IntPair<Consumer<ByteBuffer>>> queue = client.queue;
+
                 IntPair<Consumer<ByteBuffer>> peek;
-    
+
                 if ((peek = queue.pollLast()) == null) {
                     client.channel.read(buffer.position(client.size.get()), client, this);
                     return;
                 }
-    
+
                 client.prepend = true;
-    
-                var shouldDecrypt = client.decryption != null;
-                var stack = client.stack;
+
+                boolean shouldDecrypt = client.decryption != null;
+                Deque<IntPair<Consumer<ByteBuffer>>> stack = client.stack;
                 int key;
-                
+
                 while (client.size.get() >= (key = peek.key)) {
                     client.size.add(-key);
-                    
-                    var data = new byte[key];
-    
+
+                    byte[] data = new byte[key];
+
                     buffer.get(data);
-                    
+
                     if (shouldDecrypt) {
                         try {
                             data = client.decryption.doFinal(data);
@@ -148,34 +132,34 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                         }
                     }
-    
+
                     ByteBuffer wrappedBuffer = ByteBuffer.wrap(data);
-                    
+
                     peek.value.accept(wrappedBuffer);
-    
+
                     // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
-        
+
                     while (!stack.isEmpty()) {
                         queue.offerLast(stack.pop());
                     }
-        
+
                     if ((peek = queue.pollLast()) == null) {
                         break;
                     }
                 }
-    
+
                 client.prepend = false;
-    
+
                 if (peek != null) {
                     queue.offerLast(peek);
                 }
-                
+
                 if (client.size.get() > 0) {
                     buffer.compact().position(client.size.get());
                 } else {
                     buffer.clear();
                 }
-                
+
                 client.channel.read(buffer, client, this);
             }
         }
@@ -190,28 +174,28 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s to a
      * {@link Server}.
      */
-    private static final CompletionHandler<Integer, Tuple<Client, ByteBuffer>> PACKET_HANDLER = new CompletionHandler<>() {
+    private static final CompletionHandler<Integer, Tuple<Client, ByteBuffer>> PACKET_HANDLER = new CompletionHandler<Integer, Tuple<Client, ByteBuffer>>() {
         @Override
         public void completed(Integer result, Tuple<Client, ByteBuffer> tuple) {
-            var client = tuple.key;
-            var buffer = tuple.value;
-            
+            Client client = tuple.key;
+            ByteBuffer buffer = tuple.value;
+
             synchronized (client.packetsToFlush) {
                 DIRECT_BUFFER_POOL.give(buffer);
-                
+
                 if (!client.channel.isOpen()) {
                     client.outgoingPackets.clear();
                     client.packetsToFlush.clear();
                     return;
                 }
-                
-                var payload = client.packetsToFlush.pollLast();
-    
+
+                ByteBuffer payload = client.packetsToFlush.pollLast();
+
                 if (payload == null) {
                     client.writing.set(false);
                     return;
                 }
-    
+
                 client.channel.write(payload, new Tuple<>(client, payload), this);
             }
         }
@@ -221,27 +205,27 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             t.printStackTrace();
         }
     };
-    
+
     /**
      * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
      */
     private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
-    
+
     /**
      * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
      */
     final ByteBuffer buffer;
-    
+
     /**
      * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
      */
     private final AtomicBoolean writing;
-    
+
     /**
      * The amount of readable bytes that currently exist within this {@link Client}'s {@code buffer}.
      */
     private final MutableInt size;
-    
+
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
@@ -267,17 +251,17 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Whether or not new elements added {@code queue} should be added to the front rather than the back.
      */
     private boolean prepend;
-    
+
     /**
      * The {@link Cipher} used for {@link Packet} encryption.
      */
     private Cipher encryption;
-    
+
     /**
      * The {@link Cipher} used for {@link Packet} decryption.
      */
     private Cipher decryption;
-    
+
     /**
      * The {@link Server} that this {@link Client} is connected to.
      */
@@ -292,7 +276,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The backing {@link Channel} of a {@link Client}.
      */
     private AsynchronousSocketChannel channel;
-    
+
     /**
      * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
      * {@link Server}.
@@ -307,7 +291,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this(bufferSize, channel);
         this.server = server;
     }
-    
+
     /**
      * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel} with a
      * default buffer size of {@code 4,096} bytes.
@@ -335,7 +319,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public Client(int bufferSize, AsynchronousSocketChannel channel) {
         super(bufferSize);
-        
+
         size = new MutableInt();
         writing = new AtomicBoolean();
         outgoingPackets = new ConcurrentLinkedDeque<>();
@@ -343,12 +327,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         queue = new ArrayDeque<>();
         stack = new ArrayDeque<>();
         buffer = ByteBuffer.allocateDirect(bufferSize);
-        
+
         if (channel != null) {
             this.channel = channel;
         }
     }
-    
+
     /**
      * Instantiates a new {@link Client} (whose fields directly refer to the fields of the specified {@link Client})
      * from an existing {@link Client}, essentially acting as a copy-constructor.
@@ -361,7 +345,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public Client(Client client) {
         super(client);
-        
+
         this.buffer = client.buffer;
         this.writing = client.writing;
         this.outgoingPackets = client.outgoingPackets;
@@ -388,7 +372,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void connect(String address, int port) {
         connect(address, port, 30L, TimeUnit.SECONDS, () ->
-            System.err.println("Couldn't connect to the server! Maybe it's offline?"));
+                System.err.println("Couldn't connect to the server! Maybe it's offline?"));
     }
 
     /**
@@ -446,7 +430,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             // This exception is caught whenever a client closes their connection to the server. In that case, do
             // nothing.
         }
-    
+
         ForkJoinPool.commonPool().execute(() -> connectListeners.forEach(Runnable::run));
     }
 
@@ -464,24 +448,17 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         flush();
 
-        while (writing.get()) {
-            Thread.onSpinWait();
-        }
-
         Channeled.super.close();
 
         if (executor != null) {
             executor.shutdownNow();
         }
 
-        while (channel.isOpen()) {
-            Thread.onSpinWait();
-        }
 
         if (server != null) {
             server.connectedClients.remove(this);
         }
-        
+
         postDisconnectListeners.forEach(Runnable::run);
     }
 
@@ -509,23 +486,23 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void postDisconnect(Runnable listener) {
         postDisconnectListeners.add(listener);
     }
-    
+
     @Override
     public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         boolean shouldDecrypt = decryption != null;
-        
+
         if (shouldDecrypt) {
             n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
         }
-        
+
         synchronized (buffer) {
             if (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
                 size.add(-n);
-                
-                var data = new byte[n];
-    
+
+                byte[] data = new byte[n];
+
                 buffer.order(order).get(data);
-                
+
                 if (shouldDecrypt) {
                     try {
                         data = decryption.doFinal(data);
@@ -533,17 +510,17 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
                     }
                 }
-                
-                var wrappedBuffer = ByteBuffer.wrap(data).order(order);
-                
+
+                ByteBuffer wrappedBuffer = ByteBuffer.wrap(data).order(order);
+
                 consumer.accept(wrappedBuffer);
-    
+
                 // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
                 return;
             }
-            
-            var pair = new IntPair<Consumer<ByteBuffer>>(n, buffer -> consumer.accept(buffer.order(order)));
-            
+
+            IntPair<Consumer<ByteBuffer>> pair = new IntPair<Consumer<ByteBuffer>>(n, buffer -> consumer.accept(buffer.order(order)));
+
             if (prepend) {
                 stack.push(pair);
             } else {
@@ -560,12 +537,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void flush() {
         int totalBytes = 0;
         int amountToPoll = outgoingPackets.size();
-        
+
         Packet packet;
 
         boolean shouldEncrypt = encryption != null;
-        
-        var queue = new ArrayDeque<byte[]>();
+
+        ArrayDeque<byte[]> queue = new ArrayDeque<byte[]>();
 
         while (amountToPoll-- > 0 && (packet = outgoingPackets.poll()) != null) {
             int currentBytes = totalBytes;
@@ -579,10 +556,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
             // If we've buffered all of the packets that we can, send them off.
             if (tooBig || empty) {
-                var raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
-                
+                ByteBuffer raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
+
                 byte[] input;
-                
+
                 try {
                     while ((input = queue.pollFirst()) != null) {
                         raw.put(shouldEncrypt ? encryption.doFinal(input) : input);
@@ -590,11 +567,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 } catch (Exception e) {
                     throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                 }
-                
+
                 raw.flip();
-                
+
                 queue.addAll(packet.getQueue());
-                
+
                 // It is important to synchronize on the packetsToFlush here, as we don't want the callback to
                 // complete before the packet is queued.
                 synchronized (packetsToFlush) {
@@ -630,7 +607,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final AsynchronousSocketChannel getChannel() {
         return channel;
     }
-    
+
     /**
      * Gets the encryption {@link Cipher} used by this {@link Client}.
      *
@@ -639,7 +616,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final Cipher getEncryption() {
         return encryption;
     }
-    
+
     /**
      * Gets the decryption {@link Cipher} used by this {@link Client}.
      *
@@ -648,7 +625,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final Cipher getDecryption() {
         return decryption;
     }
-    
+
     /**
      * Sets the encryption {@link Cipher} used by this {@link Client}.
      *
@@ -657,7 +634,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void setEncryption(Cipher encryption) {
         this.encryption = encryption;
     }
-    
+
     /**
      * Sets the decryption {@link Cipher} used by this {@link Client}.
      *

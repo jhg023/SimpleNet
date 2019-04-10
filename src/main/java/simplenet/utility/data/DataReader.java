@@ -23,11 +23,11 @@
  */
 package simplenet.utility.data;
 
+import javax.crypto.Cipher;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import javax.crypto.Cipher;
 
 /**
  * An interface that defines the methods required to read data over a network with SimpleNet.
@@ -37,7 +37,7 @@ import javax.crypto.Cipher;
  */
 @FunctionalInterface
 public interface DataReader {
-    
+
     /**
      * A helper method to block until the {@link CompletableFuture} contains a value.
      *
@@ -48,7 +48,7 @@ public interface DataReader {
     default <T> T read(CompletableFuture<T> future) {
         return future.join();
     }
-    
+
     /**
      * Requests {@code n} bytes and accepts a {@link Consumer} with them (in a {@link ByteBuffer}) (with
      * {@link ByteOrder#BIG_ENDIAN} order) once received.
@@ -66,7 +66,7 @@ public interface DataReader {
     default void read(int n, Consumer<ByteBuffer> consumer) {
         read(n, consumer, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Requests {@code n} bytes and accepts a {@link Consumer} with them (in a {@link ByteBuffer}) (with the
      * specified {@link ByteOrder}) once received.
@@ -83,7 +83,7 @@ public interface DataReader {
      * @param order    The byte order of the data being received.
      */
     void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order);
-    
+
     /**
      * Calls {@link #read(int, Consumer, ByteOrder)}, however once finished, {@link #read(int, Consumer, ByteOrder)} is
      * called once again with the same parameters; this loops indefinitely, whereas
@@ -94,7 +94,7 @@ public interface DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readAlways(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
-        read(n, new Consumer<>() {
+        read(n, new Consumer<ByteBuffer>() {
             @Override
             public void accept(ByteBuffer buffer) {
                 consumer.accept(buffer);
@@ -102,7 +102,7 @@ public interface DataReader {
             }
         }, order);
     }
-    
+
     /**
      * Throws an {@link IllegalStateException} if this method is called from a {@link Thread} whose name begins with
      * {@code "SimpleNet"}.
@@ -117,5 +117,5 @@ public interface DataReader {
             throw new IllegalStateException("Blocking methods cannot be called from within callbacks!");
         }
     }
-    
+
 }

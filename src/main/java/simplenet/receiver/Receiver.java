@@ -23,10 +23,11 @@
  */
 package simplenet.receiver;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import simplenet.Client;
 import simplenet.Server;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 public abstract class Receiver<T> {
 
@@ -64,12 +65,12 @@ public abstract class Receiver<T> {
         this.preDisconnectListeners = new ArrayList<>();
         this.postDisconnectListeners = new ArrayList<>();
     }
-    
+
     /**
      * Instantiates a new {@link Receiver} from an existing {@link Receiver}.
      *
      * @param receiver The existing {@link Receiver}.
-     * @param <U> A {@link Receiver} or one of its children.
+     * @param <U>      A {@link Receiver} or one of its children.
      */
     protected <U extends Receiver<T>> Receiver(U receiver) {
         this.bufferSize = receiver.bufferSize;

@@ -36,14 +36,14 @@ import java.util.function.Consumer;
  */
 @FunctionalInterface
 public interface BooleanConsumer {
-    
+
     /**
      * Performs this operation on the given argument.
      *
      * @param value the input argument
      */
     void accept(boolean value);
-    
+
     /**
      * Returns a composed {@code BooleanConsumer} that performs, in sequence, this operation followed by the {@code
      * after} operation. If performing either operation throws an exception, it is relayed to the caller of the
@@ -52,12 +52,15 @@ public interface BooleanConsumer {
      *
      * @param after the operation to perform after this operation
      * @return a composed {@code BooleanConsumer} that performs in sequence this operation followed by the {@code
-     *         after} operation
+     * after} operation
      * @throws NullPointerException if {@code after} is {@code null}
      */
     default BooleanConsumer andThen(BooleanConsumer after) {
         Objects.requireNonNull(after);
-        return (boolean t) -> { accept(t); after.accept(t); };
+        return (boolean t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
-    
+
 }

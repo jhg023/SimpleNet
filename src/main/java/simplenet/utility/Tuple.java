@@ -32,17 +32,17 @@ import java.util.Objects;
  * @version February 22, 2019
  */
 public final class Tuple<K, V> {
-    
+
     /**
      * The key of this {@link Tuple}.
      */
     public K key;
-    
+
     /**
      * The value of this {@link Tuple}.
      */
     public V value;
-    
+
     /**
      * Creates a new {@link Tuple} with the specified key and value.
      *
@@ -53,26 +53,26 @@ public final class Tuple<K, V> {
         this.key = key;
         this.value = value;
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof Tuple<?, ?>)) {
             return false;
         }
-        
-        var pair = (Tuple<?, ?>) o;
-        
+
+        Tuple<?, ?> pair = (Tuple<?, ?>) o;
+
         return Objects.equals(key, pair.key) && Objects.equals(value, pair.value);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(key, value);
     }
-    
+
     @Override
     public String toString() {
         return "Tuple[key: " + key + ", value: " + value + "]";
     }
-    
+
 }

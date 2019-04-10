@@ -23,6 +23,13 @@
  */
 package simplenet.packet;
 
+import pbbl.ByteBufferPool;
+import pbbl.heap.HeapByteBufferPool;
+import simplenet.Client;
+import simplenet.Server;
+import simplenet.utility.Utility;
+
+import javax.crypto.Cipher;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -32,12 +39,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
-import javax.crypto.Cipher;
-import pbbl.ByteBufferPool;
-import pbbl.heap.HeapByteBufferPool;
-import simplenet.Client;
-import simplenet.Server;
-import simplenet.utility.Utility;
 
 /**
  * A {@link Packet} that will be sent from a {@link Client} to the {@link Server} or vice versa.
@@ -45,23 +46,23 @@ import simplenet.utility.Utility;
  * This class is <strong>NOT</strong> safe for concurrent use among multiple threads.
  */
 public final class Packet {
-    
+
     /**
      * A {@link ByteBufferPool} that dispatches reusable {@code HeapByteBuffer}s.
      */
     private static final ByteBufferPool HEAP_BUFFER_POOL = new HeapByteBufferPool();
-    
+
     /**
      * A {@code boolean} that designates whether data should be added to the front of the {@link Deque} rather than
      * the end.
      */
     private boolean prepend;
-    
+
     /**
      * A {@link Deque} that is used when prepending data to this packet so that the data is written in order.
      */
     private final Deque<byte[]> stack;
-    
+
     /**
      * A {@link Deque} that lazily writes data to the backing {@link ByteBuffer}.
      */
@@ -83,7 +84,7 @@ public final class Packet {
     public static Packet builder() {
         return new Packet();
     }
-    
+
     /**
      * A helper method that eliminates duplicate code and enqueues a {@code byte[]} to the backing {@link Deque}
      * (either at the front or back depending on the value of {@code prepend}).
@@ -97,10 +98,10 @@ public final class Packet {
         } else {
             queue.offerLast(data);
         }
-        
+
         return this;
     }
-    
+
     /**
      * Writes a single {@code boolean} to this {@link Packet}'s payload.
      * <br><br>
@@ -111,9 +112,9 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putBoolean(boolean b) {
-        return enqueue(new byte[] { b ? (byte) 1 : 0 });
+        return enqueue(new byte[]{b ? (byte) 1 : 0});
     }
-    
+
     /**
      * Writes a single {@code byte} to this {@link Packet}'s payload.
      *
@@ -121,7 +122,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putByte(int b) {
-        return enqueue(new byte[] { (byte) b });
+        return enqueue(new byte[]{(byte) b});
     }
 
     /**
@@ -144,7 +145,7 @@ public final class Packet {
     public Packet putChar(char c) {
         return putChar(c, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code char} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -153,16 +154,16 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putChar(char c, ByteOrder order) {
-        var buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
-        var array = buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c).array();
-        
+        ByteBuffer buffer = HEAP_BUFFER_POOL.take(Character.BYTES);
+        byte[] array = buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c).array();
+
         try {
             return enqueue(Arrays.copyOfRange(array, 0, Character.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
     }
-    
+
     /**
      * Writes a single {@code double} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
@@ -173,7 +174,7 @@ public final class Packet {
     public Packet putDouble(double d) {
         return putDouble(d, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code double} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -185,7 +186,7 @@ public final class Packet {
     public Packet putDouble(double d, ByteOrder order) {
         return putLong(Double.doubleToRawLongBits(d), order);
     }
-    
+
     /**
      * Writes a single {@code float} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
@@ -196,7 +197,7 @@ public final class Packet {
     public Packet putFloat(float f) {
         return putFloat(f, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code float} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -208,7 +209,7 @@ public final class Packet {
     public Packet putFloat(float f, ByteOrder order) {
         return putInt(Float.floatToRawIntBits(f), order);
     }
-    
+
     /**
      * Writes a single {@code int} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
@@ -219,7 +220,7 @@ public final class Packet {
     public Packet putInt(int i) {
         return putInt(i, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code int} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -228,16 +229,16 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putInt(int i, ByteOrder order) {
-        var buffer = HEAP_BUFFER_POOL.take(Integer.BYTES);
-        var array = buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i).array();
-        
+        ByteBuffer buffer = HEAP_BUFFER_POOL.take(Integer.BYTES);
+        byte[] array = buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i).array();
+
         try {
             return enqueue(Arrays.copyOfRange(array, 0, Integer.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
     }
-    
+
     /**
      * Writes a single {@code long} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
@@ -248,7 +249,7 @@ public final class Packet {
     public Packet putLong(long l) {
         return putLong(l, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code long} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -257,16 +258,16 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putLong(long l, ByteOrder order) {
-        var buffer = HEAP_BUFFER_POOL.take(Long.BYTES);
-        var array = buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l).array();
-        
+        ByteBuffer buffer = HEAP_BUFFER_POOL.take(Long.BYTES);
+        byte[] array = buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l).array();
+
         try {
             return enqueue(Arrays.copyOfRange(array, 0, Long.BYTES));
         } finally {
             HEAP_BUFFER_POOL.give(buffer);
         }
     }
-    
+
     /**
      * Writes a single {@code short} with {@link ByteOrder#BIG_ENDIAN} order to this {@link Packet}'s payload.
      *
@@ -277,7 +278,7 @@ public final class Packet {
     public Packet putShort(int s) {
         return putShort(s, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@code short} with the specified {@link ByteOrder} to this {@link Packet}'s payload.
      *
@@ -286,10 +287,10 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putShort(int s, ByteOrder order) {
-        var buffer = HEAP_BUFFER_POOL.take(Short.BYTES);
-        var value = (short) s;
-        var array = buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value).array();
-        
+        ByteBuffer buffer = HEAP_BUFFER_POOL.take(Short.BYTES);
+        short value = (short) s;
+        byte[] array = buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value).array();
+
         try {
             return enqueue(Arrays.copyOfRange(array, 0, Short.BYTES));
         } finally {
@@ -310,7 +311,7 @@ public final class Packet {
     public Packet putString(String s) {
         return putString(s, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN}
      * order to this {@link Packet}'s payload.
@@ -327,7 +328,7 @@ public final class Packet {
     public Packet putString(String s, Charset charset) {
         return putString(s, charset, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Writes a single {@link String} encoded with the specified {@link Charset} and {@link ByteOrder} to this
      * {@link Packet}'s payload.
@@ -342,7 +343,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      */
     public Packet putString(String s, Charset charset, ByteOrder order) {
-        var bytes = s.getBytes(charset);
+        byte[] bytes = s.getBytes(charset);
         putShort(bytes.length, order);
         putBytes(bytes);
         return this;
@@ -360,41 +361,41 @@ public final class Packet {
     public Packet prepend(Consumer<Packet> consumer) {
         prepend = true;
         consumer.accept(this);
-        
+
         while (!stack.isEmpty()) {
             queue.offerFirst(stack.pop());
         }
-        
+
         prepend = false;
         return this;
     }
-    
+
     /**
      * Queues this {@link Packet} to a single {@link Client}.
      * <br><br>
      * The {@link Client} will not receive this {@link Packet} until {@link Client#flush()} is called.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>    A {@link Client} or any of its children.
      * @param client The {@link Client} to queue this {@link Packet} to.
      */
     public final <T extends Client> void write(T client) {
         int size = getSize(client);
-        
+
         if (size > client.getBufferSize()) {
             throw new IllegalStateException("Packet is too large (Size: " + size + ") for client buffer size" +
                     " (Limit: " + client.getBufferSize() + ")");
         }
-    
+
         client.getOutgoingPackets().offer(this);
     }
-    
+
     /**
      * Queues this {@link Packet} to one (or more) {@link Client}(s).
      * <br><br>
      * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
      * {@link Client}.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>     A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s.
      */
     @SafeVarargs
@@ -403,7 +404,7 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        for (var client : clients) {
+        for (Client client : clients) {
             write(client);
         }
     }
@@ -423,12 +424,12 @@ public final class Packet {
 
         clients.forEach(this::write);
     }
-    
+
     /**
      * Queues this {@link Packet} to a single {@link Client} and calls {@link Client#flush()}, flushing all
      * previously-queued packets as well.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>    A {@link Client} or any of its children.
      * @param client The {@link Client} to queue (and flush) this {@link Packet} to.
      */
     public final <T extends Client> void writeAndFlush(T client) {
@@ -440,7 +441,7 @@ public final class Packet {
      * Queues this {@link Packet} to one or more {@link Client}s and calls {@link Client#flush()},
      * flushing all previously-queued packets as well.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>     A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s.
      */
     @SafeVarargs
@@ -449,7 +450,7 @@ public final class Packet {
             throw new IllegalArgumentException("You must send this packet to at least one client!");
         }
 
-        for (var client : clients) {
+        for (Client client : clients) {
             writeAndFlush(client);
         }
     }
@@ -467,7 +468,7 @@ public final class Packet {
 
         clients.forEach(this::writeAndFlush);
     }
-    
+
     /**
      * Gets the size of this {@link Packet}'s payload in bytes.
      * <br><br>
@@ -479,7 +480,7 @@ public final class Packet {
     public int getSize() {
         return getSize(null);
     }
-    
+
     /**
      * Gets the size of this {@link Packet}'s payload in bytes, while taking the specified {@link Client}'s
      * encryption into account, as a {@link Cipher}'s padding may increase the size of this {@link Packet}.
@@ -489,13 +490,13 @@ public final class Packet {
      */
     public <T extends Client> int getSize(T client) {
         Cipher encryption;
-        
+
         if (client == null || (encryption = client.getEncryption()) == null) {
             return queue.stream().mapToInt(array -> array.length).sum();
         }
-        
+
         int blockSize = encryption.getBlockSize();
-        
+
         return queue.stream().mapToInt(array -> Utility.roundUpToNextMultiple(array.length, blockSize)).sum();
     }
 

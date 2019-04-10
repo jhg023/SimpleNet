@@ -23,10 +23,11 @@
  */
 package simplenet.channel;
 
+import simplenet.receiver.Receiver;
+
 import java.io.IOException;
 import java.nio.channels.AsynchronousChannel;
 import java.nio.channels.Channel;
-import simplenet.receiver.Receiver;
 
 /**
  * An {@code interface} that denotes an entity as having a backing {@link Channel}.

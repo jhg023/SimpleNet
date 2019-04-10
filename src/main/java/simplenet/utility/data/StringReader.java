@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * @version January 21, 2019
  */
 public interface StringReader extends ShortReader {
-    
+
     /**
      * Reads a {@link String} with {@link StandardCharsets#UTF_8} as the encoding and {@link ByteOrder#BIG_ENDIAN} as
      * the {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
@@ -48,7 +48,7 @@ public interface StringReader extends ShortReader {
     default String readString() throws IllegalStateException {
         return readString(StandardCharsets.UTF_8);
     }
-    
+
     /**
      * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN} as the
      * {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
@@ -60,7 +60,7 @@ public interface StringReader extends ShortReader {
     default String readString(Charset charset) throws IllegalStateException {
         return readString(charset, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder}, but blocks the executing
      * thread unlike {@link #readString(Consumer)}.
@@ -70,11 +70,11 @@ public interface StringReader extends ShortReader {
      */
     default String readString(Charset charset, ByteOrder order) throws IllegalStateException {
         blockingInsideCallback();
-        var future = new CompletableFuture<String>();
+        CompletableFuture<String> future = new CompletableFuture<String>();
         readString(future::complete, charset, order);
         return read(future);
     }
-    
+
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)} with {@link StandardCharsets#UTF_8} as the encoding and
      * {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
@@ -85,7 +85,7 @@ public interface StringReader extends ShortReader {
     default void readString(Consumer<String> consumer) {
         readString(consumer, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)} with the specified {@link Charset} as the encoding and
      * {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
@@ -96,7 +96,7 @@ public interface StringReader extends ShortReader {
     default void readString(Consumer<String> consumer, Charset charset) {
         readString(consumer, charset, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Requests a single {@link String}, with the specified {@link Charset} and {@link ByteOrder}, and accepts a
      * {@link Consumer} with the {@link String} when it is received.
@@ -112,7 +112,7 @@ public interface StringReader extends ShortReader {
     default void readString(Consumer<String> consumer, Charset charset, ByteOrder order) {
         readShort(length -> processBytes(length, consumer, charset, order));
     }
-    
+
     /**
      * Calls {@link #readStringAlways(Consumer, Charset, ByteOrder)} with {@link StandardCharsets#UTF_8} as the encoding
      * and {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
@@ -123,7 +123,7 @@ public interface StringReader extends ShortReader {
     default void readStringAlways(Consumer<String> consumer) {
         readStringAlways(consumer, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Calls {@link #readStringAlways(Consumer, Charset, ByteOrder)} with the specified {@link Charset} as the encoding
      * and {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
@@ -134,7 +134,7 @@ public interface StringReader extends ShortReader {
     default void readStringAlways(Consumer<String> consumer, Charset charset) {
         readStringAlways(consumer, charset, ByteOrder.BIG_ENDIAN);
     }
-    
+
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)}; however, once finished,
      * {@link #readString(Consumer, Charset, ByteOrder)} is called once again with the same consumer; this method loops
@@ -151,22 +151,22 @@ public interface StringReader extends ShortReader {
     default void readStringAlways(Consumer<String> consumer, Charset charset, ByteOrder order) {
         readShortAlways(length -> processBytes(length, consumer, charset, order));
     }
-    
+
     /**
      * A helper method to eliminate duplicate code.
      *
-     * @param n          The amount of bytes requested (the length of the {@link String}).
-     * @param consumer   Holds the operations that should be performed once the {@code n} bytes are received.
-     * @param charset    The {@link Charset} encoding of the {@link String}.
+     * @param n        The amount of bytes requested (the length of the {@link String}).
+     * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
+     * @param charset  The {@link Charset} encoding of the {@link String}.
      */
-    private void processBytes(short n, Consumer<String> consumer, Charset charset, ByteOrder order) {
+    default void processBytes(short n, Consumer<String> consumer, Charset charset, ByteOrder order) {
         int length = order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(n) : n;
-        
+
         read(Byte.BYTES * (length & 0xFFFF), buffer -> {
-            var b = new byte[length];
+            byte[] b = new byte[length];
             buffer.get(b);
             consumer.accept(new String(b, charset));
         }, order);
     }
-    
+
 }

@@ -52,12 +52,15 @@ public interface ShortConsumer {
      *
      * @param after the operation to perform after this operation
      * @return a composed {@code ShortConsumer} that performs in sequence this operation followed by the {@code after}
-     *         operation
+     * operation
      * @throws NullPointerException if {@code after} is {@code null}
      */
     default ShortConsumer andThen(ShortConsumer after) {
         Objects.requireNonNull(after);
-        return (short t) -> { accept(t); after.accept(t); };
+        return (short t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
 
 }

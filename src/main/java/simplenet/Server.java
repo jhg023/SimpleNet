@@ -23,29 +23,19 @@
  */
 package simplenet;
 
+import simplenet.channel.Channeled;
+import simplenet.packet.Packet;
+import simplenet.receiver.Receiver;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
-import java.nio.channels.AlreadyBoundException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.nio.channels.*;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
-import simplenet.channel.Channeled;
-import simplenet.packet.Packet;
-import simplenet.receiver.Receiver;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -54,12 +44,12 @@ import simplenet.receiver.Receiver;
  * @since November 1, 2017
  */
 public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
-    
+
     /**
      * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
      */
     final Set<Client> connectedClients;
-    
+
     /**
      * The backing {@link ThreadPoolExecutor} used for I/O.
      */
@@ -69,7 +59,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
      * The backing {@link Channel} of this {@link Server}.
      */
     private final AsynchronousServerSocketChannel channel;
-    
+
     /**
      * Instantiates a new {@link Server} (with a buffer size of {@code 4,096} bytes) by attempting to open the
      * backing {@link AsynchronousServerSocketChannel}.
@@ -80,7 +70,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public Server() throws IllegalStateException {
         this(4_096);
     }
-    
+
     /**
      * Instantiates a new {@link Server} (with the specified buffer size) by attempting to open the backing
      * {@link AsynchronousServerSocketChannel}.
@@ -95,7 +85,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public Server(int bufferSize) throws IllegalStateException {
         this(bufferSize, Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
     }
-    
+
     /**
      * Instantiates a new {@link Server} (with the specified buffer size and number of threads) by attempting to open
      * the backing {@link AsynchronousServerSocketChannel}.
@@ -106,9 +96,9 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
      */
     public Server(int bufferSize, int numThreads) throws IllegalStateException {
         super(bufferSize);
-    
+
         connectedClients = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
-        
+
         try {
             executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
                 Thread thread = new Thread(runnable);
@@ -116,9 +106,9 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 thread.setName(thread.getName().replace("Thread", "SimpleNet"));
                 return thread;
             });
-        
+
             executor.prestartAllCoreThreads();
-        
+
             channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
@@ -147,8 +137,8 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    var server = Server.this;
-                    var client = new Client(bufferSize, channel, server);
+                    Server server = Server.this;
+                    Client client = new Client(bufferSize, channel, server);
                     connectedClients.add(client);
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     server.channel.accept(null, this);
@@ -168,7 +158,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             throw new IllegalStateException("Unable to bind the server:", e);
         }
     }
-    
+
     /**
      * Closes this {@link Server} by closing the backing {@link AsynchronousServerSocketChannel}, shutting down the
      * backing {@link ThreadPoolExecutor}, and clearing the {@link Set} of connected {@link Client}s.
@@ -189,7 +179,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public AsynchronousServerSocketChannel getChannel() {
         return channel;
     }
-    
+
     /**
      * Gets the number of {@link Client}s connected to this {@link Server}.
      *
@@ -198,49 +188,49 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public int getNumConnectedClients() {
         return connectedClients.size();
     }
-    
+
     /**
      * A helper method that eliminates code duplication in the {@link #writeToAllExcept(Packet, Client[])} and
      * {@link #writeAndFlushToAllExcept(Packet, Client[])} methods.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>      A {@link Client} or any of its children.
      * @param consumer The action to perform for each {@link Client}.
-     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
+     * @param clients  A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
      */
     @SafeVarargs
-    private <T extends Client> void writeHelper(Consumer<Client> consumer, T... clients) {
-        var toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.length));
-        toExclude.addAll(List.of(clients));
-        connectedClients.stream().filter(Predicate.not(toExclude::contains)).forEach(consumer);
+    private final <T extends Client> void writeHelper(Consumer<Client> consumer, T... clients) {
+        Set<Client> toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.length));
+        toExclude.addAll(Arrays.asList(clients));
+        connectedClients.stream().filter(it -> !toExclude.contains(it)).forEach(consumer);
     }
-    
+
     /**
      * A helper method that eliminates code duplication in the {@link #writeToAllExcept(Packet, Collection)} and
      * {@link #writeAndFlushToAllExcept(Packet, Collection)} methods.
      *
      * @param consumer The action to perform for each {@link Client}.
-     * @param clients A {@link Collection} of {@link Client}s to exclude from receiving the {@link Packet}.
+     * @param clients  A {@link Collection} of {@link Client}s to exclude from receiving the {@link Packet}.
      */
     private void writeHelper(Consumer<Client> consumer, Collection<? extends Client> clients) {
-        var toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.size()));
+        Set<Client> toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.size()));
         toExclude.addAll(clients);
-        connectedClients.stream().filter(Predicate.not(toExclude::contains)).forEach(consumer);
+        connectedClients.stream().filter(it -> !toExclude.contains(it)).forEach(consumer);
     }
-    
+
     /**
      * Queues a {@link Packet} to all connected {@link Client}s except the one(s) specified.
      * <br><br>
      * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
      * {@link Client}.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>     A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
      */
     @SafeVarargs
     public final <T extends Client> void writeToAllExcept(Packet packet, T... clients) {
         writeHelper(packet::write, clients);
     }
-    
+
     /**
      * Queues a {@link Packet} to all connected {@link Client}s except the one(s) specified.
      * <br><br>
@@ -252,18 +242,18 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public final void writeToAllExcept(Packet packet, Collection<? extends Client> clients) {
         writeHelper(packet::write, clients);
     }
-    
+
     /**
      * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>     A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
      */
     @SafeVarargs
     public final <T extends Client> void flushToAllExcept(T... clients) {
         writeHelper(Client::flush, clients);
     }
-    
+
     /**
      * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
      *
@@ -272,19 +262,19 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public final void flushToAllExcept(Collection<? extends Client> clients) {
         writeHelper(Client::flush, clients);
     }
-    
+
     /**
      * Queues a {@link Packet} to a one or more {@link Client}s and calls {@link Client#flush()}, flushing all
      * previously-queued packets as well.
      *
-     * @param <T> A {@link Client} or any of its children.
+     * @param <T>     A {@link Client} or any of its children.
      * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
      */
     @SafeVarargs
     public final <T extends Client> void writeAndFlushToAllExcept(Packet packet, T... clients) {
         writeHelper(packet::writeAndFlush, clients);
     }
-    
+
     /**
      * Queues a {@link Packet} to a one or more {@link Client}s and calls {@link Client#flush()}, flushing all
      * previously-queued packets as well.
@@ -294,5 +284,5 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     public final void writeAndFlushToAllExcept(Packet packet, Collection<? extends Client> clients) {
         writeHelper(packet::writeAndFlush, clients);
     }
-    
+
 }

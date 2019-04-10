@@ -30,19 +30,19 @@ package simplenet.utility;
  * @since February 19, 2019
  */
 public final class MutableInt {
-    
+
     /**
      * The backing {@code int} of this {@link MutableInt}.
      */
     private int value;
-    
+
     /**
      * Constructs a new {@link MutableInt} with initial value {@code 0}.
      */
     public MutableInt() {
         this(0);
     }
-    
+
     /**
      * Constructs a new {@link MutableInt} with initial value {@code value}.
      *
@@ -51,7 +51,7 @@ public final class MutableInt {
     public MutableInt(int value) {
         this.value = value;
     }
-    
+
     /**
      * Adds a specified value to this {@link MutableInt}.
      *
@@ -62,7 +62,7 @@ public final class MutableInt {
         this.value += value;
         return this;
     }
-    
+
     /**
      * Gets the value of this {@link MutableInt} as an {@code int}.
      *
@@ -71,7 +71,7 @@ public final class MutableInt {
     public int get() {
         return value;
     }
-    
+
     /**
      * Sets the value of this {@link MutableInt} to a specified {@code int} value.
      *
@@ -82,24 +82,24 @@ public final class MutableInt {
         this.value = value;
         return this;
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof MutableInt)) {
             return false;
         }
-        
+
         return ((MutableInt) o).value == value;
     }
-    
+
     @Override
     public int hashCode() {
         return value;
     }
-    
+
     @Override
     public String toString() {
         return "MutableInt[value = " + value + "]";
     }
-    
+
 }
