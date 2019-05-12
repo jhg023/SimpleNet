@@ -288,7 +288,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * SimpleNet automatically handles this exception by re-throwing it in an IllegalStateException.
      */
     private CryptoFunction decryptionFunction = Cipher::doFinal;
-
+    
+    /**
+     * Whether or not the decryption {@link Cipher} specifies 'NoPadding'
+     */
+    private boolean decryptionNoPadding = false;
+    
     /**
      * The {@link Server} that this {@link Client} is connected to.
      */
@@ -526,9 +531,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         boolean shouldDecrypt = decryption != null;
         
-        if (shouldDecrypt) {
-            // This thing is causing issues
-            // n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
+        if (shouldDecrypt && !decryptionNoPadding) {
+            n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
         }
         
         synchronized (buffer) {
@@ -686,6 +690,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void setDecryption(Cipher decryption, CryptoFunction decryptionFunction) {
         this.decryption = decryption;
+        this.decryptionNoPadding = decryption.getAlgorithm().contains("NoPadding");
         this.decryptionFunction = decryptionFunction;
     }
     
