@@ -46,15 +46,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.crypto.Cipher;
+
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
-import simplenet.utility.IntPair;
-import simplenet.utility.MutableInt;
-import simplenet.utility.Tuple;
-import simplenet.utility.Utility;
+import simplenet.utility.*;
 import simplenet.utility.data.BooleanReader;
 import simplenet.utility.data.ByteReader;
 import simplenet.utility.data.CharReader;
@@ -64,6 +62,7 @@ import simplenet.utility.data.FloatReader;
 import simplenet.utility.data.IntReader;
 import simplenet.utility.data.LongReader;
 import simplenet.utility.data.StringReader;
+import simplenet.utility.exposed.CryptoFunction;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -142,11 +141,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     buffer.get(data);
                     
                     if (shouldDecrypt) {
-                        try {
-                            data = client.decryption.doFinal(data);
-                        } catch (Exception e) {
+                        data = client.decryptionFunction.performExceptionally(client.decryption, data, e -> {
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
-                        }
+                        });
                     }
     
                     ByteBuffer wrappedBuffer = ByteBuffer.wrap(data);
@@ -272,11 +269,30 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link Cipher} used for {@link Packet} encryption.
      */
     private Cipher encryption;
+
+    /**
+     * The {@link CryptoFunction} responsible for encrypting data sent to the Client
+     * This defaults to {@link Cipher#doFinal(byte[])} and returns the input bytes on failure, with an exception.
+     * SimpleNet automatically handles this exception by re-throwing it in an IllegalStateException.
+     */
+    private CryptoFunction encryptionFunction = Cipher::doFinal;
     
     /**
      * The {@link Cipher} used for {@link Packet} decryption.
      */
     private Cipher decryption;
+
+    /**
+     * The function responsible for decrypting data sent by the client
+     * This defaults to {@link Cipher#doFinal(byte[])} and returns the input bytes on failure, with an exception.
+     * SimpleNet automatically handles this exception by re-throwing it in an IllegalStateException.
+     */
+    private CryptoFunction decryptionFunction = Cipher::doFinal;
+    
+    /**
+     * Whether or not the decryption {@link Cipher} specifies 'NoPadding'
+     */
+    private boolean decryptionNoPadding = false;
     
     /**
      * The {@link Server} that this {@link Client} is connected to.
@@ -292,7 +308,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The backing {@link Channel} of a {@link Client}.
      */
     private AsynchronousSocketChannel channel;
-    
+
+
     /**
      * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
      * {@link Server}.
@@ -514,7 +531,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
         boolean shouldDecrypt = decryption != null;
         
-        if (shouldDecrypt) {
+        if (shouldDecrypt && !decryptionNoPadding) {
             n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
         }
         
@@ -527,11 +544,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 buffer.order(order).get(data);
                 
                 if (shouldDecrypt) {
-                    try {
-                        data = decryption.doFinal(data);
-                    } catch (Exception e) {
+                    data = decryptionFunction.performExceptionally(decryption, data, e -> {
                         throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
-                    }
+                    });
                 }
                 
                 var wrappedBuffer = ByteBuffer.wrap(data).order(order);
@@ -580,17 +595,15 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             // If we've buffered all of the packets that we can, send them off.
             if (tooBig || empty) {
                 var raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
-                
+
                 byte[] input;
-                
-                try {
-                    while ((input = queue.pollFirst()) != null) {
-                        raw.put(shouldEncrypt ? encryption.doFinal(input) : input);
-                    }
-                } catch (Exception e) {
-                    throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
+
+                while ((input = queue.pollFirst()) != null) {
+                    raw.put(shouldEncrypt ? encryptionFunction.performExceptionally(encryption, input, e -> {
+                        throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
+                    }) : input);
                 }
-                
+
                 raw.flip();
                 
                 queue.addAll(packet.getQueue());
@@ -653,18 +666,40 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Sets the encryption {@link Cipher} used by this {@link Client}.
      *
      * @param encryption The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
+     * @param encryptionFunction The {@link CryptoFunction} responsible for encryption
      */
-    public final void setEncryption(Cipher encryption) {
+    public final void setEncryption(Cipher encryption, CryptoFunction encryptionFunction) {
         this.encryption = encryption;
+        this.encryptionFunction = encryptionFunction;
+    }
+    
+    /**
+     * Sets the encryption {@link Cipher} used by this {@link Client}.
+     *
+     * @param encryption The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
+     */
+    public final void setEncryption(Cipher encryption){
+        setEncryption(encryption, Cipher::doFinal);
     }
     
     /**
      * Sets the decryption {@link Cipher} used by this {@link Client}.
      *
      * @param decryption The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
+     * @param decryptionFunction The {@link CryptoFunction} responsible for decryption
      */
-    public final void setDecryption(Cipher decryption) {
+    public final void setDecryption(Cipher decryption, CryptoFunction decryptionFunction) {
         this.decryption = decryption;
+        this.decryptionNoPadding = decryption.getAlgorithm().contains("NoPadding");
+        this.decryptionFunction = decryptionFunction;
+    }
+    
+    /**
+     * Sets the decryption {@link Cipher} used by this {@link Client}.
+     * @param decryption The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
+     */
+    public final void setDecryption(Cipher decryption){
+        setDecryption(decryption, Cipher::doFinal);
     }
 
 }
