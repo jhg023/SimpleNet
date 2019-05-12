@@ -3,6 +3,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
@@ -39,6 +40,7 @@ public class EncryptionTest {
         startTest(server, 9000, a, b, c, d, Cipher::doFinal, Cipher::doFinal);
     }
     
+    
     @Test
     void testNoPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
         final Server server = new Server();
@@ -51,6 +53,40 @@ public class EncryptionTest {
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
         startTest(server, 9001, a, b, c, d, Cipher::update, Cipher::update);
+    }
+    
+    @Test
+    void testPaddingAESUpdate() throws NoSuchPaddingException, NoSuchAlgorithmException,
+            InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
+        /*
+            Take a look at Cipher#update to see why this test doesnt read completely
+            TL;DR: Block Cipher needs padding, I'm too lazy to write padding by hand.
+         */
+        final Server server = new Server();
+        server.bind("localhost", 9002);
+        final String AES = "AES/CBC/PKCS5Padding";
+        final Cipher
+                a = Cipher.getInstance(AES),
+                b = Cipher.getInstance(AES),
+                c = Cipher.getInstance(AES),
+                d = Cipher.getInstance(AES);
+        initCiphers(a, b, c, d);
+        startTest(server, 9002, a, b, c, d, Cipher::update, Cipher::update);
+    }
+    
+    @Test
+    void testNoPaddingAESFinal() throws NoSuchPaddingException, NoSuchAlgorithmException,
+            InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
+        final Server server = new Server();
+        server.bind("localhost", 9003);
+        final String AES = "AES/CFB8/NoPadding";
+        final Cipher
+                a = Cipher.getInstance(AES),
+                b = Cipher.getInstance(AES),
+                c = Cipher.getInstance(AES),
+                d = Cipher.getInstance(AES);
+        initCiphers(a, b, c, d);
+        startTest(server, 9003, a, b, c, d, Cipher::doFinal, Cipher::doFinal);
     }
     
     private void initCiphers(
@@ -77,26 +113,45 @@ public class EncryptionTest {
             CryptoFunction encryption,
             CryptoFunction decryption
     ) throws InterruptedException {
-        server.onConnect(client -> {
+         server.onConnect(client -> {
             client.setEncryption(serverEncryption, encryption);
             client.setDecryption(serverDecryption, decryption);
             client.readBytes(128, it -> {
+                System.out.println("Reading Bytes");
                 assert(Arrays.equals(it, encryptBytes));
             });
             client.readString(it -> {
+                System.out.println("Reading String");
                 assert ("Hello World!".equals(it));
             });
-        
+            client.readLong(it -> {
+                System.out.println("Reading Long");
+                assert (it == 54735436752L);
+            });
+            client.readDouble(it -> {
+                System.out.println("Reading Double");
+                assert (it == 23.1231);
+            });
+            client.readByte(it -> {
+                System.out.println("Reading Byte");
+                assert (it == 0x00);
+            });
         });
     
         final Client client = new Client();
         client.onConnect(() -> {
             client.setEncryption(clientEncryption, encryption);
             client.setDecryption(clientDecryption, decryption);
-            Packet.builder().putBytes(encryptBytes).putString("Hello World!").writeAndFlush(client);
+            Packet.builder()
+                    .putBytes(encryptBytes)
+                    .putString("Hello World!")
+                    .putLong(54735436752L)
+                    .putDouble(23.1231)
+                    .putByte(0x00)
+                    .writeAndFlush(client);
         });
         client.connect("localhost", port);
-        Thread.sleep(5000);
+        Thread.sleep(2000);
     }
     
 }
