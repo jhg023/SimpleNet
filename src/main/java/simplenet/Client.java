@@ -141,11 +141,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     buffer.get(data);
                     
                     if (shouldDecrypt) {
-                        try {
-                            data = client.decryption.doFinal(data);
-                        } catch (Exception e) {
+                        data = client.decryptionFunction.performExceptionally(client.decryption, data, e -> {
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
-                        }
+                        });
                     }
     
                     ByteBuffer wrappedBuffer = ByteBuffer.wrap(data);
