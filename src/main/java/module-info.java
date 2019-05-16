@@ -5,5 +5,6 @@ module SimpleNet {
     exports simplenet.channel;
     exports simplenet.packet;
     exports simplenet.receiver;
-    exports simplenet.utility.exposed;
+    exports simplenet.utility.exposed.consumer;
+    exports simplenet.utility.exposed.cryptography;
 }

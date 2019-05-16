@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.IntPredicate;
 
 /**
  * An interface that defines the methods required to read {@code int}s over a network with SimpleNet.
@@ -57,7 +58,7 @@ public interface IntReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default int readInt(ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Integer>();
         readInt(future::complete, order);
         return read(future);
@@ -82,6 +83,30 @@ public interface IntReader extends DataReader {
      */
     default void readInt(IntConsumer consumer, ByteOrder order) {
         read(Integer.BYTES, buffer -> consumer.accept(buffer.getInt()), order);
+    }
+    
+    /**
+     * Calls {@link #readInt(IntConsumer)}; however, once finished, {@link #readInt(IntConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link IntPredicate}
+     * returns {@code false}, whereas {@link #readInt(IntConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code int} is received.
+     */
+    default void readIntUntil(IntPredicate predicate) {
+        readIntUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readInt(IntConsumer, ByteOrder)}; however, once finished,
+     * {@link #readInt(IntConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link IntPredicate} returns {@code false}, whereas
+     * {@link #readInt(IntConsumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code int} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readIntUntil(IntPredicate predicate, ByteOrder order) {
+        readUntil(Integer.BYTES, buffer -> predicate.test(buffer.getInt()), order);
     }
     
     /**

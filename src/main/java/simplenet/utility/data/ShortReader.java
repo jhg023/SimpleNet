@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import simplenet.utility.exposed.ShortConsumer;
+import simplenet.utility.exposed.consumer.ShortConsumer;
+import simplenet.utility.exposed.predicate.ShortPredicate;
 
 /**
  * An interface that defines the methods required to read {@code short}s over a network with SimpleNet.
@@ -57,7 +58,7 @@ public interface ShortReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default short readShort(ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Short>();
         readShort(future::complete, order);
         return read(future);
@@ -82,6 +83,30 @@ public interface ShortReader extends DataReader {
      */
     default void readShort(ShortConsumer consumer, ByteOrder order) {
         read(Short.BYTES, buffer -> consumer.accept(buffer.getShort()), order);
+    }
+    
+    /**
+     * Calls {@link #readShort(ShortConsumer)}; however, once finished, {@link #readShort(ShortConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link ShortPredicate}
+     * returns {@code false}, whereas {@link #readShort(ShortConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code short} is received.
+     */
+    default void readShortUntil(ShortPredicate predicate) {
+        readShortUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readShort(ShortConsumer, ByteOrder)}; however, once finished,
+     * {@link #readShort(ShortConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link ShortPredicate} returns {@code false}, whereas
+     * {@link #readShort(ShortConsumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code short} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readShortUntil(ShortPredicate predicate, ByteOrder order) {
+        readUntil(Short.BYTES, buffer -> predicate.test(buffer.getShort()), order);
     }
     
     /**

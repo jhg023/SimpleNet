@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import simplenet.utility.exposed.CharConsumer;
+import simplenet.utility.exposed.consumer.CharConsumer;
+import simplenet.utility.exposed.predicate.CharPredicate;
 
 /**
  * An interface that defines the methods required to read {@code char}s over a network with SimpleNet.
@@ -57,7 +58,7 @@ public interface CharReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default char readChar(ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Character>();
         readChar(future::complete, order);
         return read(future);
@@ -82,6 +83,30 @@ public interface CharReader extends DataReader {
      */
     default void readChar(CharConsumer consumer, ByteOrder order) {
         read(Character.BYTES, buffer -> consumer.accept(buffer.getChar()), order);
+    }
+    
+    /**
+     * Calls {@link #readChar(CharConsumer)}; however, once finished, {@link #readChar(CharConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link CharPredicate}
+     * returns {@code false}, whereas {@link #readChar(CharConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code char} is received.
+     */
+    default void readCharUntil(CharPredicate predicate) {
+        readCharUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readChar(CharConsumer, ByteOrder)}; however, once finished,
+     * {@link #readChar(CharConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link CharPredicate} returns {@code false}, whereas {@link #readChar(CharConsumer, ByteOrder)}
+     * completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code char} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readCharUntil(CharPredicate predicate, ByteOrder order) {
+        readUntil(Character.BYTES, buffer -> predicate.test(buffer.getChar()), order);
     }
     
     /**

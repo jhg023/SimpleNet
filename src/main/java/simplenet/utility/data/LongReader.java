@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongPredicate;
 
 /**
  * An interface that defines the methods required to read {@code long}s over a network with SimpleNet.
@@ -57,7 +58,7 @@ public interface LongReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default long readLong(ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Long>();
         readLong(future::complete, order);
         return read(future);
@@ -82,6 +83,30 @@ public interface LongReader extends DataReader {
      */
     default void readLong(LongConsumer consumer, ByteOrder order) {
         read(Long.BYTES, buffer -> consumer.accept(buffer.getLong()), order);
+    }
+    
+    /**
+     * Calls {@link #readLong(LongConsumer)}; however, once finished, {@link #readLong(LongConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link LongPredicate}
+     * returns {@code false}, whereas {@link #readLong(LongConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code long} is received.
+     */
+    default void readLongUntil(LongPredicate predicate) {
+        readLongUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readLong(LongConsumer, ByteOrder)}; however, once finished,
+     * {@link #readLong(LongConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link LongPredicate} returns {@code false}, whereas
+     * {@link #readLong(LongConsumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code long} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readLongUntil(LongPredicate predicate, ByteOrder order) {
+        readUntil(Long.BYTES, buffer -> predicate.test(buffer.getLong()), order);
     }
     
     /**

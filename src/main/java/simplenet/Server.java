@@ -32,6 +32,7 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
+import java.nio.channels.ShutdownChannelGroupException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -46,6 +47,7 @@ import java.util.function.Predicate;
 import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
+import simplenet.utility.Utility;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -149,9 +151,18 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
                     var server = Server.this;
                     var client = new Client(bufferSize, channel, server);
+                    
                     connectedClients.add(client);
                     connectListeners.forEach(consumer -> consumer.accept(client));
-                    server.channel.accept(null, this);
+                    
+                    try {
+                        server.channel.accept(null, this);
+                    } catch (ShutdownChannelGroupException e) {
+                        if (Utility.isDebug()) {
+                            e.printStackTrace();
+                        }
+                    }
+                    
                     channel.read(client.buffer, client, Client.Listener.SERVER_INSTANCE);
                 }
 
@@ -161,7 +172,9 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
                 }
             });
 
-            System.out.printf("Successfully bound to %s:%d!\n", address, port);
+            if (Utility.isDebug()) {
+                System.out.printf("Successfully bound to %s:%d!\n", address, port);
+            }
         } catch (AlreadyBoundException e) {
             throw new IllegalStateException("This server is already bound:", e);
         } catch (IOException e) {
@@ -170,13 +183,12 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     }
     
     /**
-     * Closes this {@link Server} by closing the backing {@link AsynchronousServerSocketChannel}, shutting down the
-     * backing {@link ThreadPoolExecutor}, and clearing the {@link Set} of connected {@link Client}s.
+     * Closes this {@link Server} by closing the backing {@link AsynchronousServerSocketChannel} and clearing the
+     * {@link Set} of connected {@link Client}s.
      */
     @Override
     public void close() {
         Channeled.super.close();
-        executor.shutdownNow();
         connectedClients.clear();
     }
 

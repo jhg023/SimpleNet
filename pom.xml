@@ -12,7 +12,7 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.4.9</version>
+    <version>1.4.10</version>
     <packaging>jar</packaging>
 
     <dependencies>

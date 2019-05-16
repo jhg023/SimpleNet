@@ -28,6 +28,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * An interface that defines the methods required to read {@link String}s over a network with SimpleNet.
@@ -69,7 +70,7 @@ public interface StringReader extends ShortReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default String readString(Charset charset, ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<String>();
         readString(future::complete, charset, order);
         return read(future);
@@ -111,6 +112,47 @@ public interface StringReader extends ShortReader {
      */
     default void readString(Consumer<String> consumer, Charset charset, ByteOrder order) {
         readShort(length -> processBytes(length, consumer, charset, order));
+    }
+    
+    /**
+     * Calls {@link #readString(Consumer)}; however, once finished, {@link #readString(Consumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link Predicate}
+     * returns {@code false}, whereas {@link #readString(Consumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@link String} is received.
+     */
+    default void readStringUntil(Predicate<String> predicate) {
+        readStringUntil(predicate, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readString(Consumer, Charset)}; however, once finished, {@link #readString(Consumer, Charset)} is
+     * called once again with the same consumer; this method loops until the specified {@link Predicate}
+     * returns {@code false}, whereas {@link #readString(Consumer, Charset)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@link String} is received.
+     * @param charset   The {@link Charset} encoding of the {@link String}.
+     */
+    default void readStringUntil(Predicate<String> predicate, Charset charset) {
+        readStringUntil(predicate, charset, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readString(Consumer, Charset, ByteOrder)}; however, once finished,
+     * {@link #readString(Consumer, Charset, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link Predicate} returns {@code false}, whereas
+     * {@link #readString(Consumer, Charset, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@link String} is received.
+     * @param charset   The {@link Charset} encoding of the {@link String}.
+     * @param order     The byte order of the data being received.
+     */
+    default void readStringUntil(Predicate<String> predicate, Charset charset, ByteOrder order) {
+        readShortUntil(length -> {
+            var toReturn = new boolean[1];
+            processBytes(length, string -> toReturn[0] = predicate.test(string), charset, order);
+            return toReturn[0];
+        });
     }
     
     /**

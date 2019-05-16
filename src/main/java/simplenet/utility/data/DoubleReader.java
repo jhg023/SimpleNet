@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
+import java.util.function.DoublePredicate;
 
 /**
  * An interface that defines the methods required to read {@code double}s over a network with SimpleNet.
@@ -81,6 +82,30 @@ public interface DoubleReader extends DataReader {
      */
     default void readDouble(DoubleConsumer consumer, ByteOrder order) {
         read(Double.BYTES, buffer -> consumer.accept(buffer.getDouble()), order);
+    }
+    
+    /**
+     * Calls {@link #readDouble(DoubleConsumer)}; however, once finished, {@link #readDouble(DoubleConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link DoublePredicate}
+     * returns {@code false}, whereas {@link #readDouble(DoubleConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code double} is received.
+     */
+    default void readDoubleUntil(DoublePredicate predicate) {
+        readDoubleUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readDouble(DoubleConsumer, ByteOrder)}; however, once finished,
+     * {@link #readDouble(DoubleConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link DoublePredicate} returns {@code false}, whereas
+     * {@link #readDouble(DoubleConsumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code double} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readDoubleUntil(DoublePredicate predicate, ByteOrder order) {
+        readUntil(Double.BYTES, buffer -> predicate.test(buffer.getDouble()), order);
     }
     
     /**

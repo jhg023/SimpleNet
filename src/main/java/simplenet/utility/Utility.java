@@ -39,6 +39,15 @@ public final class Utility {
     }
     
     /**
+     * Gets whether or not debug mode is enabled (i.e. if the {@code simplenet.debug} system property is set).
+     *
+     * @return {@code true} if debug mode is enabled, otherwise {@code false}.
+     */
+    public static boolean isDebug() {
+        return System.getProperties().containsKey("simplenet.debug");
+    }
+    
+    /**
      * A method that rounds the specified value up to the next multiple of the specified multiple.
      *
      * @param num      The number to round.

@@ -34,6 +34,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.ShutdownChannelGroupException;
+import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
@@ -45,6 +46,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.crypto.Cipher;
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
@@ -64,6 +66,7 @@ import simplenet.utility.data.FloatReader;
 import simplenet.utility.data.IntReader;
 import simplenet.utility.data.LongReader;
 import simplenet.utility.data.StringReader;
+import simplenet.utility.exposed.cryptography.CryptographicFunction;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -73,7 +76,7 @@ import simplenet.utility.data.StringReader;
  */
 public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel>, DataReader,
         BooleanReader, ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
-
+    
     /**
      * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
      */
@@ -121,16 +124,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 var buffer = client.buffer.flip();
                 var queue = client.queue;
                 
-                IntPair<Consumer<ByteBuffer>> peek;
+                IntPair<Predicate<ByteBuffer>> peek;
     
-                if ((peek = queue.pollLast()) == null) {
+                if ((peek = queue.peekLast()) == null) {
                     client.channel.read(buffer.position(client.size.get()), client, this);
                     return;
                 }
     
                 client.prepend = true;
     
-                var shouldDecrypt = client.decryption != null;
+                var shouldDecrypt = client.decryptionCipher != null;
                 var stack = client.stack;
                 int key;
                 
@@ -143,7 +146,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     
                     if (shouldDecrypt) {
                         try {
-                            data = client.decryption.doFinal(data);
+                            data = client.decryptionFunction.apply(client.decryptionCipher, data);
                         } catch (Exception e) {
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                         }
@@ -151,7 +154,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     
                     ByteBuffer wrappedBuffer = ByteBuffer.wrap(data);
                     
-                    peek.value.accept(wrappedBuffer);
+                    // If the predicate returns false, poll the element from the queue.
+                    if (!peek.value.test(wrappedBuffer)) {
+                        queue.pollLast();
+                    }
     
                     // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
         
@@ -159,16 +165,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         queue.offerLast(stack.pop());
                     }
         
-                    if ((peek = queue.pollLast()) == null) {
+                    if ((peek = queue.peekLast()) == null) {
                         break;
                     }
                 }
     
                 client.prepend = false;
-    
-                if (peek != null) {
-                    queue.offerLast(peek);
-                }
                 
                 if (client.size.get() > 0) {
                     buffer.compact().position(client.size.get());
@@ -205,7 +207,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     return;
                 }
                 
-                var payload = client.packetsToFlush.pollLast();
+                var payload = client.packetsToFlush.poll();
     
                 if (payload == null) {
                     client.writing.set(false);
@@ -239,6 +241,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     
     /**
      * The amount of readable bytes that currently exist within this {@link Client}'s {@code buffer}.
+     * <br><br>
+     * This is a {@link MutableInt} because, if it were an {@code int}, then the copy constructor of {@link Client}
+     * wouldn't reference the same value.
      */
     private final MutableInt size;
     
@@ -250,44 +255,56 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
      */
-    private final Deque<ByteBuffer> packetsToFlush;
+    private final Queue<ByteBuffer> packetsToFlush;
 
     /**
-     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer, ByteOrder)} and assures that
+     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)} and assures that
      * they will complete in the expected order.
      */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> stack;
+    private final Deque<IntPair<Predicate<ByteBuffer>>> stack;
 
     /**
      * The {@link Deque} used when requesting a certain amount of bytes from the {@link Client} or {@link Server}.
      */
-    private final Deque<IntPair<Consumer<ByteBuffer>>> queue;
-
+    private final Deque<IntPair<Predicate<ByteBuffer>>> queue;
+    
+    /**
+     * Whether or not the decryption {@link Cipher} specifies {@code NoPadding} as part of its algorithm.
+     */
+    private boolean decryptionNoPadding;
+    
     /**
      * Whether or not new elements added {@code queue} should be added to the front rather than the back.
      */
     private boolean prepend;
     
     /**
-     * The {@link Cipher} used for {@link Packet} encryption.
+     * The {@link Cipher} used for {@link Packet} encryptionCipher.
      */
-    private Cipher encryption;
+    private Cipher encryptionCipher;
     
     /**
-     * The {@link Cipher} used for {@link Packet} decryption.
+     * The {@link CryptographicFunction} responsible for encrypting data sent to a {@link Client}, which defaults to
+     * {@link Cipher#doFinal(byte[])}.
      */
-    private Cipher decryption;
+    private CryptographicFunction encryptionFunction;
+    
+    /**
+     * The {@link Cipher} used for {@link Packet} decryptionCipher.
+     */
+    private Cipher decryptionCipher;
+    
+    /**
+     * The {@link CryptographicFunction} responsible for decrypting data sent to a {@link Client}, which defaults to
+     * {@link Cipher#doFinal(byte[])}.
+     */
+    private CryptographicFunction decryptionFunction;
     
     /**
      * The {@link Server} that this {@link Client} is connected to.
      */
     private Server server;
-
-    /**
-     * The backing {@link ThreadPoolExecutor} used for I/O.
-     */
-    private ThreadPoolExecutor executor;
-
+    
     /**
      * The backing {@link Channel} of a {@link Client}.
      */
@@ -313,7 +330,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * default buffer size of {@code 4,096} bytes.
      */
     public Client() {
-        this(4_096);
+        this(8_192);
     }
 
     /**
@@ -369,10 +386,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.stack = client.stack;
         this.queue = client.queue;
         this.prepend = client.prepend;
-        this.encryption = client.encryption;
-        this.decryption = client.decryption;
+        this.encryptionCipher = client.encryptionCipher;
+        this.encryptionFunction = client.encryptionFunction;
+        this.decryptionCipher = client.decryptionCipher;
+        this.decryptionFunction = client.decryptionFunction;
         this.server = client.server;
-        this.executor = client.executor;
         this.channel = client.channel;
         this.size = client.size;
     }
@@ -409,12 +427,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalArgumentException("The specified port must be between 0 and 65535!");
         }
 
-        executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+        var executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), runnable -> {
             Thread thread = new Thread(runnable);
             thread.setDaemon(false);
             thread.setName(thread.getName().replace("Thread", "SimpleNet"));
-            thread.setUncaughtExceptionHandler(($, throwable) -> throwable.printStackTrace());
+            
+            if (Utility.isDebug()) {
+                thread.setUncaughtExceptionHandler(($, throwable) -> throwable.printStackTrace());
+            }
+            
             return thread;
         });
 
@@ -427,13 +449,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel:", e);
+            throw new IllegalStateException("Unable to open the channel!", e);
         }
 
         try {
             channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
         } catch (AlreadyConnectedException e) {
-            throw new IllegalStateException("This client is already connected to a server:", e);
+            throw new IllegalStateException("This client is already connected to a server!", e);
         } catch (Exception e) {
             onTimeout.run();
             close();
@@ -469,10 +491,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         Channeled.super.close();
-
-        if (executor != null) {
-            executor.shutdownNow();
-        }
 
         while (channel.isOpen()) {
             Thread.onSpinWait();
@@ -511,39 +529,40 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
     
     @Override
-    public final void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
-        boolean shouldDecrypt = decryption != null;
-        
-        if (shouldDecrypt) {
-            n = Utility.roundUpToNextMultiple(n, decryption.getBlockSize());
-        }
-        
-        synchronized (buffer) {
-            if (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
-                size.add(-n);
-                
-                var data = new byte[n];
+    public void readUntil(int n, Predicate<ByteBuffer> predicate, ByteOrder order) {
+        boolean shouldDecrypt = decryptionCipher != null;
     
+        if (shouldDecrypt && !decryptionNoPadding) {
+            n = Utility.roundUpToNextMultiple(n, decryptionCipher.getBlockSize());
+        }
+    
+        synchronized (buffer) {
+            while (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
+                size.add(-n);
+            
+                var data = new byte[n];
+            
                 buffer.order(order).get(data);
-                
+            
                 if (shouldDecrypt) {
                     try {
-                        data = decryption.doFinal(data);
-                    } catch (Exception e) {
+                        data = decryptionFunction.apply(decryptionCipher, data);
+                    } catch (GeneralSecurityException e) {
                         throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
                     }
                 }
-                
+            
                 var wrappedBuffer = ByteBuffer.wrap(data).order(order);
-                
-                consumer.accept(wrappedBuffer);
-    
+            
+                if (!predicate.test(wrappedBuffer)) {
+                    return;
+                }
+            
                 // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
-                return;
             }
-            
-            var pair = new IntPair<Consumer<ByteBuffer>>(n, buffer -> consumer.accept(buffer.order(order)));
-            
+        
+            var pair = new IntPair<Predicate<ByteBuffer>>(n, buffer -> predicate.test(buffer.order(order)));
+        
             if (prepend) {
                 stack.push(pair);
             } else {
@@ -563,7 +582,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
         Packet packet;
 
-        boolean shouldEncrypt = encryption != null;
+        boolean shouldEncrypt = encryptionCipher != null;
         
         var queue = new ArrayDeque<byte[]>();
 
@@ -585,9 +604,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 
                 try {
                     while ((input = queue.pollFirst()) != null) {
-                        raw.put(shouldEncrypt ? encryption.doFinal(input) : input);
+                        raw.put(shouldEncrypt ? encryptionFunction.apply(encryptionCipher, input) : input);
                     }
-                } catch (Exception e) {
+                } catch (GeneralSecurityException e) {
                     throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                 }
                 
@@ -601,7 +620,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     if (!writing.getAndSet(true)) {
                         channel.write(raw, new Tuple<>(this, raw), PACKET_HANDLER);
                     } else {
-                        packetsToFlush.offerFirst(raw);
+                        packetsToFlush.offer(raw);
                     }
                 }
 
@@ -636,8 +655,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @return This {@link Client}'s encryption {@link Cipher}; possibly {@code null} if not yet set.
      */
-    public final Cipher getEncryption() {
-        return encryption;
+    public final Cipher getEncryptionCipher() {
+        return encryptionCipher;
     }
     
     /**
@@ -645,26 +664,63 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @return This {@link Client}'s decryption {@link Cipher}; possibly {@code null} if not yet set.
      */
-    public final Cipher getDecryption() {
-        return decryption;
+    public final Cipher getDecryptionCipher() {
+        return decryptionCipher;
     }
     
     /**
      * Sets the encryption {@link Cipher} used by this {@link Client}.
+     * <br><br>
+     * After calling this method, data being sent will automatically be encrypted using {@link Cipher#doFinal(byte[])}.
      *
-     * @param encryption The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
+     * @param encryptionCipher The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
      */
-    public final void setEncryption(Cipher encryption) {
-        this.encryption = encryption;
+    public final void setEncryptionCipher(Cipher encryptionCipher) {
+        setEncryption(encryptionCipher, Cipher::doFinal);
+    }
+    
+    /**
+     * Sets the encryption {@link Cipher} and {@link CryptographicFunction} used by this {@link Client}.
+     *
+     * @param encryptionCipher   The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
+     * @param encryptionFunction The {@link CryptographicFunction} responsible for the encryption of outgoing data.
+     */
+    public final void setEncryption(Cipher encryptionCipher, CryptographicFunction encryptionFunction) {
+        this.encryptionCipher = encryptionCipher;
+        this.encryptionFunction = encryptionFunction;
     }
     
     /**
      * Sets the decryption {@link Cipher} used by this {@link Client}.
+     * <br><br>
+     * After calling this method, data being received will automatically be decrypted using
+     * {@link Cipher#doFinal(byte[])}.
      *
-     * @param decryption The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
+     * @param decryptionCipher The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
      */
-    public final void setDecryption(Cipher decryption) {
-        this.decryption = decryption;
+    public final void setDecryptionCipher(Cipher decryptionCipher) {
+        setDecryption(decryptionCipher, Cipher::doFinal);
     }
-
+    
+    /**
+     * Sets the decryption {@link Cipher} and {@link CryptographicFunction} used by this {@link Client}.
+     *
+     * @param decryptionCipher   The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
+     * @param decryptionFunction The {@link CryptographicFunction} responsible for the decryption of incoming data.
+     */
+    public final void setDecryption(Cipher decryptionCipher, CryptographicFunction decryptionFunction) {
+        this.decryptionCipher = decryptionCipher;
+        this.decryptionFunction = decryptionFunction;
+        this.decryptionNoPadding = decryptionCipher.getAlgorithm().endsWith("NoPadding");
+    }
+    
+    /**
+     * Gets whether or not this {@link Client}'s decryption {@link Cipher} specifies a {@code NoPadding} algorithm.
+     *
+     * @return {@code true} if the decryption algorithm being used specifies {@code NoPadding}, otherwise {@code false}.
+     */
+    public boolean isDecryptionNoPadding() {
+        return decryptionNoPadding;
+    }
+    
 }

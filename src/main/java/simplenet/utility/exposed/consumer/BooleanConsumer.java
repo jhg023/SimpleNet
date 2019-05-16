@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package simplenet.utility.exposed;
+package simplenet.utility.exposed.consumer;
 
 import java.util.Objects;
 import java.util.function.Consumer;

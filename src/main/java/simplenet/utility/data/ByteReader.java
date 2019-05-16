@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import simplenet.utility.exposed.ByteConsumer;
+import simplenet.utility.exposed.consumer.ByteConsumer;
+import simplenet.utility.exposed.predicate.BytePredicate;
 
 /**
  * An interface that defines the methods required to read {@code byte}s over a network with SimpleNet.
@@ -44,7 +45,7 @@ public interface ByteReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default byte readByte() throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Byte>();
         readByte(future::complete);
         return read(future);
@@ -57,6 +58,17 @@ public interface ByteReader extends DataReader {
      */
     default void readByte(ByteConsumer consumer) {
         read(Byte.BYTES, buffer -> consumer.accept(buffer.get()), ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readByte(ByteConsumer)}; however, once finished, {@link #readByte(ByteConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link BytePredicate}
+     * returns {@code false}, whereas {@link #readByte(ByteConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code byte} is received.
+     */
+    default void readByteUntil(BytePredicate predicate) {
+        readUntil(Byte.BYTES, buffer -> predicate.test(buffer.get()), ByteOrder.BIG_ENDIAN);
     }
     
     /**

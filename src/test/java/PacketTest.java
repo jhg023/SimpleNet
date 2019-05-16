@@ -35,7 +35,7 @@ final class PacketTest {
     private Packet packet;
     
     @BeforeEach
-    void initialize() {
+    void beforeEach() {
         packet = Packet.builder();
     }
     
@@ -45,7 +45,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(bytes = { Byte.MIN_VALUE, 0, Byte.MAX_VALUE })
+    @ValueSource(bytes = { Byte.MIN_VALUE, -32, 0, 32, Byte.MAX_VALUE })
     void testPutByteIntoPacket(byte b) {
         packet.putByte(b);
         
@@ -76,7 +76,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(chars = { Character.MIN_VALUE, '\0', Character.MAX_VALUE })
+    @ValueSource(chars = { Character.MIN_VALUE, '\u1234', '\u8000', Character.MAX_VALUE })
     void testPutCharBigEndianIntoPacket(char c) {
         packet.putChar(c);
         
@@ -89,7 +89,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(chars = { Character.MIN_VALUE, '\0', Character.MAX_VALUE })
+    @ValueSource(chars = { Character.MIN_VALUE, '\u1234', '\u8000', Character.MAX_VALUE })
     void testPutCharLittleEndianIntoPacket(char c) {
         packet.putChar(c, ByteOrder.LITTLE_ENDIAN);
         
@@ -102,7 +102,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(shorts = { Short.MIN_VALUE, 0, Short.MAX_VALUE })
+    @ValueSource(shorts = { Short.MIN_VALUE, -32, 0, 32, Short.MAX_VALUE })
     void testPutShortBigEndianIntoPacket(short s) {
         packet.putShort(s);
         
@@ -115,7 +115,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(shorts = { Short.MIN_VALUE, 0, Short.MAX_VALUE })
+    @ValueSource(shorts = { Short.MIN_VALUE, -32, 0, 32, Short.MAX_VALUE })
     void testPutShortLittleEndianIntoPacket(short s) {
         packet.putShort(s, ByteOrder.LITTLE_ENDIAN);
         
@@ -128,7 +128,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(ints = { Integer.MIN_VALUE, 0, Integer.MAX_VALUE })
+    @ValueSource(ints = { Integer.MIN_VALUE, -32, 0, 32, Integer.MAX_VALUE })
     void testPutIntBigEndianIntoPacket(int i) {
         packet.putInt(i);
         
@@ -141,7 +141,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(ints = { Integer.MIN_VALUE, 0, Integer.MAX_VALUE })
+    @ValueSource(ints = { Integer.MIN_VALUE, -32, 0, 32, Integer.MAX_VALUE })
     void testPutIntLittleEndianIntoPacket(int i) {
         packet.putInt(i, ByteOrder.LITTLE_ENDIAN);
         
@@ -154,7 +154,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(floats = { Float.MIN_VALUE, 0f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
+    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
     void testPutFloatBigEndianIntoPacket(float f) {
         packet.putFloat(f);
         
@@ -169,7 +169,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(floats = { Float.MIN_VALUE, 0f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
+    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
     void testPutFloatLittleEndianIntoPacket(float f) {
         packet.putFloat(f, ByteOrder.LITTLE_ENDIAN);
         
@@ -184,7 +184,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(longs = { Long.MIN_VALUE, 0L, Long.MAX_VALUE })
+    @ValueSource(longs = { Long.MIN_VALUE, -32L, 0L, 32L, Long.MAX_VALUE })
     void testPutLongBigEndianIntoPacket(long l) {
         packet.putLong(l);
         
@@ -200,7 +200,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(longs = { Long.MIN_VALUE, 0L, Long.MAX_VALUE })
+    @ValueSource(longs = { Long.MIN_VALUE, -32L, 0L, 32L, Long.MAX_VALUE })
     void testPutLongLittleEndianIntoPacket(long l) {
         packet.putLong(l, ByteOrder.LITTLE_ENDIAN);
         
@@ -216,7 +216,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(doubles = { Double.MIN_VALUE, 0D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
+    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
     void testPutDoubleBigEndianIntoPacket(double d) {
         packet.putDouble(d);
         
@@ -234,7 +234,7 @@ final class PacketTest {
     }
     
     @ParameterizedTest
-    @ValueSource(doubles = { Double.MIN_VALUE, 0D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
+    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
     void testPutDoubleLittleEndianIntoPacket(double d) {
         packet.putDouble(d, ByteOrder.LITTLE_ENDIAN);
         
@@ -308,7 +308,7 @@ final class PacketTest {
     }
     
     @Test
-    void testPutMultipleValuesIntoPacket() {
+    void testPutMultipleBytesIntoPacket() {
         packet.putByte(42).putByte(-24).putByte(123);
     
         Assertions.assertEquals(packet.getSize(), Byte.BYTES * 3);
@@ -319,7 +319,7 @@ final class PacketTest {
     }
     
     @Test
-    void testPrependMultipleValuesOntoPacket() {
+    void testPrependMultipleBytesOntoPacket() {
         packet.putByte(42).putByte(-24).prepend(p -> p.putByte(75).putByte(64)).putByte(123);
         
         Assertions.assertEquals(packet.getSize(), Byte.BYTES * 5);

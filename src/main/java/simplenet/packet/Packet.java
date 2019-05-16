@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import javax.crypto.Cipher;
 import pbbl.ByteBufferPool;
 import pbbl.heap.HeapByteBufferPool;
@@ -490,13 +491,18 @@ public final class Packet {
     public <T extends Client> int getSize(T client) {
         Cipher encryption;
         
-        if (client == null || (encryption = client.getEncryption()) == null) {
+        if (client == null || (encryption = client.getEncryptionCipher()) == null) {
             return queue.stream().mapToInt(array -> array.length).sum();
         }
+    
+        Stream<byte[]> stream = queue.stream();
         
-        int blockSize = encryption.getBlockSize();
+        if (!client.isDecryptionNoPadding()) {
+            int blockSize = encryption.getBlockSize();
+            return stream.mapToInt(array -> Utility.roundUpToNextMultiple(array.length, blockSize)).sum();
+        }
         
-        return queue.stream().mapToInt(array -> Utility.roundUpToNextMultiple(array.length, blockSize)).sum();
+        return stream.mapToInt(array -> array.length).sum();
     }
 
     /**

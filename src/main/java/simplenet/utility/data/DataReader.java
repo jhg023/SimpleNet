@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.crypto.Cipher;
 
 /**
@@ -82,10 +83,26 @@ public interface DataReader {
      * @param consumer Holds the operations that should be performed once the {@code n} bytes are received.
      * @param order    The byte order of the data being received.
      */
-    void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order);
+    default void read(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
+        readUntil(n, buffer -> {
+            consumer.accept(buffer);
+            return false;
+        }, order);
+    }
     
     /**
-     * Calls {@link #read(int, Consumer, ByteOrder)}, however once finished, {@link #read(int, Consumer, ByteOrder)} is
+     * Calls {@link #read(int, Consumer, ByteOrder)}; however, once finished, {@link #read(int, Consumer, ByteOrder)} is
+     * called once again with the same parameters; this loops until the specified {@link Predicate} returns {@code
+     * false}, whereas {@link #read(int, Consumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param n         The amount of bytes requested.
+     * @param predicate Holds the operations that should be performed once the {@code n} bytes are received.
+     * @param order     The byte order of the data being received.
+     */
+    void readUntil(int n, Predicate<ByteBuffer> predicate, ByteOrder order);
+    
+    /**
+     * Calls {@link #read(int, Consumer, ByteOrder)}; however, once finished, {@link #read(int, Consumer, ByteOrder)} is
      * called once again with the same parameters; this loops indefinitely, whereas
      * {@link #read(int, Consumer, ByteOrder)} completes after a single iteration.
      *
@@ -94,12 +111,9 @@ public interface DataReader {
      * @param order    The byte order of the data being received.
      */
     default void readAlways(int n, Consumer<ByteBuffer> consumer, ByteOrder order) {
-        read(n, new Consumer<>() {
-            @Override
-            public void accept(ByteBuffer buffer) {
-                consumer.accept(buffer);
-                read(n, this, order);
-            }
+        readUntil(n, buffer -> {
+            consumer.accept(buffer);
+            return true;
         }, order);
     }
     
@@ -112,7 +126,7 @@ public interface DataReader {
      *
      * @throws IllegalStateException if called from a {@link Thread} whose name begins with {@code "SimpleNet"}.
      */
-    default void blockingInsideCallback() throws IllegalStateException {
+    default void checkIfBlockingInsideCallback() throws IllegalStateException {
         if (Thread.currentThread().getName().startsWith("SimpleNet")) {
             throw new IllegalStateException("Blocking methods cannot be called from within callbacks!");
         }

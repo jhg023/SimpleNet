@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import simplenet.utility.exposed.FloatConsumer;
+import simplenet.utility.exposed.consumer.FloatConsumer;
+import simplenet.utility.exposed.predicate.FloatPredicate;
 
 /**
  * An interface that defines the methods required to read {@code float}s over a network with SimpleNet.
@@ -57,7 +58,7 @@ public interface FloatReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default float readFloat(ByteOrder order) throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Float>();
         readFloat(future::complete, order);
         return read(future);
@@ -82,6 +83,30 @@ public interface FloatReader extends DataReader {
      */
     default void readFloat(FloatConsumer consumer, ByteOrder order) {
         read(Float.BYTES, buffer -> consumer.accept(buffer.getFloat()), order);
+    }
+    
+    /**
+     * Calls {@link #readFloat(FloatConsumer)}; however, once finished, {@link #readFloat(FloatConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link FloatPredicate}
+     * returns {@code false}, whereas {@link #readFloat(FloatConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code float} is received.
+     */
+    default void readFloatUntil(FloatPredicate predicate) {
+        readFloatUntil(predicate, ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readFloat(FloatConsumer, ByteOrder)}; however, once finished,
+     * {@link #readFloat(FloatConsumer, ByteOrder)} is called once again with the same consumer; this method loops
+     * until the specified {@link FloatPredicate} returns {@code false}, whereas
+     * {@link #readFloat(FloatConsumer, ByteOrder)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code float} is received.
+     * @param order     The byte order of the data being received.
+     */
+    default void readFloatUntil(FloatPredicate predicate, ByteOrder order) {
+        readUntil(Float.BYTES, buffer -> predicate.test(buffer.getFloat()), order);
     }
     
     /**

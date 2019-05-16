@@ -21,43 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package simplenet.utility.exposed;
+package simplenet.utility.exposed.consumer;
 
 import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Represents an operation that accepts a single {@code short}-valued argument and returns no result. This is the
- * primitive type specialization of {@link Consumer} for {@code short}.
+ * Represents an operation that accepts a single {@code byte}-valued argument and returns no result. This is the
+ * primitive type specialization of {@link Consumer} for {@code byte}.
  * <br><br>
- * This is a functional interface whose functional method is {@link #accept(short)}.
+ * This is a functional interface whose functional method is {@link #accept(byte)}.
  *
  * @see Consumer
  */
 @FunctionalInterface
-public interface ShortConsumer {
+public interface ByteConsumer {
 
     /**
      * Performs this operation on the given argument.
      *
      * @param value the input argument
      */
-    void accept(short value);
+    void accept(byte value);
 
     /**
-     * Returns a composed {@code ShortConsumer} that performs, in sequence, this operation followed by the {@code
+     * Returns a composed {@code ByteConsumer} that performs, in sequence, this operation followed by the {@code
      * after} operation. If performing either operation throws an exception, it is relayed to the caller of the
      * composed operation. If performing this operation throws an exception, the {@code after} operation will not be
      * performed.
      *
      * @param after the operation to perform after this operation
-     * @return a composed {@code ShortConsumer} that performs in sequence this operation followed by the {@code after}
+     * @return a composed {@code ByteConsumer} that performs in sequence this operation followed by the {@code after}
      *         operation
      * @throws NullPointerException if {@code after} is {@code null}
      */
-    default ShortConsumer andThen(ShortConsumer after) {
+    default ByteConsumer andThen(ByteConsumer after) {
         Objects.requireNonNull(after);
-        return (short t) -> { accept(t); after.accept(t); };
+        return (byte t) -> { accept(t); after.accept(t); };
     }
 
 }

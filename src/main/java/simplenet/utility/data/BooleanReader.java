@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import simplenet.utility.exposed.BooleanConsumer;
+import simplenet.utility.exposed.consumer.BooleanConsumer;
+import simplenet.utility.exposed.predicate.BooleanPredicate;
 
 /**
  * An interface that defines the methods required to read {@code boolean}s over a network with SimpleNet.
@@ -49,7 +50,7 @@ public interface BooleanReader extends DataReader {
      * @throws IllegalStateException if this method is called inside of a non-blocking callback.
      */
     default boolean readBoolean() throws IllegalStateException {
-        blockingInsideCallback();
+        checkIfBlockingInsideCallback();
         var future = new CompletableFuture<Boolean>();
         readBoolean(future::complete);
         return read(future);
@@ -63,6 +64,17 @@ public interface BooleanReader extends DataReader {
      */
     default void readBoolean(BooleanConsumer consumer) {
         read(Byte.BYTES, buffer -> consumer.accept(buffer.get() == 1), ByteOrder.BIG_ENDIAN);
+    }
+    
+    /**
+     * Calls {@link #readBoolean(BooleanConsumer)}; however, once finished, {@link #readBoolean(BooleanConsumer)} is
+     * called once again with the same consumer; this method loops until the specified {@link BooleanPredicate}
+     * returns {@code false}, whereas {@link #readBoolean(BooleanConsumer)} completes after a single iteration.
+     *
+     * @param predicate Holds the operations that should be performed once the {@code boolean} is received.
+     */
+    default void readBooleanUntil(BooleanPredicate predicate) {
+        readUntil(Byte.BYTES, buffer -> predicate.test(buffer.get() == 1), ByteOrder.BIG_ENDIAN);
     }
     
     /**
