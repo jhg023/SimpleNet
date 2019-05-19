@@ -39,7 +39,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -55,7 +54,6 @@ import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
 import simplenet.utility.MutableInt;
-import simplenet.utility.Tuple;
 import simplenet.utility.Utility;
 import simplenet.utility.data.BooleanReader;
 import simplenet.utility.data.ByteReader;
@@ -192,18 +190,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s to a
      * {@link Server}.
      */
-    private static final CompletionHandler<Integer, Tuple<Client, ByteBuffer>> PACKET_HANDLER = new CompletionHandler<>() {
+    private final CompletionHandler<Integer, ByteBuffer> packetHandler = new CompletionHandler<>() {
         @Override
-        public void completed(Integer result, Tuple<Client, ByteBuffer> tuple) {
-            var client = tuple.key;
-            var buffer = tuple.value;
+        public void completed(Integer result, ByteBuffer buffer) {
+            var client = Client.this;
+    
+            DIRECT_BUFFER_POOL.give(buffer);
             
-            synchronized (client.packetsToFlush) {
-                DIRECT_BUFFER_POOL.give(buffer);
-                
+            synchronized (client.outgoingPackets) {
                 if (!client.channel.isOpen()) {
                     client.outgoingPackets.clear();
                     client.packetsToFlush.clear();
+                    client.writing.set(false);
                     return;
                 }
                 
@@ -214,12 +212,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     return;
                 }
     
-                client.channel.write(payload, new Tuple<>(client, payload), this);
+                client.channel.write(payload, payload, this);
             }
         }
 
         @Override
-        public void failed(Throwable t, Tuple<Client, ByteBuffer> tuple) {
+        public void failed(Throwable t, ByteBuffer buffer) {
             t.printStackTrace();
         }
     };
@@ -301,29 +299,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private CryptographicFunction decryptionFunction;
     
     /**
-     * The {@link Server} that this {@link Client} is connected to.
-     */
-    private Server server;
-    
-    /**
      * The backing {@link Channel} of a {@link Client}.
      */
     private AsynchronousSocketChannel channel;
-    
-    /**
-     * A {@code package-private} constructor that is used to represent a {@link Client} that is connected to a
-     * {@link Server}.
-     * <br><br>
-     * This is primarily used to keep track of the {@link Client}s that are connected to a {@link Server}.
-     *
-     * @param bufferSize The size of this {@link Client}'s buffer, in {@code byte}s.
-     * @param channel    The channel to back this {@link Client} with.
-     * @param server     The {@link Server} that this {@link Client} is connected to.
-     */
-    Client(int bufferSize, AsynchronousSocketChannel channel, Server server) {
-        this(bufferSize, channel);
-        this.server = server;
-    }
     
     /**
      * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel} with a
@@ -355,7 +333,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
         size = new MutableInt();
         writing = new AtomicBoolean();
-        outgoingPackets = new ConcurrentLinkedDeque<>();
+        outgoingPackets = new ArrayDeque<>();
         packetsToFlush = new ArrayDeque<>();
         queue = new ArrayDeque<>();
         stack = new ArrayDeque<>();
@@ -390,7 +368,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.encryptionFunction = client.encryptionFunction;
         this.decryptionCipher = client.decryptionCipher;
         this.decryptionFunction = client.decryptionFunction;
-        this.server = client.server;
         this.channel = client.channel;
         this.size = client.size;
     }
@@ -495,10 +472,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         while (channel.isOpen()) {
             Thread.onSpinWait();
         }
-
-        if (server != null) {
-            server.connectedClients.remove(this);
-        }
         
         postDisconnectListeners.forEach(Runnable::run);
     }
@@ -578,53 +551,47 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void flush() {
         int totalBytes = 0;
-        int amountToPoll = outgoingPackets.size();
-        
         Packet packet;
-
-        boolean shouldEncrypt = encryptionCipher != null;
-        
+        var shouldEncrypt = encryptionCipher != null;
         var queue = new ArrayDeque<byte[]>();
-
-        while (amountToPoll-- > 0 && (packet = outgoingPackets.poll()) != null) {
-            int currentBytes = totalBytes;
-
-            boolean tooBig = (totalBytes += packet.getSize(this)) >= bufferSize;
-            boolean empty = outgoingPackets.isEmpty();
-
-            if (!tooBig || empty) {
-                queue.addAll(packet.getQueue());
-            }
-
-            // If we've buffered all of the packets that we can, send them off.
-            if (tooBig || empty) {
-                var raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
-                
-                byte[] input;
-                
-                try {
-                    while ((input = queue.pollFirst()) != null) {
-                        raw.put(shouldEncrypt ? encryptionFunction.apply(encryptionCipher, input) : input);
-                    }
-                } catch (GeneralSecurityException e) {
-                    throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
+        
+        synchronized (outgoingPackets) {
+            while ((packet = outgoingPackets.poll()) != null) {
+                int currentBytes = totalBytes;
+        
+                boolean tooBig = (totalBytes += packet.getSize(this)) >= bufferSize;
+                boolean empty = outgoingPackets.isEmpty();
+        
+                if (!tooBig || empty) {
+                    queue.addAll(packet.getQueue());
                 }
-                
-                raw.flip();
-                
-                queue.addAll(packet.getQueue());
-                
-                // It is important to synchronize on the packetsToFlush here, as we don't want the callback to
-                // complete before the packet is queued.
-                synchronized (packetsToFlush) {
+        
+                // If we've buffered all of the packets that we can, send them off.
+                if (tooBig || empty) {
+                    var raw = DIRECT_BUFFER_POOL.take(empty ? totalBytes : currentBytes);
+            
+                    byte[] input;
+            
+                    try {
+                        while ((input = queue.pollFirst()) != null) {
+                            raw.put(shouldEncrypt ? encryptionFunction.apply(encryptionCipher, input) : input);
+                        }
+                    } catch (GeneralSecurityException e) {
+                        throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
+                    }
+            
+                    raw.flip();
+            
+                    queue.addAll(packet.getQueue());
+    
                     if (!writing.getAndSet(true)) {
-                        channel.write(raw, new Tuple<>(this, raw), PACKET_HANDLER);
+                        channel.write(raw, raw, packetHandler);
                     } else {
                         packetsToFlush.offer(raw);
                     }
+            
+                    totalBytes = packet.getSize(this);
                 }
-
-                totalBytes = packet.getSize(this);
             }
         }
     }

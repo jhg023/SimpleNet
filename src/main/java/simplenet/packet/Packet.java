@@ -31,6 +31,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.crypto.Cipher;
@@ -386,7 +387,11 @@ public final class Packet {
                     " (Limit: " + client.getBufferSize() + ")");
         }
     
-        client.getOutgoingPackets().offer(this);
+        Queue<Packet> clientQueue;
+        
+        synchronized ((clientQueue = client.getOutgoingPackets())) {
+            clientQueue.offer(this);
+        }
     }
     
     /**

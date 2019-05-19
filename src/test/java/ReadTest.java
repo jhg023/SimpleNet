@@ -24,10 +24,10 @@
 
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,6 +38,7 @@ import simplenet.packet.Packet;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 final class ReadTest {
 
@@ -65,7 +66,7 @@ final class ReadTest {
         
         try {
             if (!latch.await(500L, TimeUnit.MILLISECONDS)) {
-                Assertions.fail();
+                fail();
             }
         } finally {
             client.close();
@@ -255,10 +256,10 @@ final class ReadTest {
     }
     
     @Test
-    void testPutMultipleBytesIntoPacket() {
-        int first = 42, second = -24, third = 123;
+    void testReadMultipleValues() {
+        final byte first = 42, second = -24, third = 123;
         latch = new CountDownLatch(3);
-        client.onConnect(() -> Packet.builder().putByte(first).putByte(second).putByte(third).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putBytes(first, second, third).writeAndFlush(client));
         server.onConnect(client -> {
             client.readByte(readByte -> {
                 assertEquals(first, readByte);
@@ -273,6 +274,59 @@ final class ReadTest {
             client.readByte(readByte -> {
                 assertEquals(third, readByte);
                 latch.countDown();
+            });
+        });
+    }
+    
+    @Test
+    void testReadNestedCallbacks() {
+        final byte first = 42, second = -24, third = 123;
+        client.onConnect(() -> Packet.builder().putBytes(first, second, third).writeAndFlush(client));
+        server.onConnect(client -> {
+            client.readByte(readFirstByte -> {
+                assertEquals(first, readFirstByte);
+                
+                client.readByte(readSecondByte -> {
+                    assertEquals(second, readSecondByte);
+    
+                    client.readByte(readThirdByte -> {
+                        assertEquals(third, readThirdByte);
+                        latch.countDown();
+                    });
+                });
+            });
+        });
+    }
+    
+    @Test
+    void testReadNestedCallbacksExecuteInCorrectOrder() {
+        final byte[] bytes = {42, -24, 123, 32, 3};
+        var queue = new ArrayDeque<Byte>();
+        client.onConnect(() -> Packet.builder().putBytes(bytes).writeAndFlush(client));
+        server.onConnect(client -> {
+            client.readByte(first -> {
+                queue.offer(first);
+                
+                client.readByte(second -> {
+                    queue.offer(second);
+                    client.readByte(queue::offer);
+                });
+            });
+    
+            client.readByte(fourth -> {
+                queue.offer(fourth);
+                
+                client.readByte(fifth -> {
+                    queue.offer(fifth);
+    
+                    assertEquals(bytes.length, queue.size());
+                    
+                    for (byte b : bytes) {
+                        assertEquals(b, queue.poll());
+                    }
+                    
+                    latch.countDown();
+                });
             });
         });
     }

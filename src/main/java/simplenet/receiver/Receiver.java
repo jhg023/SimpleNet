@@ -85,7 +85,7 @@ public abstract class Receiver<T> {
      *
      * @param listener A {@link T}.
      */
-    public void onConnect(T listener) {
+    public final void onConnect(T listener) {
         connectListeners.add(listener);
     }
 
@@ -94,7 +94,7 @@ public abstract class Receiver<T> {
      *
      * @return An {@code int}
      */
-    public int getBufferSize() {
+    public final int getBufferSize() {
         return bufferSize;
     }
 

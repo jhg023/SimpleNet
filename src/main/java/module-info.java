@@ -7,4 +7,5 @@ module SimpleNet {
     exports simplenet.receiver;
     exports simplenet.utility.exposed.consumer;
     exports simplenet.utility.exposed.cryptography;
+    exports simplenet.utility.exposed.predicate;
 }

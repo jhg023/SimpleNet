@@ -32,11 +32,9 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
-import java.nio.channels.ShutdownChannelGroupException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -55,17 +53,12 @@ import simplenet.utility.Utility;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public final class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+public class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
     
     /**
      * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
      */
     final Set<Client> connectedClients;
-    
-    /**
-     * The backing {@link ThreadPoolExecutor} used for I/O.
-     */
-    private final ThreadPoolExecutor executor;
 
     /**
      * The backing {@link Channel} of this {@link Server}.
@@ -80,7 +73,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
      * @see #Server(int)
      */
     public Server() throws IllegalStateException {
-        this(4_096);
+        this(8_192);
     }
     
     /**
@@ -110,17 +103,18 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
         super(bufferSize);
     
         connectedClients = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    
+        var executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(), runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(false);
+            thread.setName(thread.getName().replace("Thread", "SimpleNet"));
+            return thread;
+        });
+    
+        executor.prestartAllCoreThreads();
         
         try {
-            executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
-                Thread thread = new Thread(runnable);
-                thread.setDaemon(false);
-                thread.setName(thread.getName().replace("Thread", "SimpleNet"));
-                return thread;
-            });
-        
-            executor.prestartAllCoreThreads();
-        
             channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
@@ -149,20 +143,11 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    var server = Server.this;
-                    var client = new Client(bufferSize, channel, server);
-                    
+                    var client = new Client(bufferSize, channel);
                     connectedClients.add(client);
+                    client.postDisconnect(() -> connectedClients.remove(client));
                     connectListeners.forEach(consumer -> consumer.accept(client));
-                    
-                    try {
-                        server.channel.accept(null, this);
-                    } catch (ShutdownChannelGroupException e) {
-                        if (Utility.isDebug()) {
-                            e.printStackTrace();
-                        }
-                    }
-                    
+                    Server.this.channel.accept(null, this);
                     channel.read(client.buffer, client, Client.Listener.SERVER_INSTANCE);
                 }
 
@@ -222,7 +207,7 @@ public final class Server extends Receiver<Consumer<Client>> implements Channele
     @SafeVarargs
     private <T extends Client> void writeHelper(Consumer<Client> consumer, T... clients) {
         var toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.length));
-        toExclude.addAll(List.of(clients));
+        Collections.addAll(toExclude, clients);
         connectedClients.stream().filter(Predicate.not(toExclude::contains)).forEach(consumer);
     }
     
