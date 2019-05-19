@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -58,8 +59,13 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
     /**
      * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
      */
-    final Set<Client> connectedClients;
-
+    private final Set<Client> connectedClients;
+    
+    /**
+     * The backing {@link AsynchronousChannelGroup} of this {@link Server}.
+     */
+    private final AsynchronousChannelGroup group;
+    
     /**
      * The backing {@link Channel} of this {@link Server}.
      */
@@ -102,7 +108,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
     public Server(int bufferSize, int numThreads) throws IllegalStateException {
         super(bufferSize);
     
-        connectedClients = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+        connectedClients = ConcurrentHashMap.newKeySet();
     
         var executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), runnable -> {
@@ -110,12 +116,12 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
             thread.setDaemon(false);
             thread.setName(thread.getName().replace("Thread", "SimpleNet"));
             return thread;
-        });
+        }, (runnable, threadPoolExecutor) -> {});
     
         executor.prestartAllCoreThreads();
         
         try {
-            channel = AsynchronousServerSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
+            channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
             channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel:", e);
@@ -148,12 +154,12 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
                     client.postDisconnect(() -> connectedClients.remove(client));
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
-                    channel.read(client.buffer, client, Client.Listener.SERVER_INSTANCE);
+                    channel.read(client.buffer, client, Client.Listener.INSTANCE);
                 }
 
                 @Override
                 public void failed(Throwable t, Void attachment) {
-
+                
                 }
             });
 
@@ -161,20 +167,32 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
                 System.out.printf("Successfully bound to %s:%d!\n", address, port);
             }
         } catch (AlreadyBoundException e) {
-            throw new IllegalStateException("This server is already bound:", e);
+            throw new IllegalStateException("This server is already bound!", e);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to bind the server:", e);
+            throw new IllegalStateException("Unable to bind the server!", e);
         }
     }
     
     /**
-     * Closes this {@link Server} by closing the backing {@link AsynchronousServerSocketChannel} and clearing the
-     * {@link Set} of connected {@link Client}s.
+     * Closes this {@link Server} by first invoking {@link Client#close()} on every connected {@link Client}, and
+     * then closes the backing {@link AsynchronousChannelGroup}.
      */
     @Override
     public void close() {
+        connectedClients.removeIf(client -> {
+            client.close();
+            return true;
+        });
+    
         Channeled.super.close();
-        connectedClients.clear();
+        
+        try {
+            group.shutdownNow();
+        } catch (IOException e) {
+            if (Utility.isDebug()) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**

@@ -23,6 +23,7 @@
  */
 
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.concurrent.CountDownLatch;
@@ -217,42 +218,50 @@ final class ReadTest {
     
     @ParameterizedTest
     @ValueSource(strings = { "Hello World!" })
-    void testReadStringBigEndianUTF8(String s) {
-        client.onConnect(() -> Packet.builder().putString(s).writeAndFlush(client));
-        server.onConnect(client -> client.readString(readString -> {
-            assertEquals(s, readString);
-            latch.countDown();
-        }));
+    void testReadStringBigEndianUTF_8(String s) {
+        readStringHelper(s, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
     
     @ParameterizedTest
     @ValueSource(strings = { "Hello World!" })
-    void testReadStringBigEndianUTF16(String s) {
-        client.onConnect(() -> Packet.builder().putString(s, StandardCharsets.UTF_16).writeAndFlush(client));
-        server.onConnect(client -> client.readString(readString -> {
-            assertEquals(s, readString);
-            latch.countDown();
-        }, StandardCharsets.UTF_16));
+    void testReadStringBigEndianUTF_16(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16, ByteOrder.BIG_ENDIAN);
     }
     
     @ParameterizedTest
     @ValueSource(strings = { "Hello World!" })
-    void testReadStringLittleEndianUTF8(String s) {
-        client.onConnect(() -> Packet.builder().putString(s, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
-        server.onConnect(client -> client.readString(readString -> {
-            assertEquals(s, readString);
-            latch.countDown();
-        }, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN));
+    void testReadStringBigEndianUTF_16BE(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16BE, ByteOrder.BIG_ENDIAN);
     }
     
     @ParameterizedTest
     @ValueSource(strings = { "Hello World!" })
-    void testReadStringLittleEndianUTF16(String s) {
-        client.onConnect(() -> Packet.builder().putString(s, StandardCharsets.UTF_16, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
-        server.onConnect(client -> client.readString(readString -> {
-            assertEquals(s, readString);
-            latch.countDown();
-        }, StandardCharsets.UTF_16, ByteOrder.LITTLE_ENDIAN));
+    void testReadStringBigEndianUTF_16LE(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16LE, ByteOrder.BIG_ENDIAN);
+    }
+    
+    @ParameterizedTest
+    @ValueSource(strings = { "Hello World!" })
+    void testReadStringLittleEndianUTF_8(String s) {
+        readStringHelper(s, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
+    }
+    
+    @ParameterizedTest
+    @ValueSource(strings = { "Hello World!" })
+    void testReadStringLittleEndianUTF_16(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16, ByteOrder.LITTLE_ENDIAN);
+    }
+    
+    @ParameterizedTest
+    @ValueSource(strings = { "Hello World!" })
+    void testReadStringLittleEndianUTF_16BE(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16BE, ByteOrder.LITTLE_ENDIAN);
+    }
+    
+    @ParameterizedTest
+    @ValueSource(strings = { "Hello World!" })
+    void testReadStringLittleEndianUTF_16LE(String s) {
+        readStringHelper(s, StandardCharsets.UTF_16LE, ByteOrder.LITTLE_ENDIAN);
     }
     
     @Test
@@ -329,6 +338,14 @@ final class ReadTest {
                 });
             });
         });
+    }
+    
+    private void readStringHelper(String s, Charset charset, ByteOrder order) {
+        client.onConnect(() -> Packet.builder().putString(s, charset, order).writeAndFlush(client));
+        server.onConnect(client -> client.readString(readString -> {
+            assertEquals(s, readString);
+            latch.countDown();
+        }, charset, order));
     }
     
 }

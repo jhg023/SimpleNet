@@ -33,7 +33,6 @@ import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
-import java.nio.channels.ShutdownChannelGroupException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -83,27 +82,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         /**
          * A {@code static} instance of this class to be reused.
          */
-        private static final Listener CLIENT_INSTANCE = new Listener();
-    
-        static final Listener SERVER_INSTANCE = new Listener() {
-            @Override
-            public void failed(Throwable t, Client client) {
-                // It's important that we close the client here ONLY if the stacktrace's message begins with this
-                // specific message, as it means that the client has disconnected without the server properly closing
-                // it. If we weren't to close the client here, then its disconnect listeners would not run. However,
-                // if we always close the client here, then its disconnect listeners will run twice, which we do not
-                // want to occur.
-                String message;
-                
-                if ((message = t.getMessage()) == null) {
-                    return;
-                }
-                
-                if (message.startsWith("The specified network name is no longer available.")) {
-                    client.close();
-                }
-            }
-        };
+        static final Listener INSTANCE = new Listener();
         
         @Override
         public void completed(Integer result, Client client) {
@@ -198,13 +177,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             DIRECT_BUFFER_POOL.give(buffer);
             
             synchronized (client.outgoingPackets) {
-                if (!client.channel.isOpen()) {
-                    client.outgoingPackets.clear();
-                    client.packetsToFlush.clear();
-                    client.writing.set(false);
-                    return;
-                }
-                
                 var payload = client.packetsToFlush.poll();
     
                 if (payload == null) {
@@ -233,17 +205,22 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     final ByteBuffer buffer;
     
     /**
-     * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
-     */
-    private final AtomicBoolean writing;
-    
-    /**
      * The amount of readable bytes that currently exist within this {@link Client}'s {@code buffer}.
      * <br><br>
      * This is a {@link MutableInt} because, if it were an {@code int}, then the copy constructor of {@link Client}
      * wouldn't reference the same value.
      */
     private final MutableInt size;
+    
+    /**
+     * A thread-safe method of keeping track if this {@link Client} is in the process of shutting down.
+     */
+    private final AtomicBoolean closing;
+    
+    /**
+     * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
+     */
+    private final AtomicBoolean writing;
     
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
@@ -299,6 +276,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private CryptographicFunction decryptionFunction;
     
     /**
+     * The backing {@link AsynchronousChannelGroup} of this {@link Client}.
+     */
+    private AsynchronousChannelGroup group;
+    
+    /**
      * The backing {@link Channel} of a {@link Client}.
      */
     private AsynchronousSocketChannel channel;
@@ -332,6 +314,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         super(bufferSize);
         
         size = new MutableInt();
+        closing = new AtomicBoolean();
         writing = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
         packetsToFlush = new ArrayDeque<>();
@@ -358,6 +341,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         super(client);
         
         this.buffer = client.buffer;
+        this.closing = client.closing;
         this.writing = client.writing;
         this.outgoingPackets = client.outgoingPackets;
         this.packetsToFlush = client.packetsToFlush;
@@ -415,12 +399,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             }
             
             return thread;
-        });
+        }, (runnable, threadPoolExecutor) -> {});
 
         executor.prestartAllCoreThreads();
 
         try {
-            this.channel = AsynchronousSocketChannel.open(AsynchronousChannelGroup.withThreadPool(executor));
+            this.channel = AsynchronousSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
             this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
@@ -438,13 +422,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             close();
             return;
         }
-
-        try {
-            channel.read(buffer, this, Listener.CLIENT_INSTANCE);
-        } catch (ShutdownChannelGroupException e) {
-            // This exception is caught whenever a client closes their connection to the server. In that case, do
-            // nothing.
-        }
+    
+        channel.read(buffer, this, Listener.INSTANCE);
     
         ForkJoinPool.commonPool().execute(() -> connectListeners.forEach(Runnable::run));
     }
@@ -459,6 +438,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     @Override
     public final void close() {
+        // If this Client is already closing, do nothing.
+        if (closing.getAndSet(true)) {
+            return;
+        }
+        
         preDisconnectListeners.forEach(Runnable::run);
 
         flush();
@@ -466,14 +450,24 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         while (writing.get()) {
             Thread.onSpinWait();
         }
-
+    
         Channeled.super.close();
-
+    
         while (channel.isOpen()) {
             Thread.onSpinWait();
         }
-        
+    
         postDisconnectListeners.forEach(Runnable::run);
+        
+        if (group != null) {
+            try {
+                group.shutdownNow();
+            } catch (IOException e) {
+                if (Utility.isDebug()) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     /**
@@ -583,7 +577,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     raw.flip();
             
                     queue.addAll(packet.getQueue());
-    
+                    
                     if (!writing.getAndSet(true)) {
                         channel.write(raw, raw, packetHandler);
                     } else {
