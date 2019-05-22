@@ -23,27 +23,6 @@
  */
 package simplenet;
 
-import pbbl.ByteBufferPool;
-import pbbl.direct.DirectByteBufferPool;
-import simplenet.channel.Channeled;
-import simplenet.packet.Packet;
-import simplenet.receiver.Receiver;
-import simplenet.utility.IntPair;
-import simplenet.utility.MutableBoolean;
-import simplenet.utility.MutableInt;
-import simplenet.utility.Utility;
-import simplenet.utility.data.BooleanReader;
-import simplenet.utility.data.ByteReader;
-import simplenet.utility.data.CharReader;
-import simplenet.utility.data.DataReader;
-import simplenet.utility.data.DoubleReader;
-import simplenet.utility.data.FloatReader;
-import simplenet.utility.data.IntReader;
-import simplenet.utility.data.LongReader;
-import simplenet.utility.data.StringReader;
-import simplenet.utility.exposed.cryptography.CryptographicFunction;
-
-import javax.crypto.Cipher;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -65,6 +44,26 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import javax.crypto.Cipher;
+import pbbl.ByteBufferPool;
+import pbbl.direct.DirectByteBufferPool;
+import simplenet.channel.Channeled;
+import simplenet.packet.Packet;
+import simplenet.receiver.Receiver;
+import simplenet.utility.IntPair;
+import simplenet.utility.MutableBoolean;
+import simplenet.utility.MutableInt;
+import simplenet.utility.Utility;
+import simplenet.utility.data.BooleanReader;
+import simplenet.utility.data.ByteReader;
+import simplenet.utility.data.CharReader;
+import simplenet.utility.data.DataReader;
+import simplenet.utility.data.DoubleReader;
+import simplenet.utility.data.FloatReader;
+import simplenet.utility.data.IntReader;
+import simplenet.utility.data.LongReader;
+import simplenet.utility.data.StringReader;
+import simplenet.utility.exposed.cryptography.CryptographicFunction;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -227,7 +226,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final MutableInt size;
 	
 	/**
-	 * A {@code boolean} that keeps track of whether or not the executing code is inside a callback.
+	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
 	 */
 	private final MutableBoolean inCallback;
     
