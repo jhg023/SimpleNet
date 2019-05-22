@@ -43,7 +43,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.crypto.Cipher;
 import pbbl.ByteBufferPool;
@@ -52,6 +51,7 @@ import simplenet.channel.Channeled;
 import simplenet.packet.Packet;
 import simplenet.receiver.Receiver;
 import simplenet.utility.IntPair;
+import simplenet.utility.MutableBoolean;
 import simplenet.utility.MutableInt;
 import simplenet.utility.Utility;
 import simplenet.utility.data.BooleanReader;
@@ -104,15 +104,16 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 IntPair<Predicate<ByteBuffer>> peek;
     
                 if ((peek = queue.peekLast()) == null) {
-                    client.channel.read(buffer.position(client.size.get()), client, this);
-                    return;
+                    client.readInProgress.set(false);
+					return;
                 }
-    
-                client.prepend = true;
     
                 var shouldDecrypt = client.decryptionCipher != null;
                 var stack = client.stack;
+				var isQueueEmpty = false;
                 int key;
+	
+				client.inCallback.set(true);
                 
                 while (client.size.get() >= (key = peek.key)) {
                     client.size.add(-key);
@@ -137,25 +138,37 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
     
                     // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
-        
+					
                     while (!stack.isEmpty()) {
                         queue.offerLast(stack.pop());
                     }
         
                     if ((peek = queue.peekLast()) == null) {
+                    	isQueueEmpty = true;
                         break;
                     }
                 }
     
-                client.prepend = false;
+                client.inCallback.set(false);
                 
                 if (client.size.get() > 0) {
-                    buffer.compact().position(client.size.get());
+                	// If we are about to call `channel.read`, then the position
+					// of the buffer must be placed after any remaining, unprocessed
+					// data. Regardless, it should be compacted as well.
+                    buffer.compact().position(isQueueEmpty ? 0 : client.size.get());
                 } else {
                     buffer.clear();
                 }
                 
-                client.channel.read(buffer, client, this);
+                if (isQueueEmpty) {
+					// Because the queue is empty, the client should not attempt to read more data until
+					// more is requested by the user.
+					client.readInProgress.set(false);
+				} else {
+					// Because the queue is NOT empty and we don't have enough data to process the request,
+					// we must read more data.
+					client.channel.read(buffer, client, this);
+				}
             }
         }
 
@@ -180,7 +193,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 var payload = client.packetsToFlush.poll();
     
                 if (payload == null) {
-                    client.writing.set(false);
+                    client.writeInProgress.set(false);
                     return;
                 }
     
@@ -202,7 +215,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
      */
-    final ByteBuffer buffer;
+    private final ByteBuffer buffer;
     
     /**
      * The amount of readable bytes that currently exist within this {@link Client}'s {@code buffer}.
@@ -211,16 +224,26 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * wouldn't reference the same value.
      */
     private final MutableInt size;
+	
+	/**
+	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
+	 */
+	private final MutableBoolean inCallback;
     
     /**
      * A thread-safe method of keeping track if this {@link Client} is in the process of shutting down.
      */
     private final AtomicBoolean closing;
     
+	/**
+	 * A thread-safe method of keeping track if this {@link Client} is currently waiting for bytes to arrive.
+	 */
+	private final AtomicBoolean readInProgress;
+    
     /**
      * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
      */
-    private final AtomicBoolean writing;
+    private final AtomicBoolean writeInProgress;
     
     /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
@@ -233,8 +256,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final Queue<ByteBuffer> packetsToFlush;
 
     /**
-     * The {@link Deque} that keeps track of nested calls to {@link Client#read(int, Consumer)} and assures that
-     * they will complete in the expected order.
+     * The {@link Deque} that keeps track of nested calls to {@link Client#readUntil(int, Predicate, ByteOrder)} and
+	 * assures that they will complete in the expected order.
      */
     private final Deque<IntPair<Predicate<ByteBuffer>>> stack;
 
@@ -247,11 +270,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Whether or not the decryption {@link Cipher} specifies {@code NoPadding} as part of its algorithm.
      */
     private boolean decryptionNoPadding;
-    
-    /**
-     * Whether or not new elements added {@code queue} should be added to the front rather than the back.
-     */
-    private boolean prepend;
     
     /**
      * The {@link Cipher} used for {@link Packet} encryptionCipher.
@@ -315,7 +333,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         
         size = new MutableInt();
         closing = new AtomicBoolean();
-        writing = new AtomicBoolean();
+        inCallback = new MutableBoolean();
+        readInProgress = new AtomicBoolean();
+        writeInProgress = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
         packetsToFlush = new ArrayDeque<>();
         queue = new ArrayDeque<>();
@@ -339,21 +359,23 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public Client(Client client) {
         super(client);
-        
+	
+		this.size = client.size;
+		this.stack = client.stack;
+		this.queue = client.queue;
         this.buffer = client.buffer;
+		this.channel = client.channel;
         this.closing = client.closing;
-        this.writing = client.writing;
+        this.inCallback = client.inCallback;
+		this.packetsToFlush = client.packetsToFlush;
+        this.readInProgress = client.readInProgress;
+        this.writeInProgress = client.writeInProgress;
         this.outgoingPackets = client.outgoingPackets;
-        this.packetsToFlush = client.packetsToFlush;
-        this.stack = client.stack;
-        this.queue = client.queue;
-        this.prepend = client.prepend;
         this.encryptionCipher = client.encryptionCipher;
+		this.decryptionCipher = client.decryptionCipher;
         this.encryptionFunction = client.encryptionFunction;
-        this.decryptionCipher = client.decryptionCipher;
         this.decryptionFunction = client.decryptionFunction;
-        this.channel = client.channel;
-        this.size = client.size;
+        this.decryptionNoPadding = client.decryptionNoPadding;
     }
 
     /**
@@ -422,9 +444,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             close();
             return;
         }
-    
-        channel.read(buffer, this, Listener.INSTANCE);
-    
+        
         ForkJoinPool.commonPool().execute(() -> connectListeners.forEach(Runnable::run));
     }
 
@@ -447,7 +467,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         flush();
 
-        while (writing.get()) {
+        while (writeInProgress.get()) {
             Thread.onSpinWait();
         }
     
@@ -502,39 +522,44 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         if (shouldDecrypt && !decryptionNoPadding) {
             n = Utility.roundUpToNextMultiple(n, decryptionCipher.getBlockSize());
         }
-    
+	
         synchronized (buffer) {
-            while (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
-                size.add(-n);
-            
-                var data = new byte[n];
-            
-                buffer.order(order).get(data);
-            
-                if (shouldDecrypt) {
-                    try {
-                        data = decryptionFunction.apply(decryptionCipher, data);
-                    } catch (GeneralSecurityException e) {
-                        throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
-                    }
-                }
-            
-                var wrappedBuffer = ByteBuffer.wrap(data).order(order);
-            
-                if (!predicate.test(wrappedBuffer)) {
-                    return;
-                }
-            
-                // TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
-            }
-        
             var pair = new IntPair<Predicate<ByteBuffer>>(n, buffer -> predicate.test(buffer.order(order)));
-        
-            if (prepend) {
+            
+            if (inCallback.get()) {
                 stack.push(pair);
-            } else {
-                queue.offerFirst(pair);
+                return;
             }
+	
+			while (size.get() >= n && queue.isEmpty() && stack.isEmpty()) {
+				size.add(-n);
+		
+				var data = new byte[n];
+		
+				buffer.order(order).get(data);
+		
+				if (shouldDecrypt) {
+					try {
+						data = decryptionFunction.apply(decryptionCipher, data);
+					} catch (GeneralSecurityException e) {
+						throw new IllegalStateException("An exception occurred whilst decrypting data:", e);
+					}
+				}
+		
+				var wrappedBuffer = ByteBuffer.wrap(data).order(order);
+		
+				if (!predicate.test(wrappedBuffer)) {
+					return;
+				}
+		
+				// TODO: After logging is added, warn the user if wrappedBuffer.hasRemaining() is true.
+			}
+	
+			queue.offerFirst(pair);
+	
+			if (!readInProgress.getAndSet(true)) {
+				channel.read(buffer, this, Listener.INSTANCE);
+			}
         }
     }
 
@@ -544,8 +569,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Any {@link Packet}s queued after the call to this method will not be flushed until this method is called again.
      */
     public final void flush() {
+		Packet packet;
+		
         int totalBytes = 0;
-        Packet packet;
+        
         var shouldEncrypt = encryptionCipher != null;
         var queue = new ArrayDeque<byte[]>();
         
@@ -578,7 +605,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             
                     queue.addAll(packet.getQueue());
                     
-                    if (!writing.getAndSet(true)) {
+                    if (!writeInProgress.getAndSet(true)) {
                         channel.write(raw, raw, packetHandler);
                     } else {
                         packetsToFlush.offer(raw);

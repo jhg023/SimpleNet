@@ -23,6 +23,11 @@
  */
 package simplenet;
 
+import simplenet.channel.Channeled;
+import simplenet.packet.Packet;
+import simplenet.receiver.Receiver;
+import simplenet.utility.Utility;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -43,10 +48,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import simplenet.channel.Channeled;
-import simplenet.packet.Packet;
-import simplenet.receiver.Receiver;
-import simplenet.utility.Utility;
 
 /**
  * The entity that all {@link Client}s will connect to.
@@ -108,7 +109,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
     public Server(int bufferSize, int numThreads) throws IllegalStateException {
         super(bufferSize);
     
-        connectedClients = ConcurrentHashMap.newKeySet();
+        this.connectedClients = ConcurrentHashMap.newKeySet();
     
         var executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), runnable -> {
@@ -121,8 +122,8 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
         executor.prestartAllCoreThreads();
         
         try {
-            channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
+            this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the channel:", e);
         }
@@ -154,7 +155,6 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
                     client.postDisconnect(() -> connectedClients.remove(client));
                     connectListeners.forEach(consumer -> consumer.accept(client));
                     Server.this.channel.accept(null, this);
-                    channel.read(client.buffer, client, Client.Listener.INSTANCE);
                 }
 
                 @Override
