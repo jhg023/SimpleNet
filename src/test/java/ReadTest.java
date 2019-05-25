@@ -27,6 +27,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -334,6 +335,30 @@ final class ReadTest {
                         assertEquals(b, queue.poll());
                     }
                     
+                    latch.countDown();
+                });
+            });
+        });
+    }
+    
+    @Test
+    void readWithSmallBuffer() {
+        byte b = 42;
+        long l = ThreadLocalRandom.current().nextLong();
+        client = new Client(Long.BYTES);
+        client.onConnect(() -> {
+            Packet.builder().putByte(b).write(client);
+            Packet.builder().putLong(l).writeAndFlush(client);
+        });
+        server.close();
+        server = new Server(Long.BYTES);
+        server.bind(HOST, PORT);
+        server.onConnect(client -> {
+            client.readByte(first -> {
+                assertEquals(b, first);
+                
+                client.readLong(second -> {
+                    assertEquals(l, second);
                     latch.countDown();
                 });
             });
