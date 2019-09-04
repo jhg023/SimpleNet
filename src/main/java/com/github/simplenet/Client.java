@@ -57,7 +57,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -208,7 +207,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, ByteBuffer buffer) {
-            t.printStackTrace();
+
         }
     };
 
@@ -461,7 +460,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             return;
         }
         
-        ForkJoinPool.commonPool().execute(() -> connectListeners.forEach(Runnable::run));
+        executor.execute(() -> connectListeners.forEach(Runnable::run));
     }
 
     /**
@@ -484,21 +483,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         flush();
 
         while (writeInProgress.get()) {
-            try {
-                TimeUnit.MILLISECONDS.sleep(100L);
-            } catch (InterruptedException e) {
-                // Do nothing.
-            }
+            Thread.onSpinWait();
         }
     
         Channeled.super.close();
     
         while (channel.isOpen()) {
-            try {
-                TimeUnit.MILLISECONDS.sleep(100L);
-            } catch (InterruptedException e) {
-                // Do nothing.
-            }
+            Thread.onSpinWait();
         }
     
         postDisconnectListeners.forEach(Runnable::run);
@@ -607,7 +598,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         boolean shouldEncrypt = encryptionCipher != null;
 
-        Deque<Consumer<ByteBuffer>> queue = new ArrayDeque<>();
+        var queue = new ArrayDeque<Consumer<ByteBuffer>>();
 
         synchronized (outgoingPackets) {
             while ((packet = outgoingPackets.pollLast()) != null) {

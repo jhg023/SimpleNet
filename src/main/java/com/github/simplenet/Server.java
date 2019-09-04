@@ -54,21 +54,26 @@ import java.util.function.Consumer;
  * @since November 1, 2017
  */
 public class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
-    
+
+    /**
+     * The number of threads to use in the backing {@link AsynchronousChannelGroup}.
+     */
+    private final int numThreads;
+
     /**
      * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
      */
     private final Set<Client> connectedClients;
-    
+
     /**
      * The backing {@link AsynchronousChannelGroup} of this {@link Server}.
      */
-    private final AsynchronousChannelGroup group;
+    private AsynchronousChannelGroup group;
     
     /**
      * The backing {@link Channel} of this {@link Server}.
      */
-    private final AsynchronousServerSocketChannel channel;
+    private AsynchronousServerSocketChannel channel;
     
     /**
      * Instantiates a new {@link Server} (with a buffer size of {@code 4,096} bytes) by attempting to open the
@@ -106,25 +111,9 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
      */
     public Server(int bufferSize, int numThreads) throws IllegalStateException {
         super(bufferSize);
-    
+
+        this.numThreads = numThreads;
         this.connectedClients = ConcurrentHashMap.newKeySet();
-    
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setDaemon(false);
-            thread.setName(thread.getName().replace("Thread", "SimpleNet"));
-            return thread;
-        }, (runnable, threadPoolExecutor) -> {});
-    
-        executor.prestartAllCoreThreads();
-        
-        try {
-            this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel:", e);
-        }
     }
 
     /**
@@ -141,6 +130,23 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
 
         if (port < 0 || port > 65535) {
             throw new IllegalArgumentException("The port must be between 0 and 65535!");
+        }
+
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(), runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(false);
+            thread.setName(thread.getName().replace("Thread", "SimpleNet"));
+            return thread;
+        }, (runnable, threadPoolExecutor) -> {});
+
+        executor.prestartAllCoreThreads();
+
+        try {
+            this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to open the AsynchronousServerSocketChannel!", e);
         }
 
         try {
