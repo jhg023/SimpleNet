@@ -11,21 +11,21 @@ Maven:
 <dependency>
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.4.14</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.jhg023:SimpleNet:1.4.14'
+implementation 'com.github.jhg023:SimpleNet:1.5.0'
 ```
 
  2. Because SimpleNet is compiled with Java 11, you must first require its module in your `module-info.java`:
 
 ```java
 module my.project {
-    requires SimpleNet;
+    requires com.github.simplenet;
 }
 ```
 # What do I need to know before using SimpleNet?
@@ -43,16 +43,16 @@ client.readByteAlways(System.out::println);
 - Packets are sent from a `Client` to a `Server` (and vice versa) via the `Packet` class.
 ```java
 // Create a packet that contains two bytes (with the value 42) and send it to a client.
-Packet.builder().putByte(42).putByte(42).writeAndFlush(client);
+Packet.builder().putByte(42).putByte(42).queueAndFlush(client);
 
-// Create two packets with the specified data and write them (but don't flush) to a client.
-Packet.builder().putInt(123456).write(client);
-Packet.builder().putString("Hello World!").write(client);
+// Create two packets with the specified data and queue them (but don't flush) to a client.
+Packet.builder().putInt(123456).queue(client);
+Packet.builder().putString("Hello World!").queue(client);
 
 // Flush the queued packets to the client (these packets will be transformed into a single,
 // big packet to improve throughput.
 // 
-// This method only needs to be called when using Packet#write and not Packet#writeAndFlush.
+// This method only needs to be called when using Packet#queue and not Packet#queueAndFlush.
 client.flush();
 ```
 # Client Example
@@ -65,13 +65,13 @@ client.onConnect(() -> {
     System.out.println(client + " has connected to the server!");
     
     // Builds a packet and sends it to the server immediately.
-    Packet.builder().putByte(1).putInt(42).writeAndFlush(client);
+    Packet.builder().putByte(1).putInt(42).queueAndFlush(client);
 });
 
-// Register an optional pre-disconnection listener.
+// Register a pre-disconnection listener.
 client.preDisconnect(() -> System.out.println(client + " is about to disconnect from the server!"));
 
-// Register an optional post-disconnection listener.
+// Register a post-disconnection listener.
 client.postDisconnect(() -> System.out.println(client + " successfully disconnected from the server!"));
 
 // Attempt to connect to a server AFTER registering listeners.
@@ -101,10 +101,10 @@ server.onConnect(client -> {
         }
     });
 
-    // Register an optional pre-disconnection listener.
+    // Register a pre-disconnection listener.
     client.preDisconnect(() -> System.out.println(client + " is about to disconnect!"));
 
-    // Register an optional post-disconnection listener.
+    // Register a post-disconnection listener.
     client.postDisconnect(() -> System.out.println(client + " has successfully disconnected!"));
 });
 
@@ -138,7 +138,7 @@ public class ChatServer {
                     case 2: // Send message to connected clients.
                         client.readString(message -> {
                             message = nicknameMap.get(client) + ": " + message;
-                            server.writeAndFlushToAllExcept(Packet.builder().putString(message), client);
+                            server.queueAndFlushToAllExcept(Packet.builder().putString(message), client);
                         });
                         break;    
                 }
@@ -165,7 +165,7 @@ public class ChatClient {
             client.readStringAlways(System.out::println);
             
             System.out.print("Enter your nickname: ");
-            Packet.builder().putByte(1).putString(scanner.nextLine()).writeAndFlush(client);
+            Packet.builder().putByte(1).putString(scanner.nextLine()).queueAndFlush(client);
             
             // Infinite loop to accept user-input for the chat server.
             while (true) {
@@ -181,7 +181,7 @@ public class ChatClient {
                 }
                 
                 // Otherwise, send a packet to the server containing the client's message.
-                Packet.builder().putByte(2).putString(message).writeAndFlush(client);
+                Packet.builder().putByte(2).putString(message).queueAndFlush(client);
             }
         });
         
@@ -198,8 +198,8 @@ public class ChatClient {
   - Absolutely!
 - I have large packets that exceed the default buffer size; what can I do to avoid an exception?
   - Ideally, the best option would be to split your single, large packet into multiple, small packets. 
-  - If splitting the packet is not possible for any reason, both `Client` and `Server` have an overloaded constructor that accepts a buffer size in bytes. You can simply specify a size larger than 4096 (the default size).
+  - If splitting the packet is not possible for any reason, both `Client` and `Server` have an overloaded constructor that accepts a buffer size in bytes. You can simply specify a size larger than 8192 (the default size).
 - Will Java 8 ever be supported again?
-  - No, as Java 8 is no longer supported commercial as of January, 2019. SimpleNet will do its best to keep up with LTS releases. However, you're free to clone the project and build it on an older version of Java, as not many code changes are required.
+  - No, as Java 8 is no longer supported commercially as of January, 2019. SimpleNet will do its best to keep up with LTS releases. However, you're free to clone the project and build it on an older version of Java, as not many code changes are required.
 - What's next for SimpleNet?
   - Once Project Loom is complete and integrated into the mainline JDK, SimpleNet will be rewritten entirely; blocking I/O will be using fibers at that point, which will be much more scalable than my current implementation that uses a fixed thread pool.

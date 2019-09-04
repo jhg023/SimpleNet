@@ -21,14 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
+
+import com.github.simplenet.packet.Packet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import simplenet.packet.Packet;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 final class PacketTest {
     
@@ -51,7 +54,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Byte.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { b });
+
+        ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(b, buffer.get());
     }
     
     @Test
@@ -60,19 +67,30 @@ final class PacketTest {
     
         Assertions.assertEquals(packet.getSize(), Byte.BYTES * 4);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 42, 123, -25, 75 });
+
+        ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES * 4);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(42, buffer.get());
+        Assertions.assertEquals(123, buffer.get());
+        Assertions.assertEquals(-25, buffer.get());
+        Assertions.assertEquals(75, buffer.get());
     }
     
     @ParameterizedTest
     @ValueSource(strings = { "true", "false" })
     void testPutBooleanIntoPacket(String s) {
-        var b = Boolean.parseBoolean(s);
+        boolean b = Boolean.parseBoolean(s);
         
         packet.putBoolean(b);
         
         Assertions.assertEquals(packet.getSize(), Byte.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { (byte) (b ? 1 : 0) });
+
+        ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(b ? 1 : 0, buffer.get());
     }
     
     @ParameterizedTest
@@ -82,10 +100,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Character.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) (c >> 8), (byte) c };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Character.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(c, buffer.getChar());
     }
     
     @ParameterizedTest
@@ -95,10 +114,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Character.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) c, (byte) (c >> 8) };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Character.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(c, buffer.getChar());
     }
     
     @ParameterizedTest
@@ -108,10 +129,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) (s >> 8), (byte) s };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(s, buffer.getShort());
     }
     
     @ParameterizedTest
@@ -121,10 +143,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) s, (byte) (s >> 8) };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(s, buffer.getShort());
     }
     
     @ParameterizedTest
@@ -134,10 +158,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Integer.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) (i >> 24), (byte) (i >> 16), (byte) (i >> 8), (byte) i };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(i, buffer.getInt());
     }
     
     @ParameterizedTest
@@ -147,10 +172,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Integer.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] { (byte) i, (byte) (i >> 8), (byte) (i >> 16), (byte) (i >> 24) };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(i, buffer.getInt());
     }
     
     @ParameterizedTest
@@ -160,12 +187,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Float.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        int i = Float.floatToRawIntBits(f);
-        
-        var bytes = new byte[] { (byte) (i >> 24), (byte) (i >> 16), (byte) (i >> 8), (byte) i };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(f, buffer.getFloat());
     }
     
     @ParameterizedTest
@@ -175,12 +201,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Float.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        int i = Float.floatToRawIntBits(f);
-    
-        var bytes = new byte[] { (byte) i, (byte) (i >> 8), (byte) (i >> 16), (byte) (i >> 24) };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(f, buffer.getFloat());
     }
     
     @ParameterizedTest
@@ -190,13 +216,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Long.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] {
-            (byte) (l >> 56), (byte) (l >> 48), (byte) (l >> 40), (byte) (l >> 32),
-            (byte) (l >> 24), (byte) (l >> 16), (byte) (l >> 8), (byte) l
-        };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(l, buffer.getLong());
     }
     
     @ParameterizedTest
@@ -206,13 +230,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Long.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        var bytes = new byte[] {
-            (byte) l, (byte) (l >> 8), (byte) (l >> 16), (byte) (l >> 24),
-            (byte) (l >> 32), (byte) (l >> 40), (byte) (l >> 48), (byte) (l >> 56)
-        };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(l, buffer.getLong());
     }
     
     @ParameterizedTest
@@ -222,15 +245,11 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Double.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        long l = Double.doubleToRawLongBits(d);
-        
-        var bytes = new byte[] {
-            (byte) (l >> 56), (byte) (l >> 48), (byte) (l >> 40), (byte) (l >> 32),
-            (byte) (l >> 24), (byte) (l >> 16), (byte) (l >> 8), (byte) l
-        };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Double.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(d, buffer.getDouble());
     }
     
     @ParameterizedTest
@@ -240,15 +259,12 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Double.BYTES);
         Assertions.assertEquals(packet.getQueue().size(), 1);
-        
-        long l = Double.doubleToRawLongBits(d);
-    
-        var bytes = new byte[] {
-            (byte) l, (byte) (l >> 8), (byte) (l >> 16), (byte) (l >> 24),
-            (byte) (l >> 32), (byte) (l >> 40), (byte) (l >> 48), (byte) (l >> 56)
-        };
-        
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Double.BYTES);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(d, buffer.getDouble());
     }
     
     @ParameterizedTest
@@ -256,13 +272,21 @@ final class PacketTest {
     void testPutStringBigEndianUTF8IntoPacket(String s) {
         packet.putString(s);
         
-        var bytes = s.getBytes(StandardCharsets.UTF_8);
-        var length = (short) bytes.length;
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        short length = (short) bytes.length;
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES + length);
         Assertions.assertEquals(packet.getQueue().size(), 2);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { (byte) (length >> 8), (byte) length });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + length);
+        packet.getQueue().poll().accept(buffer);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(length, buffer.getShort());
+
+        byte[] data = new byte[length];
+        buffer.get(data);
+        Assertions.assertArrayEquals(bytes, data);
     }
     
     @ParameterizedTest
@@ -270,13 +294,21 @@ final class PacketTest {
     void testPutStringBigEndianUTF16IntoPacket(String s) {
         packet.putString(s, StandardCharsets.UTF_16);
     
-        var bytes = s.getBytes(StandardCharsets.UTF_16);
-        var length = (short) bytes.length;
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_16);
+        short length = (short) bytes.length;
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES + length);
         Assertions.assertEquals(packet.getQueue().size(), 2);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { (byte) (length >> 8), (byte) length });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + length);
+        packet.getQueue().poll().accept(buffer);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        Assertions.assertEquals(length, buffer.getShort());
+
+        byte[] data = new byte[length];
+        buffer.get(data);
+        Assertions.assertArrayEquals(bytes, data);
     }
     
     @ParameterizedTest
@@ -284,13 +316,22 @@ final class PacketTest {
     void testPutStringLittleEndianUTF8IntoPacket(String s) {
         packet.putString(s, StandardCharsets.UTF_8, ByteOrder.LITTLE_ENDIAN);
     
-        var bytes = s.getBytes(StandardCharsets.UTF_8);
-        var length = (short) bytes.length;
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        short length = (short) bytes.length;
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES + length);
         Assertions.assertEquals(packet.getQueue().size(), 2);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { (byte) length, (byte) (length >> 8) });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + length);
+        packet.getQueue().poll().accept(buffer);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(length, buffer.getShort());
+
+        byte[] data = new byte[length];
+        buffer.get(data);
+        Assertions.assertArrayEquals(bytes, data);
     }
     
     @ParameterizedTest
@@ -298,13 +339,22 @@ final class PacketTest {
     void testPutStringLittleEndianUTF16IntoPacket(String s) {
         packet.putString(s, StandardCharsets.UTF_16, ByteOrder.LITTLE_ENDIAN);
         
-        var bytes = s.getBytes(StandardCharsets.UTF_16);
-        var length = (short) bytes.length;
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_16);
+        short length = (short) bytes.length;
         
         Assertions.assertEquals(packet.getSize(), Short.BYTES + length);
         Assertions.assertEquals(packet.getQueue().size(), 2);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { (byte) length, (byte) (length >> 8) });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), bytes);
+
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + length);
+        packet.getQueue().poll().accept(buffer);
+        packet.getQueue().poll().accept(buffer);
+        buffer.flip();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        Assertions.assertEquals(length, buffer.getShort());
+
+        byte[] data = new byte[length];
+        buffer.get(data);
+        Assertions.assertArrayEquals(bytes, data);
     }
     
     @Test
@@ -313,9 +363,15 @@ final class PacketTest {
     
         Assertions.assertEquals(packet.getSize(), Byte.BYTES * 3);
         Assertions.assertEquals(packet.getQueue().size(), 3);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 42 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { -24 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 123 });
+
+        ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES * 3);
+        for (int i = 0; i < 3; i++) {
+            packet.getQueue().poll().accept(buffer);
+        }
+        buffer.flip();
+        Assertions.assertEquals(42, buffer.get());
+        Assertions.assertEquals(-24, buffer.get());
+        Assertions.assertEquals(123, buffer.get());
     }
     
     @Test
@@ -324,11 +380,17 @@ final class PacketTest {
         
         Assertions.assertEquals(packet.getSize(), Byte.BYTES * 5);
         Assertions.assertEquals(packet.getQueue().size(), 5);
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 75 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 64 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 42 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { -24 });
-        Assertions.assertArrayEquals(packet.getQueue().poll(), new byte[] { 123 });
+
+        ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES * 5);
+        for (int i = 0; i < 5; i++) {
+            packet.getQueue().poll().accept(buffer);
+        }
+        buffer.flip();
+        Assertions.assertEquals(75, buffer.get());
+        Assertions.assertEquals(64, buffer.get());
+        Assertions.assertEquals(42, buffer.get());
+        Assertions.assertEquals(-24, buffer.get());
+        Assertions.assertEquals(123, buffer.get());
     }
 
 }

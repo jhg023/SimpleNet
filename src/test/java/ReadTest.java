@@ -22,22 +22,23 @@
  * SOFTWARE.
  */
 
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import com.github.simplenet.Client;
+import com.github.simplenet.Server;
+import com.github.simplenet.packet.Packet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import simplenet.Client;
-import simplenet.Server;
-import simplenet.packet.Packet;
 
+import java.nio.ByteOrder;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -79,8 +80,8 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(strings = { "true", "false"})
     void testReadBoolean(String s) {
-        var b = Boolean.parseBoolean(s);
-        client.onConnect(() -> Packet.builder().putBoolean(b).writeAndFlush(client));
+        boolean b = Boolean.parseBoolean(s);
+        client.onConnect(() -> Packet.builder().putBoolean(b).queueAndFlush(client));
         server.onConnect(client -> client.readBoolean(readBoolean -> {
             assertEquals(b, readBoolean);
             latch.countDown();
@@ -90,7 +91,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(bytes = { Byte.MIN_VALUE, -32, 0, 32, Byte.MAX_VALUE })
     void testReadByte(byte b) {
-        client.onConnect(() -> Packet.builder().putByte(b).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putByte(b).queueAndFlush(client));
         server.onConnect(client -> client.readByte(readByte -> {
             assertEquals(b, readByte);
             latch.countDown();
@@ -100,7 +101,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(chars = { Character.MIN_VALUE, '\u1234', '\u8000', Character.MAX_VALUE })
     void testReadCharBigEndian(char c) {
-        client.onConnect(() -> Packet.builder().putChar(c).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putChar(c).queueAndFlush(client));
         server.onConnect(client -> client.readChar(readChar -> {
             assertEquals(c, readChar);
             latch.countDown();
@@ -110,7 +111,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(chars = { Character.MIN_VALUE, '\u1234', '\u8000', Character.MAX_VALUE })
     void testReadCharLittleEndian(char c) {
-        client.onConnect(() -> Packet.builder().putChar(c, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putChar(c, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readChar(readChar -> {
             assertEquals(c, readChar);
             latch.countDown();
@@ -120,7 +121,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(shorts = { Short.MIN_VALUE, -32, 0, 32, Short.MAX_VALUE })
     void testReadShortBigEndian(short s) {
-        client.onConnect(() -> Packet.builder().putShort(s).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putShort(s).queueAndFlush(client));
         server.onConnect(client -> client.readShort(readShort -> {
             assertEquals(s, readShort);
             latch.countDown();
@@ -130,7 +131,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(shorts = { Short.MIN_VALUE, -32, 0, 32, Short.MAX_VALUE })
     void testReadShortLittleEndian(short s) {
-        client.onConnect(() -> Packet.builder().putShort(s, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putShort(s, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readShort(readShort -> {
             assertEquals(s, readShort);
             latch.countDown();
@@ -140,7 +141,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(ints = { Integer.MIN_VALUE, -32, 0, 32, Integer.MAX_VALUE })
     void testReadIntBigEndian(int i) {
-        client.onConnect(() -> Packet.builder().putInt(i).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putInt(i).queueAndFlush(client));
         server.onConnect(client -> client.readInt(readInt -> {
             assertEquals(i, readInt);
             latch.countDown();
@@ -150,7 +151,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(ints = { Integer.MIN_VALUE, -32, 0, 32, Integer.MAX_VALUE })
     void testReadIntLittleEndian(int i) {
-        client.onConnect(() -> Packet.builder().putInt(i, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putInt(i, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readInt(readInt -> {
             assertEquals(i, readInt);
             latch.countDown();
@@ -160,7 +161,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
     void testReadFloatBigEndian(float f) {
-        client.onConnect(() -> Packet.builder().putFloat(f).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putFloat(f).queueAndFlush(client));
         server.onConnect(client -> client.readFloat(readFloat -> {
             assertEquals(f, readFloat);
             latch.countDown();
@@ -170,7 +171,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
     void testReadFloatLittleEndian(float f) {
-        client.onConnect(() -> Packet.builder().putFloat(f, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putFloat(f, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readFloat(readFloat -> {
             assertEquals(f, readFloat);
             latch.countDown();
@@ -180,7 +181,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(longs = { Long.MIN_VALUE, -32L, 0L, 32L, Long.MAX_VALUE })
     void testReadLongBigEndian(long l) {
-        client.onConnect(() -> Packet.builder().putLong(l).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putLong(l).queueAndFlush(client));
         server.onConnect(client -> client.readLong(readLong -> {
             assertEquals(l, readLong);
             latch.countDown();
@@ -190,7 +191,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(longs = { Long.MIN_VALUE, -32L, 0L, 32L, Long.MAX_VALUE })
     void testReadLongLittleEndian(long l) {
-        client.onConnect(() -> Packet.builder().putLong(l, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putLong(l, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readLong(readLong -> {
             assertEquals(l, readLong);
             latch.countDown();
@@ -200,7 +201,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
     void testReadDoubleBigEndian(double d) {
-        client.onConnect(() -> Packet.builder().putDouble(d).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putDouble(d).queueAndFlush(client));
         server.onConnect(client -> client.readDouble(readDouble -> {
             assertEquals(d, readDouble);
             latch.countDown();
@@ -210,7 +211,7 @@ final class ReadTest {
     @ParameterizedTest
     @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
     void testReadDoubleLittleEndian(double d) {
-        client.onConnect(() -> Packet.builder().putDouble(d, ByteOrder.LITTLE_ENDIAN).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putDouble(d, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readDouble(readDouble -> {
             assertEquals(d, readDouble);
             latch.countDown();
@@ -269,7 +270,7 @@ final class ReadTest {
     void testReadMultipleValues() {
         final byte first = 42, second = -24, third = 123;
         latch = new CountDownLatch(3);
-        client.onConnect(() -> Packet.builder().putBytes(first, second, third).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putBytes(first, second, third).queueAndFlush(client));
         server.onConnect(client -> {
             client.readByte(readByte -> {
                 assertEquals(first, readByte);
@@ -291,7 +292,7 @@ final class ReadTest {
     @Test
     void testReadNestedCallbacks() {
         final byte first = 42, second = -24, third = 123;
-        client.onConnect(() -> Packet.builder().putBytes(first, second, third).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putBytes(first, second, third).queueAndFlush(client));
         server.onConnect(client -> {
             client.readByte(readFirstByte -> {
                 assertEquals(first, readFirstByte);
@@ -311,8 +312,8 @@ final class ReadTest {
     @Test
     void testReadNestedCallbacksExecuteInCorrectOrder() {
         final byte[] bytes = {42, -24, 123, 32, 3};
-        var queue = new ArrayDeque<Byte>();
-        client.onConnect(() -> Packet.builder().putBytes(bytes).writeAndFlush(client));
+        Deque<Byte> queue = new ArrayDeque<>();
+        client.onConnect(() -> Packet.builder().putBytes(bytes).queueAndFlush(client));
         server.onConnect(client -> {
             client.readByte(first -> {
                 queue.offer(first);
@@ -347,8 +348,8 @@ final class ReadTest {
         long l = ThreadLocalRandom.current().nextLong();
         client = new Client(Long.BYTES);
         client.onConnect(() -> {
-            Packet.builder().putByte(b).write(client);
-            Packet.builder().putLong(l).writeAndFlush(client);
+            Packet.builder().putByte(b).queue(client);
+            Packet.builder().putLong(l).queueAndFlush(client);
         });
         server.close();
         server = new Server(Long.BYTES);
@@ -366,7 +367,7 @@ final class ReadTest {
     }
     
     private void readStringHelper(String s, Charset charset, ByteOrder order) {
-        client.onConnect(() -> Packet.builder().putString(s, charset, order).writeAndFlush(client));
+        client.onConnect(() -> Packet.builder().putString(s, charset, order).queueAndFlush(client));
         server.onConnect(client -> client.readString(readString -> {
             assertEquals(s, readString);
             latch.countDown();

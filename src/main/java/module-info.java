@@ -1,11 +1,11 @@
-module SimpleNet {
+module com.github.simplenet {
     requires Pbbl;
-    
-    exports simplenet;
-    exports simplenet.channel;
-    exports simplenet.packet;
-    exports simplenet.receiver;
-    exports simplenet.utility.exposed.consumer;
-    exports simplenet.utility.exposed.cryptography;
-    exports simplenet.utility.exposed.predicate;
+
+    exports com.github.simplenet;
+    exports com.github.simplenet.channel;
+    exports com.github.simplenet.packet;
+    exports com.github.simplenet.utility.exposed.consumer;
+    exports com.github.simplenet.utility.exposed.data;
+    exports com.github.simplenet.utility.exposed.cryptography;
+    exports com.github.simplenet.utility.exposed.predicate;
 }

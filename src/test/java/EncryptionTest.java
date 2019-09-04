@@ -21,25 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
+import com.github.simplenet.Client;
+import com.github.simplenet.Server;
+import com.github.simplenet.packet.Packet;
+import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import simplenet.Client;
-import simplenet.Server;
-import simplenet.packet.Packet;
-import simplenet.utility.exposed.cryptography.CryptographicFunction;
-
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,7 +53,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Hwiggy <https://github.com/Hwiggy>
  */
 class EncryptionTest {
-    
+
+    private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
+        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
+        cipher.doFinal(data, output);
+        return output;
+    };
+
+    private static final CryptographicFunction UPDATE = (cipher, data) -> {
+        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
+        cipher.update(data, output);
+        return output;
+    };
+
     private final ThreadLocalRandom random = ThreadLocalRandom.current();
     
     private final byte[] sharedSecret = new byte[16];
@@ -84,7 +99,7 @@ class EncryptionTest {
                 c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
-        startTest(server, 9000, a, b, c, d, Cipher::doFinal, Cipher::doFinal);
+        startTest(server, 9000, a, b, c, d, DO_FINAL, DO_FINAL);
     }
     
     @Test
@@ -98,7 +113,7 @@ class EncryptionTest {
                 c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
-        startTest(server, 9001, a, b, c, d, Cipher::update, Cipher::update);
+        startTest(server, 9001, a, b, c, d, UPDATE, UPDATE);
     }
     
     @Test
@@ -113,7 +128,7 @@ class EncryptionTest {
                 c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
-        startTest(server, 9003, a, b, c, d, Cipher::doFinal, Cipher::doFinal);
+        startTest(server, 9003, a, b, c, d, DO_FINAL, DO_FINAL);
     }
     
     private void initCiphers(
@@ -132,33 +147,30 @@ class EncryptionTest {
     
     private void startTest(Server server, int port, Cipher serverEncryption, Cipher serverDecryption,
             Cipher clientEncryption, Cipher clientDecryption, CryptographicFunction encryption,
-                           CryptographicFunction decryption) throws InterruptedException {
+                           CryptographicFunction decryption) {
         server.onConnect(client -> {
             client.setEncryption(serverEncryption, encryption);
             client.setDecryption(serverDecryption, decryption);
-            
-            client.readBytes(128, it -> {
-                assertArrayEquals(encryptBytes, it);
+
+            client.read(128 + 14 + 8 + 8 + 1, buffer -> {
+                byte[] data = new byte[128];
+                buffer.get(data);
+                assertArrayEquals(encryptBytes, data);
                 latch.countDown();
-            });
-            
-            client.readString(it -> {
-                assertEquals("Hello World!", it);
+
+                int length = buffer.getShort();
+                data = new byte[length];
+                buffer.get(data);
+                assertEquals("Hello World!", new String(data, StandardCharsets.UTF_8));
                 latch.countDown();
-            });
-            
-            client.readLong(it -> {
-                assertEquals(54735436752L, it);
+
+                assertEquals(54735436752L, buffer.getLong());
                 latch.countDown();
-            });
-            
-            client.readDouble(it -> {
-                assertEquals(23.1231, it);
+
+                assertEquals(23.1231, buffer.getDouble());
                 latch.countDown();
-            });
-            
-            client.readByte(it -> {
-                assertEquals(0x00, it);
+
+                assertEquals(0x00, buffer.get());
                 latch.countDown();
             });
         });
@@ -174,7 +186,7 @@ class EncryptionTest {
                     .putLong(54735436752L)
                     .putDouble(23.1231)
                     .putByte(0x00)
-                    .writeAndFlush(client);
+                    .queueAndFlush(client);
         });
         
         client.connect("localhost", port);
