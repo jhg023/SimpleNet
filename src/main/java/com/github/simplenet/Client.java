@@ -186,7 +186,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s to a
      * {@link Server}.
      */
-    private final CompletionHandler<Integer, ByteBuffer> packetHandler = new CompletionHandler<Integer, ByteBuffer>() {
+    private final CompletionHandler<Integer, ByteBuffer> packetHandler = new CompletionHandler<>() {
         @Override
         public void completed(Integer result, ByteBuffer buffer) {
             Client client = Client.this;
@@ -207,7 +207,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, ByteBuffer buffer) {
-
+            DIRECT_BUFFER_POOL.give(buffer);
+            Client.this.writeInProgress.set(false);
         }
     };
 
@@ -708,8 +709,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void setEncryption(Cipher encryptionCipher, CryptographicFunction encryptionFunction) {
         this.encryptionCipher = encryptionCipher;
         this.encryptionFunction = encryptionFunction;
+        this.encryptionNoPadding = encryptionCipher.getAlgorithm().endsWith("NoPadding");
     }
-    
+
+    /**
+     * Gets whether or not this {@link Client}'s encryption {@link Cipher} specifies a {@code NoPadding} algorithm.
+     *
+     * @return {@code true} if the encryption algorithm being used specifies {@code NoPadding}, otherwise {@code false}.
+     */
+    public boolean isEncryptionNoPadding() {
+        return encryptionNoPadding;
+    }
+
     /**
      * Sets the decryption {@link Cipher} used by this {@link Client}.
      * <br><br>
@@ -732,15 +743,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.decryptionCipher = decryptionCipher;
         this.decryptionFunction = decryptionFunction;
         this.decryptionNoPadding = decryptionCipher.getAlgorithm().endsWith("NoPadding");
-    }
-    
-    /**
-     * Gets whether or not this {@link Client}'s decryption {@link Cipher} specifies a {@code NoPadding} algorithm.
-     *
-     * @return {@code true} if the decryption algorithm being used specifies {@code NoPadding}, otherwise {@code false}.
-     */
-    public boolean isDecryptionNoPadding() {
-        return decryptionNoPadding;
     }
     
 }

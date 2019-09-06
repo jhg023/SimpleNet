@@ -158,7 +158,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
                     connectedClients.add(client);
                     client.postDisconnect(() -> connectedClients.remove(client));
                     connectListeners.forEach(consumer -> consumer.accept(client));
-                    Server.this.channel.accept(null, this);
+                    Server.this.channel.accept(null, this); // Should this be first?
                 }
 
                 @Override

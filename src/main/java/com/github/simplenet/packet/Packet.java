@@ -456,7 +456,7 @@ public final class Packet {
             return size;
         }
 
-        if (!client.isDecryptionNoPadding()) {
+        if (!client.isEncryptionNoPadding()) {
             return Utility.roundUpToNextMultiple(size, encryption.getBlockSize());
         }
         
