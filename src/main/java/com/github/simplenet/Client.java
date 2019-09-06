@@ -207,8 +207,19 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, ByteBuffer buffer) {
+            Client client = Client.this;
+
             DIRECT_BUFFER_POOL.give(buffer);
-            Client.this.writeInProgress.set(false);
+
+            synchronized (client.outgoingPackets) {
+                ByteBuffer discard;
+
+                while ((discard = client.packetsToFlush.poll()) != null) {
+                    DIRECT_BUFFER_POOL.give(discard);
+                }
+            }
+
+            client.writeInProgress.set(false);
         }
     };
 
