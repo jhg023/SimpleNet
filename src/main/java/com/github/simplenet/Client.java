@@ -649,6 +649,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         try {
                             channel.write(raw, raw, packetHandler);
                         } catch (Exception e) {
+                            // TODO: Remove stack trace printing if this works
                             e.printStackTrace();
                             writeInProgress.set(false);
                             return;
