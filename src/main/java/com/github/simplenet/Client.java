@@ -646,7 +646,13 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     raw.flip();
 
                     if (!writeInProgress.getAndSet(true)) {
-                        channel.write(raw, raw, packetHandler);
+                        try {
+                            channel.write(raw, raw, packetHandler);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            writeInProgress.set(false);
+                            return;
+                        }
                     } else {
                         packetsToFlush.offer(raw);
                     }
