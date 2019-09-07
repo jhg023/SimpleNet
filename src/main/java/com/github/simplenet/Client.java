@@ -489,23 +489,25 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         if (closing.getAndSet(true)) {
             return;
         }
-        
+
         preDisconnectListeners.forEach(Runnable::run);
 
         flush();
 
-        while (writeInProgress.get()) {
+        while (channel.isOpen() && writeInProgress.get()) {
             Thread.onSpinWait();
         }
-    
-        Channeled.super.close();
-    
-        while (channel.isOpen()) {
-            Thread.onSpinWait();
+
+        if (channel.isOpen()) {
+            Channeled.super.close();
+
+            while (channel.isOpen()) {
+                Thread.onSpinWait();
+            }
         }
-    
+
         postDisconnectListeners.forEach(Runnable::run);
-        
+
         if (group != null) {
             try {
                 group.shutdownNow();
