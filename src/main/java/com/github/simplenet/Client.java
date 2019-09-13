@@ -90,7 +90,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             int bytesReceived = result;
             
             if (bytesReceived == -1) {
-                client.close();
+                client.close(false);
                 return;
             }
 
@@ -178,7 +178,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, Client client) {
-            client.close();
+            client.close(false);
         }
     }
 
@@ -468,7 +468,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalStateException("This client is already connected to a server!", e);
         } catch (Exception e) {
             onTimeout.run();
-            close();
+            close(false);
             return;
         }
         
@@ -476,15 +476,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     }
 
     /**
-     * Closes this {@link Client}'s backing {@link AsynchronousSocketChannel} after flushing any queued packets.
-     * <br><br>
-     * Any registered pre-disconnect listeners are fired before remaining packets are flushed, and registered
-     * post-disconnect listeners are fired after the backing channel has closed successfully.
-     * <br><br>
-     * Listeners are fired in the same order that they were registered in.
+     * The implementation of {@link #close()} that may or may not wait for flushed packets to be written
+     * successfully, depending on the value of {@code waitForWrite}.
+     *
+     * @param waitForWrite Whether or not to wait for flushed packets to be written successfully.
      */
-    @Override
-    public final void close() {
+    private void close(boolean waitForWrite) {
         // If this Client is already closing, do nothing.
         if (closing.getAndSet(true)) {
             return;
@@ -492,18 +489,18 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         preDisconnectListeners.forEach(Runnable::run);
 
-        flush();
+        if (waitForWrite) {
+            flush();
 
-        while (channel.isOpen() && writeInProgress.get()) {
-            Thread.onSpinWait();
-        }
-
-        if (channel.isOpen()) {
-            Channeled.super.close();
-
-            while (channel.isOpen()) {
+            while (writeInProgress.get()) {
                 Thread.onSpinWait();
             }
+        }
+
+        Channeled.super.close();
+
+        while (channel.isOpen()) {
+            Thread.onSpinWait();
         }
 
         postDisconnectListeners.forEach(Runnable::run);
@@ -519,6 +516,19 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         }
 
         DIRECT_BUFFER_POOL.give(buffer);
+    }
+
+    /**
+     * Closes this {@link Client}'s backing {@link AsynchronousSocketChannel} after flushing any queued packets.
+     * <br><br>
+     * Any registered pre-disconnect listeners are fired before remaining packets are flushed, and registered
+     * post-disconnect listeners are fired after the backing channel has closed successfully.
+     * <br><br>
+     * Listeners are fired in the same order that they were registered in.
+     */
+    @Override
+    public final void close() {
+        close(true);
     }
 
     /**
@@ -646,14 +656,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     raw.flip();
 
                     if (!writeInProgress.getAndSet(true)) {
-                        try {
-                            channel.write(raw, raw, packetHandler);
-                        } catch (Exception e) {
-                            // TODO: Remove stack trace printing if this works
-                            e.printStackTrace();
-                            writeInProgress.set(false);
-                            return;
-                        }
+                        channel.write(raw, raw, packetHandler);
                     } else {
                         packetsToFlush.offer(raw);
                     }
