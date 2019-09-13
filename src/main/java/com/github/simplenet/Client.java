@@ -90,7 +90,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             int bytesReceived = result;
             
             if (bytesReceived == -1) {
-                client.close();
+                client.close(false);
                 return;
             }
 
@@ -178,7 +178,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         @Override
         public void failed(Throwable t, Client client) {
-            client.close();
+            client.close(false);
         }
     }
 
@@ -468,11 +468,54 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             throw new IllegalStateException("This client is already connected to a server!", e);
         } catch (Exception e) {
             onTimeout.run();
-            close();
+            close(false);
             return;
         }
         
         executor.execute(() -> connectListeners.forEach(Runnable::run));
+    }
+
+    /**
+     * The implementation of {@link #close()} that may or may not wait for flushed packets to be written
+     * successfully, depending on the value of {@code waitForWrite}.
+     *
+     * @param waitForWrite Whether or not to wait for flushed packets to be written successfully.
+     */
+    private void close(boolean waitForWrite) {
+        // If this Client is already closing, do nothing.
+        if (closing.getAndSet(true)) {
+            return;
+        }
+
+        preDisconnectListeners.forEach(Runnable::run);
+
+        if (waitForWrite) {
+            flush();
+
+            while (writeInProgress.get()) {
+                Thread.onSpinWait();
+            }
+        }
+
+        Channeled.super.close();
+
+        while (channel.isOpen()) {
+            Thread.onSpinWait();
+        }
+
+        postDisconnectListeners.forEach(Runnable::run);
+
+        if (group != null) {
+            try {
+                group.shutdownNow();
+            } catch (IOException e) {
+                if (Utility.isDebug()) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        DIRECT_BUFFER_POOL.give(buffer);
     }
 
     /**
@@ -485,38 +528,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     @Override
     public final void close() {
-        // If this Client is already closing, do nothing.
-        if (closing.getAndSet(true)) {
-            return;
-        }
-        
-        preDisconnectListeners.forEach(Runnable::run);
-
-        flush();
-
-        while (writeInProgress.get()) {
-            Thread.onSpinWait();
-        }
-    
-        Channeled.super.close();
-    
-        while (channel.isOpen()) {
-            Thread.onSpinWait();
-        }
-    
-        postDisconnectListeners.forEach(Runnable::run);
-        
-        if (group != null) {
-            try {
-                group.shutdownNow();
-            } catch (IOException e) {
-                if (Utility.isDebug()) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        DIRECT_BUFFER_POOL.give(buffer);
+        close(true);
     }
 
     /**
