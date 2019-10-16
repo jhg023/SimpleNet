@@ -190,5 +190,4 @@ public interface ShortReader extends DataReader {
         buffer.asShortBuffer().get(s);
         consumer.accept(s);
     }
-    
 }

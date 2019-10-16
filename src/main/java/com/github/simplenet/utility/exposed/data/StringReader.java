@@ -210,5 +210,4 @@ public interface StringReader extends ShortReader {
             consumer.accept(new String(b, charset));
         }, order);
     }
-    
 }

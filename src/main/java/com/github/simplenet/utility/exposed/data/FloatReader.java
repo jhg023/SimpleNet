@@ -190,5 +190,4 @@ public interface FloatReader extends DataReader {
         buffer.asFloatBuffer().get(f);
         consumer.accept(f);
     }
-    
 }

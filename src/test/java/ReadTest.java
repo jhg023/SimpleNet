@@ -159,7 +159,8 @@ final class ReadTest {
     }
     
     @ParameterizedTest
-    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
+    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY,
+            Float.NEGATIVE_INFINITY })
     void testReadFloatBigEndian(float f) {
         client.onConnect(() -> Packet.builder().putFloat(f).queueAndFlush(client));
         server.onConnect(client -> client.readFloat(readFloat -> {
@@ -169,7 +170,8 @@ final class ReadTest {
     }
     
     @ParameterizedTest
-    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
+    @ValueSource(floats = { Float.MIN_VALUE, -32.5f, 0f, 32.5f, Float.MAX_VALUE, Float.NaN, Float.POSITIVE_INFINITY,
+            Float.NEGATIVE_INFINITY })
     void testReadFloatLittleEndian(float f) {
         client.onConnect(() -> Packet.builder().putFloat(f, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readFloat(readFloat -> {
@@ -199,7 +201,8 @@ final class ReadTest {
     }
     
     @ParameterizedTest
-    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
+    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY })
     void testReadDoubleBigEndian(double d) {
         client.onConnect(() -> Packet.builder().putDouble(d).queueAndFlush(client));
         server.onConnect(client -> client.readDouble(readDouble -> {
@@ -209,7 +212,8 @@ final class ReadTest {
     }
     
     @ParameterizedTest
-    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
+    @ValueSource(doubles = { Double.MIN_VALUE, -32.5D, 0D, 32.5D, Double.MAX_VALUE, Double.NaN, Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY })
     void testReadDoubleLittleEndian(double d) {
         client.onConnect(() -> Packet.builder().putDouble(d, ByteOrder.LITTLE_ENDIAN).queueAndFlush(client));
         server.onConnect(client -> client.readDouble(readDouble -> {
@@ -373,5 +377,4 @@ final class ReadTest {
             latch.countDown();
         }, charset, order));
     }
-    
 }

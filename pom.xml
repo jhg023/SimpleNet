@@ -12,10 +12,14 @@
 
     <groupId>com.github.jhg023</groupId>
     <artifactId>SimpleNet</artifactId>
-    <version>1.5.1</version>
-    <packaging>jar</packaging>
+    <version>1.5.2</version>
 
     <dependencies>
+        <dependency>
+            <groupId>com.github.jhg023</groupId>
+            <artifactId>Pbbl</artifactId>
+            <version>1.0.1</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -35,9 +39,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.jhg023</groupId>
-            <artifactId>Pbbl</artifactId>
-            <version>1.0.1</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.0-alpha1</version>
         </dependency>
     </dependencies>
 
@@ -150,7 +154,7 @@
                     <dependency>
                         <groupId>org.ow2.asm</groupId>
                         <artifactId>asm</artifactId>
-                        <version>7.1</version>
+                        <version>7.2</version>
                     </dependency>
                 </dependencies>
                 <configuration>

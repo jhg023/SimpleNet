@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 import com.github.simplenet.Client;
 import com.github.simplenet.Server;
 import org.junit.jupiter.api.AfterEach;
@@ -77,5 +76,4 @@ final class ConnectionTest {
             latch.countDown();
         });
     }
-    
 }

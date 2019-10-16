@@ -118,5 +118,4 @@ public interface ByteReader extends DataReader {
         buffer.get(b);
         consumer.accept(b);
     }
-    
 }

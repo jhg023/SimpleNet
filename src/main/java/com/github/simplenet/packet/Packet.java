@@ -473,5 +473,4 @@ public final class Packet {
     public Deque<Consumer<ByteBuffer>> getQueue() {
         return queue;
     }
-
 }

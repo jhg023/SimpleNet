@@ -59,5 +59,4 @@ public interface ByteConsumer {
         Objects.requireNonNull(after);
         return (byte t) -> { accept(t); after.accept(t); };
     }
-
 }

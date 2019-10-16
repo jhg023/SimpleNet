@@ -101,5 +101,4 @@ public final class MutableInt {
     public String toString() {
         return "MutableInt[value = " + value + "]";
     }
-    
 }

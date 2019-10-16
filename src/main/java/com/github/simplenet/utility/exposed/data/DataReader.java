@@ -133,5 +133,4 @@ public interface DataReader {
             throw new IllegalStateException("Blocking methods cannot be called from within callbacks!");
         }
     }
-    
 }

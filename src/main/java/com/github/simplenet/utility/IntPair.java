@@ -74,5 +74,4 @@ public final class IntPair<T> {
     public String toString() {
         return "IntPair[key: " + key + ", value: " + value + "]";
     }
-    
 }

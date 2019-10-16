@@ -59,5 +59,4 @@ public interface ShortConsumer {
         Objects.requireNonNull(after);
         return (short t) -> { accept(t); after.accept(t); };
     }
-
 }

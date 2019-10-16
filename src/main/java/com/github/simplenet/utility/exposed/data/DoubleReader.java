@@ -189,5 +189,4 @@ public interface DoubleReader extends DataReader {
         buffer.asDoubleBuffer().get(d);
         consumer.accept(d);
     }
-    
 }

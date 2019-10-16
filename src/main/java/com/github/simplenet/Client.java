@@ -38,6 +38,8 @@ import com.github.simplenet.utility.exposed.data.FloatReader;
 import com.github.simplenet.utility.exposed.data.IntReader;
 import com.github.simplenet.utility.exposed.data.LongReader;
 import com.github.simplenet.utility.exposed.data.StringReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
 
@@ -54,6 +56,7 @@ import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
@@ -72,7 +75,9 @@ import java.util.function.Predicate;
  */
 public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel>, BooleanReader,
         ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
-    
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Client.class);
+
     /**
      * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
      */
@@ -110,7 +115,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 var stack = client.stack;
 
                 boolean shouldDecrypt = client.decryptionCipher != null;
-				boolean isQueueEmpty = false;
+				boolean queueIsEmpty = false;
 
 				int key;
 	
@@ -127,8 +132,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                     if (shouldDecrypt) {
                         try {
-                            wrappedBuffer = client.decryptionFunction.apply(client.decryptionCipher,
-                                    wrappedBuffer).flip();
+                            wrappedBuffer = client.decryptionFunction.apply(client.decryptionCipher, wrappedBuffer)
+                                    .flip();
                         } catch (Exception e) {
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                         }
@@ -140,9 +145,10 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
     
                     if (wrappedBuffer.hasRemaining()) {
-                        if (Utility.isDebug()) {
-                            System.err.println(wrappedBuffer.remaining() + " byte(s) still need to be read!");
-                        }
+                        int remaining = wrappedBuffer.remaining();
+                        var decoded = wrappedBuffer.clear().array();
+                        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
+                                remaining, decoded.length <= 8 ? decoded : Arrays.copyOfRange(decoded, 0, 8));
                     }
                     
                     while (!stack.isEmpty()) {
@@ -150,7 +156,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
         
                     if ((peek = queue.peekLast()) == null) {
-                    	isQueueEmpty = true;
+                        queueIsEmpty = true;
                         break;
                     }
                 }
@@ -163,7 +169,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     buffer.clear();
                 }
                 
-                if (isQueueEmpty) {
+                if (queueIsEmpty) {
 					// Because the queue is empty, the client should not attempt to read more data until
 					// more is requested by the user.
                     buffer.position(0);
@@ -416,7 +422,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      */
     public final void connect(String address, int port) {
         connect(address, port, 30L, TimeUnit.SECONDS, () ->
-            System.err.println("Couldn't connect to the server! Maybe it's offline?"));
+            LOGGER.warn("Couldn't connect to the server! Maybe it's offline?"));
     }
 
     /**
@@ -443,14 +449,11 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             thread.setDaemon(false);
             thread.setName(thread.getName().replace("Thread", "SimpleNet"));
             
-            if (Utility.isDebug()) {
-                thread.setUncaughtExceptionHandler(($, throwable) -> throwable.printStackTrace());
-            }
-            
             return thread;
         }, (runnable, threadPoolExecutor) -> {});
 
-        executor.prestartAllCoreThreads();
+        // Start one core thread in advance to prevent the JVM from shutting down.
+        executor.prestartCoreThread();
 
         try {
             this.channel = AsynchronousSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
@@ -509,9 +512,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
             try {
                 group.shutdownNow();
             } catch (IOException e) {
-                if (Utility.isDebug()) {
-                    e.printStackTrace();
-                }
+                LOGGER.debug("An IOException occurred when shutting down the AsynchronousChannelGroup!", e);
             }
         }
 
@@ -590,11 +591,12 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 				}
 		
 				boolean shouldReturn = !predicate.test(wrappedBuffer);
-                
+
                 if (wrappedBuffer.hasRemaining()) {
-                    if (Utility.isDebug()) {
-                        System.err.println(wrappedBuffer.remaining() + " byte(s) still need to be read!");
-                    }
+                    int remaining = wrappedBuffer.remaining();
+                    var decoded = wrappedBuffer.clear().array();
+                    LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
+                            remaining, decoded.length <= 8 ? decoded : Arrays.copyOfRange(decoded, 0, 8));
                 }
 				
 				if (shouldReturn) {
@@ -663,7 +665,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
 
                 // If there exists a packet which could not be flushed due to overflow, add it to the queue to be
-                // flushed on the next iteration, and update 'totalBytes'.
+                // flushed on the next iteration, and reset 'totalBytes'.
                 if (overflow != null) {
                     outgoingPackets.offerLast(overflow);
                     totalBytes = 0;
@@ -767,5 +769,4 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.decryptionFunction = decryptionFunction;
         this.decryptionNoPadding = decryptionCipher.getAlgorithm().endsWith("NoPadding");
     }
-    
 }

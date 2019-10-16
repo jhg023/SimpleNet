@@ -189,5 +189,4 @@ public interface LongReader extends DataReader {
         buffer.asLongBuffer().get(l);
         consumer.accept(l);
     }
-    
 }

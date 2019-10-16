@@ -95,5 +95,4 @@ abstract class Receiver<T> {
     public final int getBufferSize() {
         return bufferSize;
     }
-
 }

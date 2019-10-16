@@ -59,5 +59,4 @@ public interface CharConsumer {
         Objects.requireNonNull(after);
         return (char t) -> { accept(t); after.accept(t); };
     }
-
 }

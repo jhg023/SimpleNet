@@ -54,5 +54,4 @@ public interface Channeled<T extends AsynchronousChannel> {
             throw new IllegalStateException("Unable to close the backing AsynchronousChannel:", e);
         }
     }
-
 }

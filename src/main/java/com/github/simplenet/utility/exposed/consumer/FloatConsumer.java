@@ -59,5 +59,4 @@ public interface FloatConsumer {
         Objects.requireNonNull(after);
         return (float t) -> { accept(t); after.accept(t); };
     }
-
 }

@@ -392,5 +392,4 @@ final class PacketTest {
         Assertions.assertEquals(-24, buffer.get());
         Assertions.assertEquals(123, buffer.get());
     }
-
 }

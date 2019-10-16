@@ -90,5 +90,4 @@ public final class MutableBoolean {
     public String toString() {
         return "MutableBoolean[value = " + value + "]";
     }
-    
 }

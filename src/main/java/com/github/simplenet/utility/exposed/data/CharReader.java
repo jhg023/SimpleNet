@@ -190,5 +190,4 @@ public interface CharReader extends DataReader {
         buffer.asCharBuffer().get(c);
         consumer.accept(c);
     }
-    
 }

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 import com.github.simplenet.Client;
 import com.github.simplenet.Server;
 import com.github.simplenet.packet.Packet;
@@ -52,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Hwiggy <https://github.com/Hwiggy>
  */
-class EncryptionTest {
+final class EncryptionTest {
 
     private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
         ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
@@ -89,64 +88,66 @@ class EncryptionTest {
     }
     
     @Test
-    void testPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
-        final Server server = new Server();
+    void testPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
+            InvalidKeyException {
+        var server = new Server();
         server.bind("localhost", 9000);
-        final String AES = "AES/CBC/PKCS5Padding";
-        final Cipher
-                a = Cipher.getInstance(AES),
-                b = Cipher.getInstance(AES),
-                c = Cipher.getInstance(AES),
+
+        String AES = "AES/CBC/PKCS5Padding";
+
+        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
+
         startTest(server, 9000, a, b, c, d, DO_FINAL, DO_FINAL);
     }
     
     @Test
-    void testNoPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
-        final Server server = new Server();
+    void testNoPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
+            InvalidKeyException {
+        var server = new Server();
+
         server.bind("localhost", 9001);
-        final String AES = "AES/CFB8/NoPadding";
-        final Cipher
-                a = Cipher.getInstance(AES),
-                b = Cipher.getInstance(AES),
-                c = Cipher.getInstance(AES),
+
+        String AES = "AES/CFB8/NoPadding";
+
+        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
+
         startTest(server, 9001, a, b, c, d, UPDATE, UPDATE);
     }
     
     @Test
     void testNoPaddingAESFinal() throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException, InterruptedException {
-        final Server server = new Server();
+            InvalidAlgorithmParameterException, InvalidKeyException {
+        var server = new Server();
+
         server.bind("localhost", 9003);
-        final String AES = "AES/CFB8/NoPadding";
-        final Cipher
-                a = Cipher.getInstance(AES),
-                b = Cipher.getInstance(AES),
-                c = Cipher.getInstance(AES),
+
+        String AES = "AES/CFB8/NoPadding";
+
+        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
+
         startTest(server, 9003, a, b, c, d, DO_FINAL, DO_FINAL);
     }
     
-    private void initCiphers(
-            Cipher serverEncryption,
-            Cipher serverDecryption,
-            Cipher clientEncryption,
-            Cipher clientDecryption
-    ) throws InvalidAlgorithmParameterException, InvalidKeyException {
-        final IvParameterSpec ivSpec = new IvParameterSpec(sharedSecret);
-        final SecretKeySpec keySpec = new SecretKeySpec(sharedSecret, "AES");
+    private void initCiphers(Cipher serverEncryption, Cipher serverDecryption, Cipher clientEncryption,
+                             Cipher clientDecryption) throws InvalidAlgorithmParameterException, InvalidKeyException {
+        IvParameterSpec ivSpec = new IvParameterSpec(sharedSecret);
+        SecretKeySpec keySpec = new SecretKeySpec(sharedSecret, "AES");
+
         serverEncryption.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
         serverDecryption.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+
         clientEncryption.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
         clientDecryption.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
     }
     
     private void startTest(Server server, int port, Cipher serverEncryption, Cipher serverDecryption,
-            Cipher clientEncryption, Cipher clientDecryption, CryptographicFunction encryption,
+                           Cipher clientEncryption, Cipher clientDecryption, CryptographicFunction encryption,
                            CryptographicFunction decryption) {
         server.onConnect(client -> {
             client.setEncryption(serverEncryption, encryption);
@@ -175,21 +176,15 @@ class EncryptionTest {
             });
         });
         
-        final Client client = new Client();
+        var client = new Client();
         
         client.onConnect(() -> {
             client.setEncryption(clientEncryption, encryption);
             client.setDecryption(clientDecryption, decryption);
-            Packet.builder()
-                    .putBytes(encryptBytes)
-                    .putString("Hello World!")
-                    .putLong(54735436752L)
-                    .putDouble(23.1231)
-                    .putByte(0x00)
-                    .queueAndFlush(client);
+            Packet.builder().putBytes(encryptBytes).putString("Hello World!").putLong(54735436752L).putDouble(23.1231)
+                    .putByte(0x00).queueAndFlush(client);
         });
         
         client.connect("localhost", port);
     }
-    
 }

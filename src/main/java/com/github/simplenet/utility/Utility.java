@@ -35,16 +35,7 @@ public final class Utility {
      * A {@code private} constructor that throws an {@link UnsupportedOperationException} when invoked.
      */
     private Utility() {
-        throw new UnsupportedOperationException("This is a utility class and cannot be instantiated!");
-    }
-    
-    /**
-     * Gets whether or not debug mode is enabled (i.e. if the {@code com.github.simplenet.debug} system property is set).
-     *
-     * @return {@code true} if debug mode is enabled, otherwise {@code false}.
-     */
-    public static boolean isDebug() {
-        return System.getProperties().containsKey("com.github.simplenet.debug");
+        throw new UnsupportedOperationException("This class cannot be instantiated!");
     }
     
     /**
@@ -57,5 +48,4 @@ public final class Utility {
     public static int roundUpToNextMultiple(int num, int multiple) {
         return multiple == 0 ? num : num + multiple - (num % multiple);
     }
-    
 }

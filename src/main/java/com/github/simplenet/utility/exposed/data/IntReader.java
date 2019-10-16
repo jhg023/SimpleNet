@@ -189,5 +189,4 @@ public interface IntReader extends DataReader {
         buffer.asIntBuffer().get(i);
         consumer.accept(i);
     }
-    
 }

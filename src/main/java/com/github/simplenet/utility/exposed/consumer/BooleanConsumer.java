@@ -59,5 +59,4 @@ public interface BooleanConsumer {
         Objects.requireNonNull(after);
         return (boolean t) -> { accept(t); after.accept(t); };
     }
-    
 }

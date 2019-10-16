@@ -25,7 +25,8 @@ package com.github.simplenet;
 
 import com.github.simplenet.channel.Channeled;
 import com.github.simplenet.packet.Packet;
-import com.github.simplenet.utility.Utility;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -54,6 +55,8 @@ import java.util.function.Consumer;
  * @since November 1, 2017
  */
 public class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     /**
      * The number of threads to use in the backing {@link AsynchronousChannelGroup}.
@@ -98,7 +101,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
      * @see #Server(int, int)
      */
     public Server(int bufferSize) throws IllegalStateException {
-        this(bufferSize, Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        this(bufferSize, Math.max(2, Runtime.getRuntime().availableProcessors() - 2));
     }
     
     /**
@@ -140,7 +143,8 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
             return thread;
         }, (runnable, threadPoolExecutor) -> {});
 
-        executor.prestartAllCoreThreads();
+        // Start one core thread in advance to prevent the JVM from shutting down.
+        executor.prestartCoreThread();
 
         try {
             this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
@@ -163,13 +167,11 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
 
                 @Override
                 public void failed(Throwable t, Void attachment) {
-                
+                    LOGGER.debug("An exception occurred when accepting a Client!", t);
                 }
             });
 
-            if (Utility.isDebug()) {
-                System.out.printf("Successfully bound to %s:%d!\n", address, port);
-            }
+            LOGGER.info("Successfully bound to {}:{}!", address, port);
         } catch (AlreadyBoundException e) {
             throw new IllegalStateException("This server is already bound!", e);
         } catch (IOException e) {
@@ -193,9 +195,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
         try {
             group.shutdownNow();
         } catch (IOException e) {
-            if (Utility.isDebug()) {
-                e.printStackTrace();
-            }
+            LOGGER.debug("An IOException occurred when shutting down the AsynchronousChannelGroup!", e);
         }
     }
 
@@ -305,5 +305,4 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
     public final void queueAndFlushToAllExcept(Packet packet, Collection<? extends Client> clients) {
         queueHelper(packet::queueAndFlush, clients);
     }
-    
 }

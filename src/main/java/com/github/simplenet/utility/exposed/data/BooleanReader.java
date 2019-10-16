@@ -129,5 +129,4 @@ public interface BooleanReader extends DataReader {
     
         consumer.accept(b);
     }
-    
 }
