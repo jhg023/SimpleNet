@@ -68,7 +68,7 @@ final class ReadTest {
         client.connect(HOST, PORT);
         
         try {
-            if (!latch.await(500L, TimeUnit.SECONDS)) {
+            if (!latch.await(500L, TimeUnit.MILLISECONDS)) {
                 fail();
             }
         } finally {

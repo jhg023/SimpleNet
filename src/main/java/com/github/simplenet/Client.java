@@ -103,9 +103,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                 var buffer = client.buffer.flip();
                 var queue = client.queue;
-                
+
                 IntPair<Predicate<ByteBuffer>> peek;
-    
+
                 if ((peek = queue.peekLast()) == null) {
                     client.readInProgress.set(false);
 					return;
@@ -117,7 +117,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 				boolean queueIsEmpty = false;
 
 				int key;
-	
+
 				client.inCallback.set(true);
                 
                 while (client.size.get() >= (key = peek.key)) {
@@ -140,14 +140,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
 
                     if (wrappedBuffer.hasRemaining()) {
-                        int remaining = wrappedBuffer.remaining();
-                        byte[] decodedData = new byte[Math.min(key, 8)];
-                        wrappedBuffer.reset().get(decodedData);
-                        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
-                                remaining, decodedData);
-                        wrappedBuffer.position(wrappedBuffer.limit());
+                        client.notifyOfUnreadData(key, wrappedBuffer);
                     }
-                    
+
                     while (!stack.isEmpty()) {
                         queue.offerLast(stack.pop());
                     }
@@ -157,7 +152,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                         break;
                     }
                 }
-    
+
                 client.inCallback.set(false);
 
                 int size;
@@ -251,7 +246,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * wouldn't reference the same value.
      */
     private final MutableInt size;
-	
+
 	/**
 	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
 	 */
@@ -381,7 +376,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     
     /**
      * Instantiates a new {@link Client} (whose fields directly refer to the fields of the specified {@link Client})
-     * from an existing {@link Client}, essentially acting as a copy-constructor.
+     * from an existing {@link Client}, essentially acting as a shallow copy-constructor.
      * <br><br>
      * This exists so that, if a user creates a class that extends {@link Client}, they can pass in an existing
      * {@link Client}, allowing them to invoke {@code super(client)} inside their constructor. Doing so will allow
@@ -389,7 +384,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @param client An existing {@link Client} whose backing {@link AsynchronousSocketChannel} is already connected.
      */
-    public Client(Client client) {
+    protected Client(Client client) {
         super(client);
 	
 		this.size = client.size;
@@ -588,12 +583,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 				boolean shouldReturn = !predicate.test(wrappedBuffer);
 
                 if (wrappedBuffer.hasRemaining()) {
-                    int remaining = wrappedBuffer.remaining();
-                    byte[] decodedData = new byte[Math.min(n, 8)];
-                    wrappedBuffer.reset().get(decodedData);
-                    LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
-                            remaining, decodedData);
-                    wrappedBuffer.position(wrappedBuffer.limit());
+                    notifyOfUnreadData(n, wrappedBuffer);
                 }
 				
 				if (shouldReturn) {
@@ -765,5 +755,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         this.decryptionCipher = decryptionCipher;
         this.decryptionFunction = decryptionFunction;
         this.decryptionNoPadding = decryptionCipher.getAlgorithm().endsWith("NoPadding");
+    }
+
+    /**
+     * A helper method (to reduce duplicate code) that notifies the user that they have not fully read a packet.
+     *
+     * @param length The total amount of data being read, in bytes.
+     * @param buffer The {@link ByteBuffer} that contains the unread data, with its {@code mark} set at the beginning
+     *               of the data.
+     */
+    private void notifyOfUnreadData(int length, ByteBuffer buffer) {
+        int remaining = buffer.remaining();
+        byte[] decodedData = new byte[Math.min(length, 8)];
+        buffer.reset().get(decodedData);
+        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
+                remaining, decodedData);
+        buffer.position(buffer.limit());
     }
 }
