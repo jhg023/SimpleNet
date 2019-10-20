@@ -28,7 +28,6 @@ import com.github.simplenet.utility.exposed.predicate.FloatPredicate;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -38,32 +37,6 @@ import java.util.function.Consumer;
  * @version January 21, 2019
  */
 public interface FloatReader extends DataReader {
-    
-    /**
-     * Reads a {@code float} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
-     * unlike {@link #readFloat(FloatConsumer)}.
-     *
-     * @return A {@code float}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     * @see #readFloat(ByteOrder)
-     */
-    default float readFloat() throws IllegalStateException {
-        return readFloat(ByteOrder.BIG_ENDIAN);
-    }
-    
-    /**
-     * Reads a {@code float} with the specified {@link ByteOrder} from the network, but blocks the executing thread
-     * unlike {@link #readFloat(FloatConsumer)}.
-     *
-     * @return A {@code float}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default float readFloat(ByteOrder order) throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<Float>();
-        readFloat(future::complete, order);
-        return read(future);
-    }
     
     /**
      * Calls {@link #readFloat(FloatConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

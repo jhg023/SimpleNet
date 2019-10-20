@@ -28,7 +28,6 @@ import com.github.simplenet.utility.exposed.predicate.BytePredicate;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -38,19 +37,6 @@ import java.util.function.Consumer;
  * @version January 21, 2019
  */
 public interface ByteReader extends DataReader {
-    
-    /**
-     * Reads a {@code byte} from the network, but blocks the executing thread unlike {@link #readByte(ByteConsumer)}.
-     *
-     * @return A {@code byte}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default byte readByte() throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<Byte>();
-        readByte(future::complete);
-        return read(future);
-    }
     
     /**
      * Requests a single {@code byte} and accepts a {@link ByteConsumer} with the {@code byte} when it is received.

@@ -28,7 +28,6 @@ import com.github.simplenet.utility.exposed.predicate.BooleanPredicate;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -41,21 +40,6 @@ import java.util.function.Consumer;
  * @version January 21, 2019
  */
 public interface BooleanReader extends DataReader {
-    
-    /**
-     * Reads a {@code boolean} from the network, but blocks the executing thread unlike
-     * {@link #readBoolean(BooleanConsumer)}.
-     *
-     * @return A {@code boolean}.
-     * @see #readBoolean(BooleanConsumer)
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default boolean readBoolean() throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<Boolean>();
-        readBoolean(future::complete);
-        return read(future);
-    }
     
     /**
      * Requests a single {@code boolean}, and accepts a {@link BooleanConsumer} with the {@code boolean} when it is

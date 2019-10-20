@@ -25,7 +25,6 @@ package com.github.simplenet.utility.exposed.data;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongPredicate;
@@ -37,32 +36,6 @@ import java.util.function.LongPredicate;
  * @version January 21, 2019
  */
 public interface LongReader extends DataReader {
-    
-    /**
-     * Reads a {@code long} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
-     * unlike {@link #readLong(LongConsumer)}.
-     *
-     * @return A {@code long}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     * @see #readLong(ByteOrder)
-     */
-    default long readLong() throws IllegalStateException {
-        return readLong(ByteOrder.BIG_ENDIAN);
-    }
-    
-    /**
-     * Reads a {@code long} with the specified {@link ByteOrder} from the network, but blocks the executing thread
-     * unlike {@link #readLong(LongConsumer)}.
-     *
-     * @return A {@code long}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default long readLong(ByteOrder order) throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<Long>();
-        readLong(future::complete, order);
-        return read(future);
-    }
     
     /**
      * Calls {@link #readLong(LongConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.

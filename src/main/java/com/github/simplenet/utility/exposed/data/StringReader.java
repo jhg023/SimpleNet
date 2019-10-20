@@ -26,7 +26,6 @@ package com.github.simplenet.utility.exposed.data;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -37,44 +36,6 @@ import java.util.function.Predicate;
  * @version January 21, 2019
  */
 public interface StringReader extends ShortReader {
-    
-    /**
-     * Reads a {@link String} with {@link StandardCharsets#UTF_8} as the encoding and {@link ByteOrder#BIG_ENDIAN} as
-     * the {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
-     *
-     * @return A {@link String}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     * @see #readString(Charset)
-     */
-    default String readString() throws IllegalStateException {
-        return readString(StandardCharsets.UTF_8);
-    }
-    
-    /**
-     * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder#BIG_ENDIAN} as the
-     * {@code order}, but blocks the executing thread unlike {@link #readString(Consumer)}.
-     *
-     * @return A {@link String}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     * @see #readString(Charset, ByteOrder)
-     */
-    default String readString(Charset charset) throws IllegalStateException {
-        return readString(charset, ByteOrder.BIG_ENDIAN);
-    }
-    
-    /**
-     * Reads a {@link String} with the specified {@link Charset} and {@link ByteOrder}, but blocks the executing
-     * thread unlike {@link #readString(Consumer)}.
-     *
-     * @return A {@link String}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default String readString(Charset charset, ByteOrder order) throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<String>();
-        readString(future::complete, charset, order);
-        return read(future);
-    }
     
     /**
      * Calls {@link #readString(Consumer, Charset, ByteOrder)} with {@link StandardCharsets#UTF_8} as the encoding and

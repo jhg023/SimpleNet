@@ -26,7 +26,6 @@ package com.github.simplenet.utility.exposed.data;
 import javax.crypto.Cipher;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -38,17 +37,6 @@ import java.util.function.Predicate;
  */
 @FunctionalInterface
 public interface DataReader {
-    
-    /**
-     * A helper method to block until the {@link CompletableFuture} contains a value.
-     *
-     * @param future The {@link CompletableFuture} to wait for.
-     * @param <T>    The type of the {@link CompletableFuture} and the return type.
-     * @return The instance of {@code T} contained in the {@link CompletableFuture}.
-     */
-    default <T> T read(CompletableFuture<T> future) {
-        return future.join();
-    }
     
     /**
      * Requests {@code n} bytes and accepts a {@link Consumer} with them (in a {@link ByteBuffer}) (with
@@ -115,22 +103,5 @@ public interface DataReader {
             consumer.accept(buffer);
             return true;
         }, order);
-    }
-    
-    /**
-     * Throws an {@link IllegalStateException} if this method is called from a {@link Thread} whose name begins with
-     * {@code "SimpleNet"}.
-     * <br><br>
-     * This is primarily used to prevent blocking methods from being called within non-blocking callbacks (which
-     * essentially deadlock the network thread).
-     * <br><br>
-     * This will be removed when Project Loom is fully integrated into the mainline JDK.
-     *
-     * @throws IllegalStateException if called from a {@link Thread} whose name begins with {@code "SimpleNet"}.
-     */
-    default void checkIfBlockingInsideCallback() throws IllegalStateException {
-        if (Thread.currentThread().getName().startsWith("SimpleNet")) {
-            throw new IllegalStateException("Blocking methods cannot be called from within callbacks!");
-        }
     }
 }

@@ -28,7 +28,6 @@ import com.github.simplenet.utility.exposed.predicate.CharPredicate;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -38,32 +37,6 @@ import java.util.function.Consumer;
  * @version January 21, 2019
  */
 public interface CharReader extends DataReader {
-    
-    /**
-     * Reads a {@code char} with {@link ByteOrder#BIG_ENDIAN} order from the network, but blocks the executing thread
-     * unlike {@link #readChar(CharConsumer)}.
-     *
-     * @return A {@code char}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     * @see #readChar(ByteOrder)
-     */
-    default char readChar() throws IllegalStateException {
-        return readChar(ByteOrder.BIG_ENDIAN);
-    }
-    
-    /**
-     * Reads a {@code char} with the specified {@link ByteOrder} from the network, but blocks the executing thread
-     * unlike {@link #readChar(CharConsumer)}.
-     *
-     * @return A {@code char}.
-     * @throws IllegalStateException if this method is called inside of a non-blocking callback.
-     */
-    default char readChar(ByteOrder order) throws IllegalStateException {
-        checkIfBlockingInsideCallback();
-        var future = new CompletableFuture<Character>();
-        readChar(future::complete, order);
-        return read(future);
-    }
     
     /**
      * Calls {@link #readChar(CharConsumer, ByteOrder)} with {@link ByteOrder#BIG_ENDIAN} as the {@code order}.
