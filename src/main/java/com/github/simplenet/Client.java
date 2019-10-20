@@ -128,7 +128,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     if (shouldDecrypt) {
                         try {
                             wrappedBuffer = client.decryptionFunction.apply(client.decryptionCipher, wrappedBuffer)
-                                    .flip();
+                                    .reset();
                         } catch (Exception e) {
                             throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
                         }
@@ -166,7 +166,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 if (queueIsEmpty) {
 					// Because the queue is empty, the client should not attempt to read more data until
 					// more is requested by the user.
-                    buffer.position(0);
 					client.readInProgress.set(false);
 				} else {
 					// Because the queue is NOT empty and we don't have enough data to process the request,
@@ -574,7 +573,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
 				if (shouldDecrypt) {
 					try {
-						wrappedBuffer = decryptionFunction.apply(decryptionCipher, wrappedBuffer).flip();
+						wrappedBuffer = decryptionFunction.apply(decryptionCipher, wrappedBuffer);
 					} catch (GeneralSecurityException e) {
 						throw new IllegalStateException("An exception occurred whilst decrypting data!", e);
 					}
@@ -585,7 +584,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 if (wrappedBuffer.hasRemaining()) {
                     notifyOfUnreadData(n, wrappedBuffer);
                 }
-				
+
 				if (shouldReturn) {
 					return;
 				}
@@ -626,7 +625,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 }
 
                 if (isTooBig || isEmpty) {
-                    ByteBuffer raw = DIRECT_BUFFER_POOL.take(isEmpty ? totalBytes : currentBytes);
+                    ByteBuffer raw = DIRECT_BUFFER_POOL.take(isTooBig ? currentBytes : totalBytes);
 
                     Consumer<ByteBuffer> input;
 
