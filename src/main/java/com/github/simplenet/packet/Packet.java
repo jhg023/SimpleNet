@@ -95,7 +95,7 @@ public final class Packet {
         } else {
             queue.offerLast(consumer);
         }
-        
+
         return this;
     }
     
