@@ -58,7 +58,7 @@ final class ReadTest {
     @BeforeEach
     void beforeEach() {
         client = new Client();
-        server = new Server();
+        server = new Server(8_192, 1);
         latch = new CountDownLatch(1);
         server.bind(HOST, PORT);
     }
@@ -366,6 +366,22 @@ final class ReadTest {
                     assertEquals(l, second);
                     latch.countDown();
                 });
+            });
+        });
+    }
+
+    @Test
+    void testDoNotReadEveryByteFromBuffer() {
+        long first = ThreadLocalRandom.current().nextLong(), second = ThreadLocalRandom.current().nextLong(),
+            third = ThreadLocalRandom.current().nextLong();
+        client.onConnect(() -> {
+            Packet.builder().putLong(first).putLong(second).putLong(third).queueAndFlush(client);
+        });
+        server.onConnect(client -> {
+            client.read(Long.BYTES * 2, buffer -> {});
+            client.readLong(readThird -> {
+                assertEquals(third, readThird);
+                latch.countDown();
             });
         });
     }

@@ -5,21 +5,8 @@
 .idea/
 target/
 
-# CMake
-cmake-build-debug/
-cmake-build-release/
-
 # File-based project format
-*.iws
-
-# mpeltonen/sbt-idea plugin
-.idea_modules/
-
-# JIRA plugin
-atlassian-ide-plugin.xml
-
-# Cursive Clojure plugin
-.idea/replstate.xml
+*.iml
 
 # Crashlytics plugin (for Android Studio and IntelliJ)
 com_crashlytics_export_strings.xml
