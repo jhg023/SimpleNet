@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.Queue;
 import java.util.function.Consumer;
 
 /**
@@ -354,18 +355,10 @@ public final class Packet {
      * @param client The {@link Client client} to queue this {@link Packet packet} to.
      */
     public final void queue(Client client) {
-        int size = getSize(client);
-        
-        if (size > client.getBufferSize()) {
-            throw new IllegalStateException("Packet is too large (size: " + size + ") for client buffer " +
-                    "(limit: " + client.getBufferSize() + "). The client's buffer size can be increased via its " +
-                    "constructor.");
-        }
-    
-        Deque<Packet> clientQueue;
+        Queue<Packet> clientQueue;
         
         synchronized ((clientQueue = client.getOutgoingPackets())) {
-            clientQueue.offerFirst(this);
+            clientQueue.offer(this);
         }
     }
     

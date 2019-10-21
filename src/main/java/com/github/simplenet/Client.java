@@ -23,10 +23,10 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.channel.Channeled;
 import com.github.simplenet.packet.Packet;
 import com.github.simplenet.utility.IntPair;
 import com.github.simplenet.utility.MutableBoolean;
+import com.github.simplenet.utility.Pair;
 import com.github.simplenet.utility.Utility;
 import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
 import com.github.simplenet.utility.exposed.data.BooleanReader;
@@ -79,7 +79,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     /**
      * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
      */
-    static class Listener implements CompletionHandler<Integer, Client> {
+    static class Listener implements CompletionHandler<Integer, Pair<Client, ByteBuffer>> {
 
         /**
          * A {@code static} instance of this class to be reused.
@@ -87,37 +87,39 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         static final Listener INSTANCE = new Listener();
         
         @Override
-        public void completed(Integer result, Client client) {
+        public void completed(Integer result, Pair<Client, ByteBuffer> pair) {
             // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
             // client's connection.
             int bytesReceived = result;
 
             if (bytesReceived == -1) {
-                client.close(false);
+                pair.getKey().close(false);
                 return;
             }
 
-            synchronized (client.buffer) {
-                var buffer = client.buffer.flip();
+            var client = pair.getKey();
+            var buffer = pair.getValue().flip();
+
+            synchronized (client.queue) {
                 var queue = client.queue;
 
                 IntPair<Predicate<ByteBuffer>> peek;
 
                 if ((peek = queue.peekLast()) == null) {
                     client.readInProgress.set(false);
-					return;
+                    return;
                 }
 
                 var stack = client.stack;
 
                 boolean shouldDecrypt = client.decryptionCipher != null;
-				boolean queueIsEmpty = false;
+                boolean queueIsEmpty = false;
 
-				int key;
+                int key;
 
-				client.inCallback.set(true);
+                client.inCallback.set(true);
 
-                while (buffer.remaining() >= (key = peek.key)) {
+                while (buffer.remaining() >= (key = peek.getKey())) {
                     var wrappedBuffer = buffer.duplicate().mark().limit(buffer.position() + key);
 
                     if (shouldDecrypt) {
@@ -130,7 +132,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     }
 
                     // If the predicate returns false, poll the element from the queue.
-                    if (!peek.value.test(wrappedBuffer)) {
+                    if (!peek.getValue().test(wrappedBuffer)) {
                         queue.pollLast();
                     }
 
@@ -147,7 +149,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                     while (!stack.isEmpty()) {
                         queue.offerLast(stack.pop());
                     }
-        
+
                     if ((peek = queue.peekLast()) == null) {
                         queueIsEmpty = true;
                         break;
@@ -156,27 +158,25 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                 client.inCallback.set(false);
 
-                if (buffer.hasRemaining()) {
-                    buffer.compact();
-                } else {
-                    buffer.clear();
-                }
-                
+                // The buffer that was used must be returned to the pool.
+                DIRECT_BUFFER_POOL.give(buffer);
+
                 if (queueIsEmpty) {
-					// Because the queue is empty, the client should not attempt to read more data until
-					// more is requested by the user.
-					client.readInProgress.set(false);
-				} else {
-					// Because the queue is NOT empty and we don't have enough data to process the request,
-					// we must read more data.
-					client.channel.read(buffer, client, this);
-				}
+                    // Because the queue is empty, the client should not attempt to read more data until
+                    // more is requested by the user.
+                    client.readInProgress.set(false);
+                } else {
+                    // Because the queue is NOT empty and we don't have enough data to process the request,
+                    // we must read more data.
+                    var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
+                    client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
+                }
             }
         }
 
         @Override
-        public void failed(Throwable t, Client client) {
-            client.close(false);
+        public void failed(Throwable t, Pair<Client, ByteBuffer> pair) {
+            pair.getKey().close(false);
         }
     }
 
@@ -231,11 +231,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
      */
     private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
-    
-    /**
-     * The {@link ByteBuffer} that will hold data sent by the {@link Client} or {@link Server}.
-     */
-    private final ByteBuffer buffer;
 
 	/**
 	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
@@ -258,9 +253,9 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private final AtomicBoolean writeInProgress;
     
     /**
-     * A {@link Deque} to manage outgoing {@link Packet}s.
+     * A {@link Queue} to manage outgoing {@link Packet}s.
      */
-    private final Deque<Packet> outgoingPackets;
+    private final Queue<Packet> outgoingPackets;
 
     /**
      * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
@@ -321,32 +316,19 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     private AsynchronousSocketChannel channel;
     
     /**
-     * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel} with a
-     * default buffer size of {@code 4,096} bytes.
+     * Instantiates a new {@link Client}.
      */
     public Client() {
-        this(8_192);
+        this((AsynchronousSocketChannel) null);
     }
 
     /**
-     * Instantiates a new {@link Client} by attempting to open the backing {@link AsynchronousSocketChannel} with a
-     * provided buffer size in bytes.
+     * Instantiates a new {@link Client} with an existing {@link AsynchronousSocketChannel}.
      *
-     * @param bufferSize The size of this {@link Client}'s buffer, in bytes.
+     * @param channel The channel to back this {@link Client} with.
      */
-    public Client(int bufferSize) {
-        this(bufferSize, null);
-    }
-
-    /**
-     * Instantiates a new {@link Client} with an existing {@link AsynchronousSocketChannel} with a provided buffer
-     * size in bytes.
-     *
-     * @param bufferSize The size of this {@link Client}'s buffer, in bytes.
-     * @param channel    The channel to back this {@link Client} with.
-     */
-    public Client(int bufferSize, AsynchronousSocketChannel channel) {
-        super(bufferSize);
+    Client(AsynchronousSocketChannel channel) {
+        super(8_192);
 
         closing = new AtomicBoolean();
         inCallback = new MutableBoolean();
@@ -356,7 +338,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         packetsToFlush = new ArrayDeque<>();
         queue = new ArrayDeque<>();
         stack = new ArrayDeque<>();
-        buffer = DIRECT_BUFFER_POOL.take(bufferSize);
         
         if (channel != null) {
             this.channel = channel;
@@ -378,7 +359,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
 		this.stack = client.stack;
 		this.queue = client.queue;
-        this.buffer = client.buffer;
 		this.channel = client.channel;
         this.closing = client.closing;
         this.inCallback = client.inCallback;
@@ -497,8 +477,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
                 LOGGER.debug("An IOException occurred when shutting down the AsynchronousChannelGroup!", e);
             }
         }
-
-        DIRECT_BUFFER_POOL.give(buffer);
     }
 
     /**
@@ -546,18 +524,21 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
         if (shouldDecrypt && !decryptionNoPadding) {
             n = Utility.roundUpToNextMultiple(n, decryptionCipher.getBlockSize());
         }
-	
-        synchronized (buffer) {
+
+        var pair = new IntPair<Predicate<ByteBuffer>>(n, buffer -> predicate.test(buffer.order(order)));
+
+        synchronized (queue) {
             if (inCallback.get()) {
-                stack.push(new IntPair<>(n, buffer -> predicate.test(buffer.order(order))));
+                stack.push(pair);
                 return;
             }
-	
-			queue.offerFirst(new IntPair<>(n, buffer -> predicate.test(buffer.order(order))));
-	
-			if (!readInProgress.getAndSet(true)) {
-				channel.read(buffer, this, Listener.INSTANCE);
-			}
+
+            queue.offerFirst(pair);
+
+            if (!readInProgress.getAndSet(true)) {
+                var buffer = DIRECT_BUFFER_POOL.take(n);
+                channel.read(buffer, new Pair<>(this, buffer), Listener.INSTANCE);
+            }
         }
     }
 
@@ -567,58 +548,38 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * Any {@link Packet}s queued after the call to this method will not be flushed until this method is called again.
      */
     public final void flush() {
-        Packet packet, overflow = null;
-
-        int totalBytes = 0;
+        Packet packet;
 
         boolean shouldEncrypt = encryptionCipher != null;
 
-        var queue = new ArrayDeque<Consumer<ByteBuffer>>();
+        Deque<Consumer<ByteBuffer>> queue;
 
         synchronized (outgoingPackets) {
-            while ((packet = outgoingPackets.pollLast()) != null) {
-                int currentBytes = totalBytes;
-                boolean isTooBig = (totalBytes += packet.getSize(this)) > bufferSize;
-                boolean isEmpty = outgoingPackets.isEmpty();
+            while ((packet = outgoingPackets.poll()) != null) {
+                queue = packet.getQueue();
 
-                if (isTooBig) {
-                    overflow = packet;
+                ByteBuffer raw = DIRECT_BUFFER_POOL.take(packet.getSize(this));
+
+                Consumer<ByteBuffer> input;
+
+                while ((input = queue.pollFirst()) != null) {
+                    input.accept(raw);
+                }
+
+                if (shouldEncrypt) {
+                    try {
+                        raw = encryptionFunction.apply(encryptionCipher, raw.flip());
+                    } catch (GeneralSecurityException e) {
+                        throw new IllegalStateException("An exception occurred whilst encrypting data!", e);
+                    }
+                }
+
+                raw.flip();
+
+                if (!writeInProgress.getAndSet(true)) {
+                    channel.write(raw, raw, packetHandler);
                 } else {
-                    queue.addAll(packet.getQueue());
-                }
-
-                if (isTooBig || isEmpty) {
-                    ByteBuffer raw = DIRECT_BUFFER_POOL.take(isTooBig ? currentBytes : totalBytes);
-
-                    Consumer<ByteBuffer> input;
-
-                    while ((input = queue.pollFirst()) != null) {
-                        input.accept(raw);
-                    }
-
-                    if (shouldEncrypt) {
-                        try {
-                            raw = encryptionFunction.apply(encryptionCipher, raw.flip());
-                        } catch (GeneralSecurityException e) {
-                            throw new IllegalStateException("An exception occurred whilst encrypting data!", e);
-                        }
-                    }
-
-                    raw.flip();
-
-                    if (!writeInProgress.getAndSet(true)) {
-                        channel.write(raw, raw, packetHandler);
-                    } else {
-                        packetsToFlush.offer(raw);
-                    }
-                }
-
-                // If there exists a packet which could not be flushed due to overflow, add it to the queue to be
-                // flushed on the next iteration, and reset 'totalBytes'.
-                if (overflow != null) {
-                    outgoingPackets.offerLast(overflow);
-                    totalBytes = 0;
-                    overflow = null;
+                    packetsToFlush.offer(raw);
                 }
             }
         }
@@ -631,7 +592,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      *
      * @return A {@link Queue}.
      */
-    public final Deque<Packet> getOutgoingPackets() {
+    public final Queue<Packet> getOutgoingPackets() {
         return outgoingPackets;
     }
 

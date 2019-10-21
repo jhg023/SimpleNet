@@ -58,9 +58,9 @@ abstract class Receiver<T> {
      */
     Receiver(int bufferSize) {
         this.bufferSize = bufferSize;
-        this.connectListeners = new ArrayList<>();
-        this.preDisconnectListeners = new ArrayList<>();
-        this.postDisconnectListeners = new ArrayList<>();
+        this.connectListeners = new ArrayList<>(1);
+        this.preDisconnectListeners = new ArrayList<>(1);
+        this.postDisconnectListeners = new ArrayList<>(1);
     }
     
     /**
@@ -85,14 +85,5 @@ abstract class Receiver<T> {
      */
     public final void onConnect(T listener) {
         connectListeners.add(listener);
-    }
-
-    /**
-     * Gets the buffer size of this {@link Receiver} in bytes.
-     *
-     * @return An {@code int}
-     */
-    public final int getBufferSize() {
-        return bufferSize;
     }
 }

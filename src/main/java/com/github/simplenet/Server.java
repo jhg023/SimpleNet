@@ -23,7 +23,6 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.channel.Channeled;
 import com.github.simplenet.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,11 +58,6 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     /**
-     * The number of threads to use in the backing {@link AsynchronousChannelGroup}.
-     */
-    private final int numThreads;
-
-    /**
      * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
      */
     private final Set<Client> connectedClients;
@@ -77,58 +71,45 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
      * The backing {@link Channel} of this {@link Server}.
      */
     private AsynchronousServerSocketChannel channel;
-    
-    /**
-     * Instantiates a new {@link Server} (with a buffer size of {@code 4,096} bytes) by attempting to open the
-     * backing {@link AsynchronousServerSocketChannel}.
-     *
-     * @throws IllegalStateException If multiple {@link Server} instances are created.
-     * @see #Server(int)
-     */
-    public Server() throws IllegalStateException {
-        this(8_192);
-    }
-    
-    /**
-     * Instantiates a new {@link Server} (with the specified buffer size) by attempting to open the backing
-     * {@link AsynchronousServerSocketChannel}.
-     * <br><br>
-     * The number of threads used by the backing {@link ThreadPoolExecutor} is equal to the larger of {@code 1} and
-     * {@code Runtime.getRuntime().availableProcessors() - 1}.
-     *
-     * @param bufferSize the size of the buffer, in {@code byte}s.
-     * @throws IllegalStateException If multiple {@link Server} instances are created.
-     * @see #Server(int, int)
-     */
-    public Server(int bufferSize) throws IllegalStateException {
-        this(bufferSize, Math.max(2, Runtime.getRuntime().availableProcessors() - 2));
-    }
-    
-    /**
-     * Instantiates a new {@link Server} (with the specified buffer size and number of threads) by attempting to open
-     * the backing {@link AsynchronousServerSocketChannel}.
-     *
-     * @param bufferSize the size of the buffer, in {@code byte}s.
-     * @param numThreads the number of threads to use in the backing {@link ThreadPoolExecutor}.
-     * @throws IllegalStateException If multiple {@link Server} instances are created.
-     */
-    public Server(int bufferSize, int numThreads) throws IllegalStateException {
-        super(bufferSize);
 
-        this.numThreads = numThreads;
+    /**
+     * Instantiates a new {@link Server}.
+     */
+    public Server() {
+        super(8_192);
         this.connectedClients = ConcurrentHashMap.newKeySet();
     }
 
     /**
-     * Attempts to bind the {@link Server} to a specific {@code address} and {@code port}.
+     * Attempts to bind the {@link Server} to the specified {@code address} and {@code port}.
+     * <br><br>
+     * The number of threads used by the backing {@link ThreadPoolExecutor} is equal to the larger of {@code 2} and
+     * {@code Runtime.getRuntime().availableProcessors() - 2}.
      *
-     * @param address The IP address to bind to.
-     * @param port    The port to bind to {@code 0 <= port <= 65535}.
+     * @param address The IP address to bind to, whose value can also be {@code "localhost"}.
+     * @param port    The port to bind to, which must be in the range: {@code 0 <= port <= 65535}.
      * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
-     * @throws AlreadyBoundException    If a server is already running on any address/port.
-     * @throws RuntimeException         If the server is unable to be bound to a specific address or port.
+     * @throws IllegalStateException    If this server is already running on any address/port.
+     * @throws IllegalStateException    If the server is unable to bind to the specified address or port.
+     * @see #bind(String, int, int)
      */
     public void bind(String address, int port) {
+        bind(address, port, Math.max(2, Runtime.getRuntime().availableProcessors() - 2));
+    }
+
+    /**
+     * Attempts to bind the {@link Server} to the specified {@code address} and {@code port}.
+     * <br><br>
+     * The number of threads used by the backing {@link ThreadPoolExecutor} is specified by {@code numThreads}.
+     *
+     * @param address    The IP address to bind to, whose value can also be {@code "localhost"}.
+     * @param port       The port to bind to, which must be in the range: {@code 0 <= port <= 65535}.
+     * @param numThreads The number of threads to use in the backing {@link ThreadPoolExecutor}.
+     * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
+     * @throws IllegalStateException    If this server is already running on any address/port.
+     * @throws IllegalStateException    If the server is unable to bind to the specified address or port.
+     */
+    public void bind(String address, int port, int numThreads) {
         Objects.requireNonNull(address);
 
         if (port < 0 || port > 65535) {
@@ -158,7 +139,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
                 @Override
                 public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    Client client = new Client(bufferSize, channel);
+                    Client client = new Client(channel);
                     connectedClients.add(client);
                     client.postDisconnect(() -> connectedClients.remove(client));
                     connectListeners.forEach(consumer -> consumer.accept(client));
@@ -175,7 +156,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
         } catch (AlreadyBoundException e) {
             throw new IllegalStateException("This server is already bound!", e);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to bind the server!", e);
+            throw new IllegalStateException("Unable to bind the specified address and port!", e);
         }
     }
     

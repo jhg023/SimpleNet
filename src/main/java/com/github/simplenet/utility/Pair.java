@@ -26,45 +26,45 @@ package com.github.simplenet.utility;
 import java.util.Objects;
 
 /**
- * A class that acts as an {@code int}-{@link V} tuple.
+ * A class that acts as a {@link K}-{@link V} tuple.
  *
  * @author Jacob G.
- * @version January 12, 2019
+ * @version October 20, 2019
  */
-public final class IntPair<V> {
-    
+public final class Pair<K, V> {
+
     /**
-     * The key of this {@link IntPair}.
+     * The key of this {@link Pair}.
      */
-    private final int key;
-    
+    private final K key;
+
     /**
-     * The value of this {@link IntPair}.
+     * The value of this {@link Pair}.
      */
     private final V value;
-    
+
     /**
-     * Creates a new {@link IntPair} with the specified key and value.
+     * Creates a new {@link Pair} with the specified key and value.
      *
      * @param key   the key.
      * @param value the value.
      */
-    public IntPair(int key, V value) {
+    public Pair(K key, V value) {
         this.key = key;
         this.value = value;
     }
 
     /**
-     * Gets the key of this {@link IntPair}.
+     * Gets the key of this {@link Pair}.
      *
-     * @return an {@code int}.
+     * @return a {@link K}.
      */
-    public int getKey() {
+    public K getKey() {
         return key;
     }
 
     /**
-     * Gets the value of this {@link IntPair}.
+     * Gets the value of this {@link Pair}.
      *
      * @return a {@link V}.
      */
@@ -74,22 +74,22 @@ public final class IntPair<V> {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof IntPair<?>)) {
+        if (!(o instanceof Pair<?, ?>)) {
             return false;
         }
-        
-        var pair = (IntPair<?>) o;
-        
-        return key == pair.key && Objects.equals(value, pair.value);
+
+        var pair = (Pair<?, ?>) o;
+
+        return Objects.equals(key, pair.key) && Objects.equals(value, pair.value);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(key, value);
     }
-    
+
     @Override
     public String toString() {
-        return "IntPair[key: " + key + ", value: " + value + "]";
+        return "Pair[key: " + key + ", value: " + value + "]";
     }
 }

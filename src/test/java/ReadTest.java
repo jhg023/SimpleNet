@@ -58,9 +58,9 @@ final class ReadTest {
     @BeforeEach
     void beforeEach() {
         client = new Client();
-        server = new Server(8_192, 1);
+        server = new Server();
         latch = new CountDownLatch(1);
-        server.bind(HOST, PORT);
+        server.bind(HOST, PORT, 1);
     }
     
     @AfterEach
@@ -350,13 +350,13 @@ final class ReadTest {
     void readWithSmallBuffer() {
         byte b = 42;
         long l = ThreadLocalRandom.current().nextLong();
-        client = new Client(Long.BYTES);
+        client = new Client();
         client.onConnect(() -> {
             Packet.builder().putByte(b).queue(client);
             Packet.builder().putLong(l).queueAndFlush(client);
         });
         server.close();
-        server = new Server(Long.BYTES);
+        server = new Server();
         server.bind(HOST, PORT);
         server.onConnect(client -> {
             client.readByte(first -> {

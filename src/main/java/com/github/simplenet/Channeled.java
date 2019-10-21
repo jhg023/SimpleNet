@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.github.simplenet.channel;
+package com.github.simplenet;
 
 import java.io.IOException;
 import java.nio.channels.AsynchronousChannel;
@@ -34,7 +34,7 @@ import java.nio.channels.Channel;
  * @since November 6, 2017
  */
 @FunctionalInterface
-public interface Channeled<T extends AsynchronousChannel> {
+interface Channeled<T extends AsynchronousChannel> {
 
     /**
      * Gets the backing {@link Channel} of this entity.

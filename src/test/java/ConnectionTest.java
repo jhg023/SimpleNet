@@ -47,10 +47,10 @@ final class ConnectionTest {
     
     @BeforeEach
     void beforeEach() {
-        client = new Client(0);
-        server = new Server(0, 1);
+        client = new Client();
+        server = new Server();
         latch = new CountDownLatch(1);
-        server.bind(HOST, PORT);
+        server.bind(HOST, PORT, 1);
     }
     
     @AfterEach
