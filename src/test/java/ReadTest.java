@@ -385,6 +385,26 @@ final class ReadTest {
             });
         });
     }
+
+    @Test
+    void testCanWriteSamePacketObjectMoreThanOnce() {
+        client.onConnect(() -> {
+            Packet packet = Packet.builder().putByte(42);
+
+            packet.queueAndFlush(client);
+            packet.queueAndFlush(client);
+        });
+        server.onConnect(client -> {
+            client.readByte(firstByte -> {
+                assertEquals(42, firstByte);
+
+                client.readByte(secondByte -> {
+                    assertEquals(42, secondByte);
+                    latch.countDown();
+                });
+            });
+        });
+    }
     
     private void readStringHelper(String s, Charset charset, ByteOrder order) {
         client.onConnect(() -> Packet.builder().putString(s, charset, order).queueAndFlush(client));

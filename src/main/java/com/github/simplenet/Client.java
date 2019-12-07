@@ -71,7 +71,7 @@ import java.util.function.Predicate;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Client extends Receiver<Runnable> implements Channeled<AsynchronousSocketChannel>, BooleanReader,
+public class Client extends AbstractReceiver<Runnable> implements Channeled<AsynchronousSocketChannel>, BooleanReader,
         ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Client.class);
@@ -328,8 +328,6 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
      * @param channel The channel to back this {@link Client} with.
      */
     Client(AsynchronousSocketChannel channel) {
-        super(8_192);
-
         closing = new AtomicBoolean();
         inCallback = new MutableBoolean();
         readInProgress = new AtomicBoolean();
@@ -401,7 +399,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
     public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable onTimeout) {
         Objects.requireNonNull(address);
 
-        if (port < 0 || port > 65535) {
+        if (port < 0 || port > 65_535) {
             throw new IllegalArgumentException("The specified port must be between 0 and 65535!");
         }
 
@@ -419,8 +417,8 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
         try {
             this.channel = AsynchronousSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
-            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, bufferSize);
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
+            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, BUFFER_SIZE);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
         } catch (IOException e) {
@@ -560,9 +558,7 @@ public class Client extends Receiver<Runnable> implements Channeled<Asynchronous
 
                 ByteBuffer raw = DIRECT_BUFFER_POOL.take(packet.getSize(this));
 
-                Consumer<ByteBuffer> input;
-
-                while ((input = queue.pollFirst()) != null) {
+                for (var input : queue) {
                     input.accept(raw);
                 }
 

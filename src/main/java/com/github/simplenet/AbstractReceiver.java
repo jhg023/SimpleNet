@@ -26,16 +26,15 @@ package com.github.simplenet;
 import java.util.ArrayList;
 import java.util.Collection;
 
-abstract class Receiver<T> {
+abstract class AbstractReceiver<T> {
 
     /**
-     * The size of this {@link Receiver}'s buffer.
+     * The size of this {@link AbstractReceiver}'s buffer in bytes.
      */
-    final int bufferSize;
+    static final int BUFFER_SIZE = 8_192;
 
     /**
-     * Listeners that are fired when a {@link Client} connects
-     * to a {@link Server}.
+     * Listeners that are fired when a {@link Client} connects to a {@link Server}.
      */
     final Collection<T> connectListeners;
 
@@ -52,25 +51,21 @@ abstract class Receiver<T> {
     final Collection<T> postDisconnectListeners;
 
     /**
-     * Instantiates a new {@link Receiver} with a buffer capacity of {@code bufferSize}.
-     *
-     * @param bufferSize The capacity of the buffer used for reading in bytes.
+     * Instantiates a new {@link AbstractReceiver} with a buffer capacity of {@code bufferSize}.
      */
-    Receiver(int bufferSize) {
-        this.bufferSize = bufferSize;
+    AbstractReceiver() {
         this.connectListeners = new ArrayList<>(1);
         this.preDisconnectListeners = new ArrayList<>(1);
         this.postDisconnectListeners = new ArrayList<>(1);
     }
     
     /**
-     * Instantiates a new {@link Receiver} from an existing {@link Receiver}.
+     * Instantiates a new {@link AbstractReceiver} from an existing {@link AbstractReceiver}.
      *
-     * @param receiver The existing {@link Receiver}.
-     * @param <U> A {@link Receiver} or one of its children.
+     * @param receiver The existing {@link AbstractReceiver}.
+     * @param <U> A {@link AbstractReceiver} or one of its children.
      */
-    <U extends Receiver<T>> Receiver(U receiver) {
-        this.bufferSize = receiver.bufferSize;
+    <U extends AbstractReceiver<T>> AbstractReceiver(U receiver) {
         this.connectListeners = receiver.connectListeners;
         this.preDisconnectListeners = receiver.preDisconnectListeners;
         this.postDisconnectListeners = receiver.postDisconnectListeners;

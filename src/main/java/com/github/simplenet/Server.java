@@ -53,7 +53,7 @@ import java.util.function.Consumer;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Server extends Receiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+public class Server extends AbstractReceiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
@@ -76,7 +76,6 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
      * Instantiates a new {@link Server}.
      */
     public Server() {
-        super(8_192);
         this.connectedClients = ConcurrentHashMap.newKeySet();
     }
 
@@ -129,7 +128,7 @@ public class Server extends Receiver<Consumer<Client>> implements Channeled<Asyn
 
         try {
             this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, bufferSize);
+            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open the AsynchronousServerSocketChannel!", e);
         }
