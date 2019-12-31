@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 import com.github.simplenet.Client;
+import com.github.simplenet.Packet;
 import com.github.simplenet.Server;
-import com.github.simplenet.packet.Packet;
-import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
+import com.github.simplenet.cryptography.CryptographicFunction;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,7 +124,7 @@ final class EncryptionTest {
             InvalidAlgorithmParameterException, InvalidKeyException {
         var server = new Server();
 
-        server.bind("localhost", 9003);
+        server.bind("localhost", 9002);
 
         String AES = "AES/CFB8/NoPadding";
 
@@ -131,7 +132,7 @@ final class EncryptionTest {
                 d = Cipher.getInstance(AES);
         initCiphers(a, b, c, d);
 
-        startTest(server, 9003, a, b, c, d, DO_FINAL, DO_FINAL);
+        startTest(server, 9002, a, b, c, d, DO_FINAL, DO_FINAL);
     }
     
     private void initCiphers(Cipher serverEncryption, Cipher serverDecryption, Cipher clientEncryption,
@@ -171,20 +172,23 @@ final class EncryptionTest {
                 assertEquals(23.1231, buffer.getDouble());
                 latch.countDown();
 
-                assertEquals(0x00, buffer.get());
+                assertEquals(0x69, buffer.get());
                 latch.countDown();
             });
         });
         
         var client = new Client();
         
-        client.onConnect(() -> {
-            client.setEncryption(clientEncryption, encryption);
-            client.setDecryption(clientDecryption, decryption);
-            Packet.builder().putBytes(encryptBytes).putString("Hello World!").putLong(54735436752L).putDouble(23.1231)
-                    .putByte(0x00).queueAndFlush(client);
-        });
-        
         client.connect("localhost", port);
+
+        client.setEncryption(clientEncryption, encryption);
+        client.setDecryption(clientDecryption, decryption);
+
+        Packet.builder().putBytes(encryptBytes)
+            .putString("Hello World!")
+            .putLong(54735436752L)
+            .putDouble(23.1231)
+            .putByte(0x69)
+            .queueAndFlush(client);
     }
 }

@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,7 +50,7 @@ final class ConnectionTest {
         client = new Client();
         server = new Server();
         latch = new CountDownLatch(1);
-        server.bind(HOST, PORT, 1);
+        server.bind(HOST, PORT);
     }
     
     @AfterEach
@@ -70,9 +70,9 @@ final class ConnectionTest {
     @Test
     void testConnectedClientsAfterServerCloseClient() {
         server.onConnect(client -> {
-            assertEquals(1, server.getNumConnectedClients());
+            assertEquals(1, server.getConnectedClients().size());
             client.close();
-            assertEquals(0, server.getNumConnectedClients());
+            assertEquals(0, server.getConnectedClients().size());
             latch.countDown();
         });
     }

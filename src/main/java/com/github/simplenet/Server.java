@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,28 +23,21 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
-import java.nio.channels.AlreadyBoundException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -53,236 +46,129 @@ import java.util.function.Consumer;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Server extends AbstractReceiver<Consumer<Client>> implements Channeled<AsynchronousServerSocketChannel> {
+public class Server implements Closeable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     /**
-     * A thread-safe {@link Set} that keeps track of {@link Client}s connected to this {@link Server}.
+     * The maximum value for a port that a {@link Server server} can be bound to.
+     */
+    private static final int MAX_PORT = 65_535;
+
+    /**
+     * The backing {@link Channel channel} of this {@link Server server}.
+     */
+    private ServerSocketChannel channel;
+
+    /**
+     * A thread-safe {@link Set} that keeps track of {@link Client clients} connected to this {@link Server server}.
      */
     private final Set<Client> connectedClients;
 
     /**
-     * The backing {@link AsynchronousChannelGroup} of this {@link Server}.
+     * A collection of listeners that are fired when a {@link Client client} connects to this {@link Server server}.
      */
-    private AsynchronousChannelGroup group;
-    
-    /**
-     * The backing {@link Channel} of this {@link Server}.
-     */
-    private AsynchronousServerSocketChannel channel;
+    private final Collection<Consumer<Client>> connectListeners;
 
     /**
      * Instantiates a new {@link Server}.
      */
     public Server() {
         this.connectedClients = ConcurrentHashMap.newKeySet();
+        this.connectListeners = new ArrayList<>(1);
     }
 
     /**
      * Attempts to bind the {@link Server} to the specified {@code address} and {@code port}.
-     * <br><br>
-     * The number of threads used by the backing {@link ThreadPoolExecutor} is equal to the larger of {@code 2} and
-     * {@code Runtime.getRuntime().availableProcessors() - 2}.
-     *
-     * @param address The IP address to bind to, whose value can also be {@code "localhost"}.
-     * @param port    The port to bind to, which must be in the range: {@code 0 <= port <= 65535}.
-     * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
-     * @throws IllegalStateException    If this server is already running on any address/port.
-     * @throws IllegalStateException    If the server is unable to bind to the specified address or port.
-     * @see #bind(String, int, int)
-     */
-    public void bind(String address, int port) {
-        bind(address, port, Math.max(2, Runtime.getRuntime().availableProcessors() - 2));
-    }
-
-    /**
-     * Attempts to bind the {@link Server} to the specified {@code address} and {@code port}.
-     * <br><br>
-     * The number of threads used by the backing {@link ThreadPoolExecutor} is specified by {@code numThreads}.
      *
      * @param address    The IP address to bind to, whose value can also be {@code "localhost"}.
      * @param port       The port to bind to, which must be in the range: {@code 0 <= port <= 65535}.
-     * @param numThreads The number of threads to use in the backing {@link ThreadPoolExecutor}.
      * @throws IllegalArgumentException If {@code port} is less than 0 or greater than 65535.
      * @throws IllegalStateException    If this server is already running on any address/port.
      * @throws IllegalStateException    If the server is unable to bind to the specified address or port.
      */
-    public void bind(String address, int port, int numThreads) {
+    public final void bind(String address, int port) {
         Objects.requireNonNull(address);
 
-        if (port < 0 || port > 65535) {
+        if (port < 0 || port > MAX_PORT) {
             throw new IllegalArgumentException("The port must be between 0 and 65535!");
         }
 
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setDaemon(false);
-            thread.setName(thread.getName().replace("Thread", "SimpleNet"));
-            return thread;
-        }, (runnable, threadPoolExecutor) -> {});
-
-        // Start one core thread in advance to prevent the JVM from shutting down.
-        executor.prestartCoreThread();
+        try {
+            channel = ServerSocketChannel.open();
+        } catch (IOException e) {
+            throw new UncheckedIOException("An IOException occurred when attempting to open the server!", e);
+        }
 
         try {
-            this.channel = AsynchronousServerSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
+            channel.configureBlocking(true);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the AsynchronousServerSocketChannel!", e);
+            throw new UncheckedIOException("An IOException occurred when configuring the channel to block!", e);
         }
 
         try {
             channel.bind(new InetSocketAddress(address, port));
-            channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
-                @Override
-                public void completed(AsynchronousSocketChannel channel, Void attachment) {
-                    Client client = new Client(channel);
-                    connectedClients.add(client);
-                    client.postDisconnect(() -> connectedClients.remove(client));
-                    connectListeners.forEach(consumer -> consumer.accept(client));
-                    Server.this.channel.accept(null, this); // Should this be first?
-                }
-
-                @Override
-                public void failed(Throwable t, Void attachment) {
-                    LOGGER.debug("An exception occurred when accepting a Client!", t);
-                }
-            });
-
-            LOGGER.info("Successfully bound to {}:{}!", address, port);
-        } catch (AlreadyBoundException e) {
-            throw new IllegalStateException("This server is already bound!", e);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to bind the specified address and port!", e);
+            throw new UncheckedIOException("An IOException occurred when attempting to bind the server to the " +
+                "specified address and port!", e);
         }
+
+        Thread.Builder builder = Thread.builder().daemon(false).virtual().name("SimpleNet-", 1);
+
+        // Use a kernel thread to accept connections, and virtual threads for everything else.
+        Thread.builder().daemon(false).name("SimpleNet").task(() -> {
+            while (true) {
+                try {
+                    SocketChannel connection = channel.accept();
+
+                    builder.task(() -> {
+                        Client client = new Client(connection);
+                        connectedClients.add(client);
+                        client.onDisconnect(() -> connectedClients.remove(client));
+                        connectListeners.forEach(consumer -> consumer.accept(client));
+                    }).start();
+                } catch (IOException e) {
+                    LOGGER.error("An IOException occurred when attempting to accept a client connection!", e);
+                    break;
+                }
+            }
+        }).start();
     }
     
     /**
      * Closes this {@link Server} by first invoking {@link Client#close()} on every connected {@link Client}, and
-     * then closes the backing {@link AsynchronousChannelGroup}.
+     * then closes the backing {@link ServerSocketChannel}.
      */
     @Override
-    public void close() {
+    public final void close() {
         connectedClients.removeIf(client -> {
             client.close();
             return true;
         });
-    
-        Channeled.super.close();
-        
+
         try {
-            group.shutdownNow();
+            channel.close();
         } catch (IOException e) {
-            LOGGER.debug("An IOException occurred when shutting down the AsynchronousChannelGroup!", e);
+            LOGGER.error("An IOException occurred when attempting to close the backing channel!", e);
         }
     }
 
     /**
-     * Gets the backing {@link Channel} of this {@link Server}.
-     *
-     * @return A {@link Channel}.
-     */
-    @Override
-    public AsynchronousServerSocketChannel getChannel() {
-        return channel;
-    }
-    
-    /**
-     * Gets the number of {@link Client}s connected to this {@link Server}.
-     *
-     * @return the number of connected {@link Client}s as an {@code int}.
-     */
-    public int getNumConnectedClients() {
-        return connectedClients.size();
-    }
-    
-    /**
-     * A helper method that eliminates code duplication in the {@link #queueToAllExcept(Packet, Client[])} and
-     * {@link #queueAndFlushToAllExcept(Packet, Client[])} methods.
-     *
-     * @param consumer The action to perform for each {@link Client}.
-     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
-     */
-    private void queueHelper(Consumer<Client> consumer, Client... clients) {
-        Set<Client> toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.length));
-        Collections.addAll(toExclude, clients);
-        connectedClients.stream().filter(client -> !toExclude.contains(client)).forEach(consumer);
-    }
-    
-    /**
-     * A helper method that eliminates code duplication in the {@link #queueToAllExcept(Packet, Collection)} and
-     * {@link #queueAndFlushToAllExcept(Packet, Collection)} methods.
-     *
-     * @param consumer The action to perform for each {@link Client}.
-     * @param clients A {@link Collection} of {@link Client}s to exclude from receiving the {@link Packet}.
-     */
-    private void queueHelper(Consumer<Client> consumer, Collection<? extends Client> clients) {
-        Set<Client> toExclude = Collections.newSetFromMap(new IdentityHashMap<>(clients.size()));
-        toExclude.addAll(clients);
-        connectedClients.stream().filter(client -> !toExclude.contains(client)).forEach(consumer);
-    }
-    
-    /**
-     * Queues a {@link Packet} to all connected {@link Client}s except the one(s) specified.
+     * Registers a listener that fires when a {@link Client client} connects to this {@link Server server}.
      * <br><br>
-     * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
-     * {@link Client}.
+     * When invoking this method more than once, multiple listeners will be registered.
      *
-     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
+     * @param listener A {@link Consumer} that will be accepted when a {@link Client client} disconnects from this
+     *                 {@link Server server}.
      */
-    public final void queueToAllExcept(Packet packet, Client... clients) {
-        queueHelper(packet::queue, clients);
+    public final void onConnect(Consumer<Client> listener) {
+        connectListeners.add(listener);
     }
-    
+
     /**
-     * Queues a {@link Packet} to all connected {@link Client}s except the one(s) specified.
-     * <br><br>
-     * No {@link Client} will receive this {@link Packet} until {@link Client#flush()} is called for that respective
-     * {@link Client}.
-     *
-     * @param clients A {@link Collection} of {@link Client}s to exclude from receiving the {@link Packet}.
+     * @return Gets an unmodifiable {@link Set} of {@link Client clients} connected to this {@link Server}.
      */
-    public final void queueToAllExcept(Packet packet, Collection<? extends Client> clients) {
-        queueHelper(packet::queue, clients);
-    }
-    
-    /**
-     * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
-     *
-     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
-     */
-    public final void flushToAllExcept(Client... clients) {
-        queueHelper(Client::flush, clients);
-    }
-    
-    /**
-     * Flushes all queued {@link Packet}s for all {@link Client}s except the one(s) specified.
-     *
-     * @param clients A {@link Collection} of {@link Client}s to exclude from having their queued packets flushed.
-     */
-    public final void flushToAllExcept(Collection<? extends Client> clients) {
-        queueHelper(Client::flush, clients);
-    }
-    
-    /**
-     * Queues a {@link Packet} to a one or more {@link Client}s and calls {@link Client#flush()}, flushing all
-     * previously-queued packets as well.
-     *
-     * @param clients A variable amount of {@link Client}s to exclude from receiving the {@link Packet}.
-     */
-    public final void queueAndFlushToAllExcept(Packet packet, Client... clients) {
-        queueHelper(packet::queueAndFlush, clients);
-    }
-    
-    /**
-     * Queues a {@link Packet} to a one or more {@link Client}s and calls {@link Client#flush()}, flushing all
-     * previously-queued packets as well.
-     *
-     * @param clients A {@link Collection} of {@link Client}s to exclude from receiving the {@link Packet}.
-     */
-    public final void queueAndFlushToAllExcept(Packet packet, Collection<? extends Client> clients) {
-        queueHelper(packet::queueAndFlush, clients);
+    public final Set<Client> getConnectedClients() {
+        return Set.copyOf(connectedClients);
     }
 }

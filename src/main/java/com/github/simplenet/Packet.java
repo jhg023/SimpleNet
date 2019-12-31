@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.github.simplenet.packet;
+package com.github.simplenet;
 
-import com.github.simplenet.Client;
-import com.github.simplenet.Server;
 import com.github.simplenet.utility.Utility;
 
 import javax.crypto.Cipher;
@@ -35,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.Queue;
 import java.util.function.Consumer;
 
 /**
@@ -108,10 +105,10 @@ public final class Packet {
      *
      * @param b A {@code boolean}, that is internally written as a {@code byte}.
      * @return The {@link Packet} to allow for chained writes.
+     * @see #putByte(int)
      */
     public Packet putBoolean(boolean b) {
-        size += Byte.BYTES;
-        return enqueue(buffer -> buffer.put(b ? (byte) 1 : 0));
+        return putByte(b ? 1 : 0);
     }
     
     /**
@@ -122,7 +119,7 @@ public final class Packet {
      */
     public Packet putByte(int b) {
         size += Byte.BYTES;
-        return enqueue(buffer -> buffer.put((byte) b));
+        return enqueue(buffer -> buffer.order(ByteOrder.BIG_ENDIAN).put((byte) b));
     }
 
     /**
@@ -133,7 +130,7 @@ public final class Packet {
      */
     public Packet putBytes(byte... src) {
         size += Byte.BYTES * src.length;
-        return enqueue(buffer -> buffer.put(src));
+        return enqueue(buffer -> buffer.order(ByteOrder.BIG_ENDIAN).put(src));
     }
 
     /**
@@ -156,7 +153,7 @@ public final class Packet {
      */
     public Packet putChar(char c, ByteOrder order) {
         size += Character.BYTES;
-        return enqueue(buffer -> buffer.putChar(order == ByteOrder.LITTLE_ENDIAN ? Character.reverseBytes(c) : c));
+        return enqueue(buffer -> buffer.order(order).putChar(c));
     }
     
     /**
@@ -225,7 +222,7 @@ public final class Packet {
      */
     public Packet putInt(int i, ByteOrder order) {
         size += Integer.BYTES;
-        return enqueue(buffer -> buffer.putInt(order == ByteOrder.LITTLE_ENDIAN ? Integer.reverseBytes(i) : i));
+        return enqueue(buffer -> buffer.order(order).putInt(i));
     }
     
     /**
@@ -248,7 +245,7 @@ public final class Packet {
      */
     public Packet putLong(long l, ByteOrder order) {
         size += Long.BYTES;
-        return enqueue(buffer -> buffer.putLong(order == ByteOrder.LITTLE_ENDIAN ? Long.reverseBytes(l) : l));
+        return enqueue(buffer -> buffer.order(order).putLong(l));
     }
     
     /**
@@ -272,7 +269,7 @@ public final class Packet {
     public Packet putShort(int s, ByteOrder order) {
         size += Short.BYTES;
         short value = (short) s;
-        return enqueue(buffer -> buffer.putShort(order == ByteOrder.LITTLE_ENDIAN ? Short.reverseBytes(value) : value));
+        return enqueue(buffer -> buffer.order(order).putShort(value));
     }
 
     /**
@@ -355,10 +352,8 @@ public final class Packet {
      * @param client The {@link Client client} to queue this {@link Packet packet} to.
      */
     public final void queue(Client client) {
-        Queue<Packet> clientQueue;
-        
-        synchronized ((clientQueue = client.getOutgoingPackets())) {
-            clientQueue.offer(this);
+        synchronized (client.outgoingPackets) {
+            client.outgoingPackets.offer(this);
         }
     }
     

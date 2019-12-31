@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,37 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.github.simplenet;
+package com.github.simplenet.cryptography;
 
-import java.io.IOException;
-import java.nio.channels.AsynchronousChannel;
-import java.nio.channels.Channel;
+import com.github.simplenet.Client;
+
+import javax.crypto.Cipher;
+import java.nio.ByteBuffer;
+import java.security.GeneralSecurityException;
 
 /**
- * An {@code interface} that denotes an entity as having a backing {@link Channel}.
+ * Provides users with the capability to specify their own cryptographic scheme(s) for encrypting/decrypting data.
  *
- * @author Jacob G.
- * @since November 6, 2017
+ * @see Client#setEncryptionCipher(Cipher)
+ * @see Client#setDecryptionCipher(Cipher)
  */
 @FunctionalInterface
-interface Channeled<T extends AsynchronousChannel> {
-
+public interface CryptographicFunction {
+    
     /**
-     * Gets the backing {@link Channel} of this entity.
+     * Performs encryption/decryption of a {@link ByteBuffer} given a {@link Cipher cipher}.
      *
-     * @return An {@link T}.
+     * @param cipher The {@link Cipher} used to encrypt/decrypt the specified {@link ByteBuffer}.
+     * @param buffer The {@link ByteBuffer} to encrypt/decrypt.
+     * @return The modified data after it has been encrypted/decrypted by the {@link Cipher cipher}
+     * @throws GeneralSecurityException if an exception occurred while encrypting/decrypting.
      */
-    T getChannel();
-
-    /**
-     * Closes the backing {@link Channel} of this entity, which results in the firing of any disconnect-listeners
-     * that exist.
-     */
-    default void close() {
-        try {
-            getChannel().close();
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to close the backing AsynchronousChannel:", e);
-        }
-    }
+    ByteBuffer apply(Cipher cipher, ByteBuffer buffer) throws GeneralSecurityException;
+   
 }

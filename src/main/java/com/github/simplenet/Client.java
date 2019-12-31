@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,214 +23,70 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.packet.Packet;
-import com.github.simplenet.utility.IntPair;
+import com.github.simplenet.cryptography.CryptographicFunction;
 import com.github.simplenet.utility.MutableBoolean;
-import com.github.simplenet.utility.Pair;
 import com.github.simplenet.utility.Utility;
-import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
-import com.github.simplenet.utility.exposed.data.BooleanReader;
-import com.github.simplenet.utility.exposed.data.ByteReader;
-import com.github.simplenet.utility.exposed.data.CharReader;
-import com.github.simplenet.utility.exposed.data.DoubleReader;
-import com.github.simplenet.utility.exposed.data.FloatReader;
-import com.github.simplenet.utility.exposed.data.IntReader;
-import com.github.simplenet.utility.exposed.data.LongReader;
-import com.github.simplenet.utility.exposed.data.StringReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
 
 import javax.crypto.Cipher;
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.AlreadyConnectedException;
-import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
- * The entity that will connect to the {@link Server}.
+ * The entity that will connect to a {@link Server}.
  *
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Client extends AbstractReceiver<Runnable> implements Channeled<AsynchronousSocketChannel>, BooleanReader,
-        ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
+public class Client implements Closeable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Client.class);
 
     /**
-     * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
+     * The maximum value for a port that a {@link Server server} can be bound to.
      */
-    static class Listener implements CompletionHandler<Integer, Pair<Client, ByteBuffer>> {
-
-        /**
-         * A {@code static} instance of this class to be reused.
-         */
-        static final Listener INSTANCE = new Listener();
-        
-        @Override
-        public void completed(Integer result, Pair<Client, ByteBuffer> pair) {
-            // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
-            // client's connection.
-            int bytesReceived = result;
-
-            if (bytesReceived == -1) {
-                pair.getKey().close(false);
-                return;
-            }
-
-            var client = pair.getKey();
-            var buffer = pair.getValue().flip();
-
-            synchronized (client.queue) {
-                var queue = client.queue;
-
-                IntPair<Predicate<ByteBuffer>> peek;
-
-                if ((peek = queue.peekLast()) == null) {
-                    client.readInProgress.set(false);
-                    return;
-                }
-
-                var stack = client.stack;
-
-                boolean shouldDecrypt = client.decryptionCipher != null;
-                boolean queueIsEmpty = false;
-
-                int key;
-
-                client.inCallback.set(true);
-
-                while (buffer.remaining() >= (key = peek.getKey())) {
-                    var wrappedBuffer = buffer.duplicate().mark().limit(buffer.position() + key);
-
-                    if (shouldDecrypt) {
-                        try {
-                            wrappedBuffer = client.decryptionFunction.apply(client.decryptionCipher, wrappedBuffer)
-                                    .reset();
-                        } catch (Exception e) {
-                            throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
-                        }
-                    }
-
-                    // If the predicate returns false, poll the element from the queue.
-                    if (!peek.getValue().test(wrappedBuffer)) {
-                        queue.pollLast();
-                    }
-
-                    if (wrappedBuffer.hasRemaining()) {
-                        int remaining = wrappedBuffer.remaining();
-                        byte[] decodedData = new byte[Math.min(key, 8)];
-                        wrappedBuffer.reset().get(decodedData);
-                        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
-                                remaining, decodedData);
-                    }
-
-                    buffer.position(wrappedBuffer.limit());
-
-                    while (!stack.isEmpty()) {
-                        queue.offerLast(stack.pop());
-                    }
-
-                    if ((peek = queue.peekLast()) == null) {
-                        queueIsEmpty = true;
-                        break;
-                    }
-                }
-
-                client.inCallback.set(false);
-
-                // The buffer that was used must be returned to the pool.
-                DIRECT_BUFFER_POOL.give(buffer);
-
-                if (queueIsEmpty) {
-                    // Because the queue is empty, the client should not attempt to read more data until
-                    // more is requested by the user.
-                    client.readInProgress.set(false);
-                } else {
-                    // Because the queue is NOT empty and we don't have enough data to process the request,
-                    // we must read more data.
-                    var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
-                    client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
-                }
-            }
-        }
-
-        @Override
-        public void failed(Throwable t, Pair<Client, ByteBuffer> pair) {
-            pair.getKey().close(false);
-        }
-    }
+    private static final int MAX_PORT = 65_535;
 
     /**
-     * The {@link CompletionHandler} used when this {@link Client} sends one or more {@link Packet}s to a
-     * {@link Server}.
+     * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
      */
-    private final CompletionHandler<Integer, ByteBuffer> packetHandler = new CompletionHandler<>() {
-        @Override
-        public void completed(Integer result, ByteBuffer buffer) {
-            Client client = Client.this;
-    
-            DIRECT_BUFFER_POOL.give(buffer);
+    private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
 
-            synchronized (client.outgoingPackets) {
-                ByteBuffer payload = client.packetsToFlush.poll();
-    
-                if (payload == null) {
-                    client.writeInProgress.set(false);
-                    return;
-                }
-
-                client.channel.write(payload, payload, this);
-            }
-        }
-
-        @Override
-        public void failed(Throwable t, ByteBuffer buffer) {
-            Client client = Client.this;
-
-            DIRECT_BUFFER_POOL.give(buffer);
-
-            synchronized (client.outgoingPackets) {
-                ByteBuffer discard;
-
-                while ((discard = client.packetsToFlush.poll()) != null) {
-                    DIRECT_BUFFER_POOL.give(discard);
-                }
-            }
-
-            client.writeInProgress.set(false);
-        }
-    };
-
-    private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
+    /**
+     * The default {@link CryptographicFunction} to use if one isn't specified when requesting encryption/decryption.
+     */
+    private static final CryptographicFunction DO_FINAL = (Cipher cipher, ByteBuffer data) -> {
         ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
         cipher.doFinal(data, output);
         return output;
     };
 
     /**
-     * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
+     * A {@link Queue} to manage outgoing {@link Packet}s.
      */
-    private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
+    final Queue<Packet> outgoingPackets;
 
 	/**
 	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
@@ -246,32 +102,12 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
 	 * A thread-safe method of keeping track if this {@link Client} is currently waiting for bytes to arrive.
 	 */
 	private final AtomicBoolean readInProgress;
-    
-    /**
-     * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
-     */
-    private final AtomicBoolean writeInProgress;
-    
-    /**
-     * A {@link Queue} to manage outgoing {@link Packet}s.
-     */
-    private final Queue<Packet> outgoingPackets;
 
     /**
-     * A {@link Deque} to manage {@link Packet}s that should be flushed as soon as possible.
+     * A collection of listeners that are fired right after this {@link Client client} disconnects from a
+     * {@link Server server}.
      */
-    private final Queue<ByteBuffer> packetsToFlush;
-
-    /**
-     * The {@link Deque} that keeps track of nested calls to {@link Client#readUntil(int, Predicate, ByteOrder)} and
-	 * assures that they will complete in the expected order.
-     */
-    private final Deque<IntPair<Predicate<ByteBuffer>>> stack;
-
-    /**
-     * The {@link Deque} used when requesting a certain amount of bytes from the {@link Client} or {@link Server}.
-     */
-    private final Deque<IntPair<Predicate<ByteBuffer>>> queue;
+	private final Collection<Runnable> disconnectListeners;
 
     /**
      * Whether or not the decryption {@link Cipher} specifies {@code NoPadding} as part of its algorithm.
@@ -304,22 +140,17 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * {@link Cipher#doFinal(byte[])}.
      */
     private CryptographicFunction encryptionFunction;
-
-    /**
-     * The backing {@link AsynchronousChannelGroup} of this {@link Client}.
-     */
-    private AsynchronousChannelGroup group;
     
     /**
      * The backing {@link Channel} of a {@link Client}.
      */
-    private AsynchronousSocketChannel channel;
+    private SocketChannel channel;
     
     /**
      * Instantiates a new {@link Client}.
      */
     public Client() {
-        this((AsynchronousSocketChannel) null);
+        this((SocketChannel) null);
     }
 
     /**
@@ -327,16 +158,13 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      *
      * @param channel The channel to back this {@link Client} with.
      */
-    Client(AsynchronousSocketChannel channel) {
+    Client(SocketChannel channel) {
         closing = new AtomicBoolean();
         inCallback = new MutableBoolean();
         readInProgress = new AtomicBoolean();
-        writeInProgress = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
-        packetsToFlush = new ArrayDeque<>();
-        queue = new ArrayDeque<>();
-        stack = new ArrayDeque<>();
-        
+        disconnectListeners = new ArrayList<>(1);
+
         if (channel != null) {
             this.channel = channel;
         }
@@ -353,191 +181,73 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * @param client An existing {@link Client} whose backing {@link AsynchronousSocketChannel} is already connected.
      */
     protected Client(Client client) {
-        super(client);
-
-		this.stack = client.stack;
-		this.queue = client.queue;
 		this.channel = client.channel;
         this.closing = client.closing;
         this.inCallback = client.inCallback;
-		this.packetsToFlush = client.packetsToFlush;
         this.readInProgress = client.readInProgress;
-        this.writeInProgress = client.writeInProgress;
         this.outgoingPackets = client.outgoingPackets;
         this.encryptionCipher = client.encryptionCipher;
 		this.decryptionCipher = client.decryptionCipher;
         this.encryptionFunction = client.encryptionFunction;
         this.decryptionFunction = client.decryptionFunction;
+        this.encryptionNoPadding = client.encryptionNoPadding;
         this.decryptionNoPadding = client.decryptionNoPadding;
+        this.disconnectListeners = client.disconnectListeners;
     }
 
     /**
-     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port} and a default
-     * timeout of {@code 30} seconds.
+     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port}.
      *
      * @param address The IP address to connect to.
      * @param port    The port to connect to {@code 0 <= port <= 65535}.
-     * @throws IllegalArgumentException  If {@code port} is less than 0 or greater than 65535.
-     * @throws AlreadyConnectedException If a {@link Client} is already connected to any address/port.
      */
     public final void connect(String address, int port) {
-        connect(address, port, 30L, TimeUnit.SECONDS, () ->
-            LOGGER.warn("Couldn't connect to the server! Maybe it's offline?"));
-    }
-
-    /**
-     * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port} and a specified
-     * timeout. If the timeout is reached, then the {@link Runnable} is run and the backing
-     * {@link AsynchronousSocketChannel} is closed.
-     *
-     * @param address   The IP address to connect to.
-     * @param port      The port to connect to {@code 0 <= port <= 65535}.
-     * @param timeout   The timeout value.
-     * @param unit      The timeout unit.
-     * @param onTimeout The {@link Runnable} that runs if this connection attempt times out.
-     */
-    public final void connect(String address, int port, long timeout, TimeUnit unit, Runnable onTimeout) {
         Objects.requireNonNull(address);
 
-        if (port < 0 || port > 65_535) {
+        if (port < 0 || port > MAX_PORT) {
             throw new IllegalArgumentException("The specified port must be between 0 and 65535!");
         }
 
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setDaemon(false);
-            thread.setName(thread.getName().replace("Thread", "SimpleNet"));
-            
-            return thread;
-        }, (runnable, threadPoolExecutor) -> {});
-
-        // Start one core thread in advance to prevent the JVM from shutting down.
-        executor.prestartCoreThread();
-
         try {
-            this.channel = AsynchronousSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
-            this.channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
-            this.channel.setOption(StandardSocketOptions.SO_SNDBUF, BUFFER_SIZE);
-            this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
-            this.channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+            channel = SocketChannel.open(new InetSocketAddress(address, port));
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to open the channel!", e);
+            throw new UncheckedIOException("An IOException occurred when attempting to connect to a server with the " +
+                "specified address and port!", e);
         }
 
         try {
-            channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
-        } catch (AlreadyConnectedException e) {
-            throw new IllegalStateException("This client is already connected to a server!", e);
-        } catch (Exception e) {
-            onTimeout.run();
-            close(false);
-            return;
-        }
-        
-        executor.execute(() -> connectListeners.forEach(Runnable::run));
-    }
-
-    /**
-     * The implementation of {@link #close()} that may or may not wait for flushed packets to be written
-     * successfully, depending on the value of {@code waitForWrite}.
-     *
-     * @param waitForWrite Whether or not to wait for flushed packets to be written successfully.
-     */
-    private void close(boolean waitForWrite) {
-        // If this Client is already closing, do nothing.
-        if (closing.getAndSet(true)) {
-            return;
-        }
-
-        preDisconnectListeners.forEach(Runnable::run);
-
-        if (waitForWrite) {
-            flush();
-
-            while (writeInProgress.get()) {
-                Thread.onSpinWait();
-            }
-        }
-
-        Channeled.super.close();
-
-        while (channel.isOpen()) {
-            Thread.onSpinWait();
-        }
-
-        postDisconnectListeners.forEach(Runnable::run);
-
-        if (group != null) {
-            try {
-                group.shutdownNow();
-            } catch (IOException e) {
-                LOGGER.debug("An IOException occurred when shutting down the AsynchronousChannelGroup!", e);
-            }
+            channel.configureBlocking(true);
+        } catch (IOException e) {
+            throw new UncheckedIOException("An IOException occurred when configuring the channel to block!", e);
         }
     }
 
     /**
-     * Closes this {@link Client}'s backing {@link AsynchronousSocketChannel} after flushing any queued packets.
+     * Closes this {@link Client}'s backing {@link SocketChannel channel} after flushing any queued packets.
      * <br><br>
-     * Any registered pre-disconnect listeners are fired before remaining packets are flushed, and registered
-     * post-disconnect listeners are fired after the backing channel has closed successfully.
+     * Any registered disconnect listeners are fired after the backing channel has closed successfully.
      * <br><br>
      * Listeners are fired in the same order that they were registered in.
      */
     @Override
     public final void close() {
-        close(true);
-    }
-
-    /**
-     * Registers a listener that fires right before a {@link Client} disconnects from a {@link Server}.
-     * <br><br>
-     * Calling this method more than once registers multiple listeners.
-     * <br><br>
-     * If this {@link Client}'s connection to a {@link Server} is lost unexpectedly, then its backing
-     * {@link AsynchronousSocketChannel} may already be closed.
-     *
-     * @param listener A {@link Runnable}.
-     */
-    public final void preDisconnect(Runnable listener) {
-        preDisconnectListeners.add(listener);
-    }
-
-    /**
-     * Registers a listener that fires right after a {@link Client} disconnects from a {@link Server}.
-     * <br><br>
-     * Calling this method more than once registers multiple listeners.
-     *
-     * @param listener A {@link Runnable}.
-     */
-    public final void postDisconnect(Runnable listener) {
-        postDisconnectListeners.add(listener);
-    }
-    
-    @Override
-    public void readUntil(int n, Predicate<ByteBuffer> predicate, ByteOrder order) {
-        boolean shouldDecrypt = decryptionCipher != null;
-    
-        if (shouldDecrypt && !decryptionNoPadding) {
-            n = Utility.roundUpToNextMultiple(n, decryptionCipher.getBlockSize());
+        if (closing.getAndSet(true)) {
+            return;
         }
 
-        var pair = new IntPair<Predicate<ByteBuffer>>(n, buffer -> predicate.test(buffer.order(order)));
+        flush();
 
-        synchronized (queue) {
-            if (inCallback.get()) {
-                stack.push(pair);
-                return;
-            }
-
-            queue.offerFirst(pair);
-
-            if (!readInProgress.getAndSet(true)) {
-                var buffer = DIRECT_BUFFER_POOL.take(n);
-                channel.read(buffer, new Pair<>(this, buffer), Listener.INSTANCE);
-            }
+        try {
+            channel.close();
+        } catch (IOException e) {
+            LOGGER.error("An IOException occurred when attempting to close the backing channel!", e);
         }
+
+        while (channel.isOpen()) {
+            Thread.onSpinWait();
+        }
+
+        disconnectListeners.forEach(Runnable::run);
     }
 
     /**
@@ -570,38 +280,280 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
                     }
                 }
 
-                raw.flip();
-
-                if (!writeInProgress.getAndSet(true)) {
-                    channel.write(raw, raw, packetHandler);
-                } else {
-                    packetsToFlush.offer(raw);
+                try {
+                    channel.write(raw.flip());
+                } catch (IOException e) {
+                    LOGGER.error("An IOException occurred when attempting to send a packet!", e);
                 }
             }
         }
     }
 
+    private ByteBuffer readHelper(int numBytesToRead, ByteOrder byteOrder) {
+        boolean shouldDecrypt = decryptionCipher != null;
+
+        if (shouldDecrypt && !decryptionNoPadding) {
+            numBytesToRead = Utility.roundUpToNextMultiple(numBytesToRead, decryptionCipher.getBlockSize());
+        }
+
+        var buffer = DIRECT_BUFFER_POOL.take(numBytesToRead).order(byteOrder);
+
+        try {
+            channel.read(buffer);
+        } catch (IOException e) {
+            throw new UncheckedIOException("An IOException occurred when reading a byte!", e);
+        }
+
+        if (shouldDecrypt) {
+            try {
+                buffer = decryptionFunction.apply(decryptionCipher, buffer.flip());
+            } catch (GeneralSecurityException e) {
+                LOGGER.error("A GeneralSecurityException occurred when decrypting a byte!", e);
+            }
+        }
+
+        return buffer.flip();
+    }
+
+
     /**
-     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the {@link Channel}.
-     * <br><br>
-     * This method should only be used internally; modifying this queue in any way can produce unintended results!
+     * Reads the specified amount of bytes into a temporary, big endian {@link ByteBuffer}, which is then passed to the
+     * specified {@link Consumer consumer} for processing.
      *
-     * @return A {@link Queue}.
+     * @param numBytesToRead The number of bytes to read.
+     * @param consumer       The {@link Consumer consumer} to accept with the temporary {@link ByteBuffer}.
      */
-    public final Queue<Packet> getOutgoingPackets() {
-        return outgoingPackets;
+    public final void read(int numBytesToRead, Consumer<ByteBuffer> consumer) {
+        read(numBytesToRead, ByteOrder.BIG_ENDIAN, consumer);
     }
 
     /**
-     * Gets the backing {@link Channel} of this {@link Client}.
+     * Reads the specified amount of bytes into a temporary {@link ByteBuffer}, which is then passed to the specified
+     * {@link Consumer consumer} for processing.
      *
-     * @return This {@link Client}'s backing channel.
+     * @param numBytesToRead The number of bytes to read.
+     * @param byteOrder      The order of the bytes in the temporary {@link ByteBuffer}.
+     * @param consumer       The {@link Consumer consumer} to accept with the temporary {@link ByteBuffer}.
      */
-    @Override
-    public final AsynchronousSocketChannel getChannel() {
-        return channel;
+    public final void read(int numBytesToRead, ByteOrder byteOrder, Consumer<ByteBuffer> consumer) {
+        var buffer = readHelper(numBytesToRead, byteOrder);
+        consumer.accept(buffer);
+
+        if (buffer.hasRemaining()) {
+            int remaining = buffer.remaining();
+            byte[] decodedData = new byte[Math.min(numBytesToRead, 8)];
+            buffer.clear().get(decodedData);
+            LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
+                remaining, Arrays.toString(decodedData));
+        }
+
+        DIRECT_BUFFER_POOL.give(buffer);
     }
-    
+
+    /**
+     * Reads a {@code boolean} from the network, blocking until it is received.
+     *
+     * @return A {@code boolean}.
+     */
+    public final boolean readBoolean() {
+        var buffer = readHelper(Byte.BYTES, ByteOrder.BIG_ENDIAN);
+        byte value = buffer.get();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value == 1;
+    }
+
+    /**
+     * Reads a {@code byte} from the network, blocking until it is received.
+     *
+     * @return A {@code byte}.
+     */
+    public final byte readByte() {
+        var buffer = readHelper(Byte.BYTES, ByteOrder.BIG_ENDIAN);
+        byte value = buffer.get();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code char} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code char}.
+     */
+    public final char readChar() {
+        return readChar(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@code char} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code char}.
+     * @return A {@code char} with the specified {@link ByteOrder byte order}.
+     */
+    public final char readChar(ByteOrder byteOrder) {
+        var buffer = readHelper(Character.BYTES, byteOrder);
+        char value = buffer.getChar();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code double} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code double}.
+     */
+    public final double readDouble() {
+        return readDouble(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@code double} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code double}.
+     * @return A {@code double} with the specified {@link ByteOrder byte order}.
+     */
+    public final double readDouble(ByteOrder byteOrder) {
+        var buffer = readHelper(Double.BYTES, byteOrder);
+        double value = buffer.getDouble();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code float} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code float}.
+     */
+    public final float readFloat() {
+        return readFloat(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@code float} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code float}.
+     * @return A {@code float} with the specified {@link ByteOrder byte order}.
+     */
+    public final float readFloat(ByteOrder byteOrder) {
+        var buffer = readHelper(Float.BYTES, byteOrder);
+        float value = buffer.getFloat();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code int} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code int}.
+     */
+    public final int readInt() {
+        return readInt(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads an {@code int} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code int}.
+     * @return An {@code int} with the specified {@link ByteOrder byte order}.
+     */
+    public final int readInt(ByteOrder byteOrder) {
+        var buffer = readHelper(Integer.BYTES, byteOrder);
+        int value = buffer.getInt();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code long} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code long}.
+     */
+    public final long readLong() {
+        return readLong(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@code long} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code long}.
+     * @return A {@code long} with the specified {@link ByteOrder byte order}.
+     */
+    public final long readLong(ByteOrder byteOrder) {
+        var buffer = readHelper(Long.BYTES, byteOrder);
+        long value = buffer.getLong();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@code short} from the network, blocking until it is received.
+     *
+     * @return A big endian {@code short}.
+     */
+    public final short readShort() {
+        return readShort(ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@code short} from the network, blocking until it is received.
+     *
+     * @param byteOrder The order of the bytes in the {@code short}.
+     * @return A {@code short} with the specified {@link ByteOrder byte order}.
+     */
+    public final short readShort(ByteOrder byteOrder) {
+        var buffer = readHelper(Short.BYTES, byteOrder);
+        short value = buffer.getShort();
+        DIRECT_BUFFER_POOL.give(buffer);
+        return value;
+    }
+
+    /**
+     * Reads a {@link String} from the network, blocking until it is received.
+     *
+     * @return A big endian {@link String} with a {@link Charset charset} of {@link StandardCharsets#UTF_8}.
+     */
+    public final String readString() {
+        return readString(StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@link String} from the network, blocking until it is received.
+     *
+     * @param charset The {@link Charset} of the {@link String}.
+     * @return A {@link String} with the specified {@link Charset charset}.
+     */
+    public final String readString(Charset charset) {
+        return readString(charset, ByteOrder.BIG_ENDIAN);
+    }
+
+    /**
+     * Reads a {@link String} from the network, blocking until it is received.
+     *
+     * @param charset   The {@link Charset} of the {@link String}.
+     * @param byteOrder The order of the bytes in the {@link String}.
+     * @return A {@link String} with the specified {@link Charset charset} and {@link ByteOrder byte order}.
+     */
+    public final String readString(Charset charset, ByteOrder byteOrder) {
+        short length = readShort(byteOrder);
+        int newLength = length & 0xFFFF;
+        var buffer = readHelper(Byte.BYTES * newLength, ByteOrder.BIG_ENDIAN);
+        var b = new byte[newLength];
+        buffer.get(b);
+        DIRECT_BUFFER_POOL.give(buffer);
+        return new String(b, charset);
+    }
+
+    /**
+     * Registers a listener that fires right after a {@link Client client} disconnects from a {@link Server server}.
+     * <br><br>
+     * Calling this method more than once registers multiple listeners.
+     *
+     * @param listener A {@link Runnable} that will be executed when this {@link Client client} disconnects from the
+     *                 {@link Server server}.
+     */
+    public final void onDisconnect(Runnable listener) {
+        disconnectListeners.add(listener);
+    }
+
     /**
      * Gets the encryption {@link Cipher} used by this {@link Client}.
      *
