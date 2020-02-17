@@ -37,15 +37,23 @@ import java.security.GeneralSecurityException;
  */
 @FunctionalInterface
 public interface CryptographicFunction {
-    
+    CryptographicFunction DO_FINAL = Cipher::doFinal;
+    CryptographicFunction UPDATE = Cipher::update;
+
     /**
      * Performs encryption/decryption of a {@link ByteBuffer} given a {@link Cipher cipher}.
      *
      * @param cipher The {@link Cipher} used to encrypt/decrypt the specified {@link ByteBuffer}.
-     * @param buffer The {@link ByteBuffer} to encrypt/decrypt.
-     * @return The modified data after it has been encrypted/decrypted by the {@link Cipher cipher}
+     * @param input  The {@link ByteBuffer} to encrypt/decrypt.
+     * @param output The output {@link ByteBuffer} to hold the result data
      * @throws GeneralSecurityException if an exception occurred while encrypting/decrypting.
      */
-    ByteBuffer apply(Cipher cipher, ByteBuffer buffer) throws GeneralSecurityException;
-   
+    void apply(Cipher cipher, ByteBuffer input, ByteBuffer output) throws GeneralSecurityException;
+
+    default ByteBuffer performCryptography(Cipher cipher, ByteBuffer input) throws GeneralSecurityException {
+        var output = input.duplicate().limit(cipher.getOutputSize(input.limit()));
+        apply(cipher, input, output);
+        return output;
+    }
+
 }

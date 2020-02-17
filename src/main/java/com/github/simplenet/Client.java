@@ -29,14 +29,7 @@ import com.github.simplenet.utility.MutableBoolean;
 import com.github.simplenet.utility.Pair;
 import com.github.simplenet.utility.Utility;
 import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
-import com.github.simplenet.utility.exposed.data.BooleanReader;
-import com.github.simplenet.utility.exposed.data.ByteReader;
-import com.github.simplenet.utility.exposed.data.CharReader;
-import com.github.simplenet.utility.exposed.data.DoubleReader;
-import com.github.simplenet.utility.exposed.data.FloatReader;
-import com.github.simplenet.utility.exposed.data.IntReader;
-import com.github.simplenet.utility.exposed.data.LongReader;
-import com.github.simplenet.utility.exposed.data.StringReader;
+import com.github.simplenet.utility.exposed.data.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pbbl.ByteBufferPool;
@@ -48,11 +41,7 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.AlreadyConnectedException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.Channel;
-import java.nio.channels.CompletionHandler;
+import java.nio.channels.*;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -64,6 +53,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static com.github.simplenet.utility.exposed.cryptography.CryptographicFunction.DO_FINAL;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -77,106 +68,43 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     private static final Logger LOGGER = LoggerFactory.getLogger(Client.class);
 
     /**
-     * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
+     * Flushes any queued {@link Packet}s held within the internal {@link Queue}.
+     * <br><br>
+     * Any {@link Packet}s queued after the call to this method will not be flushed until this method is called again.
      */
-    static class Listener implements CompletionHandler<Integer, Pair<Client, ByteBuffer>> {
+    public final void flush() {
+        Packet packet;
 
-        /**
-         * A {@code static} instance of this class to be reused.
-         */
-        static final Listener INSTANCE = new Listener();
-        
-        @Override
-        public void completed(Integer result, Pair<Client, ByteBuffer> pair) {
-            // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
-            // client's connection.
-            int bytesReceived = result;
+        boolean shouldEncrypt = encryptionCipher != null;
 
-            if (bytesReceived == -1) {
-                pair.getKey().close(false);
-                return;
-            }
+        Deque<Consumer<ByteBuffer>> queue;
 
-            var client = pair.getKey();
-            var buffer = pair.getValue().flip();
+        synchronized (outgoingPackets) {
+            while ((packet = outgoingPackets.poll()) != null) {
+                queue = packet.getQueue();
 
-            synchronized (client.queue) {
-                var queue = client.queue;
+                ByteBuffer raw = DIRECT_BUFFER_POOL.take(packet.getSize(this));
 
-                IntPair<Predicate<ByteBuffer>> peek;
-
-                if ((peek = queue.peekLast()) == null) {
-                    client.readInProgress.set(false);
-                    return;
+                for (var input : queue) {
+                    input.accept(raw);
                 }
 
-                var stack = client.stack;
-
-                boolean shouldDecrypt = client.decryptionCipher != null;
-                boolean queueIsEmpty = false;
-
-                int key;
-
-                client.inCallback.set(true);
-
-                while (buffer.remaining() >= (key = peek.getKey())) {
-                    var wrappedBuffer = buffer.duplicate().mark().limit(buffer.position() + key);
-
-                    if (shouldDecrypt) {
-                        try {
-                            wrappedBuffer = client.decryptionFunction.apply(client.decryptionCipher, wrappedBuffer)
-                                    .reset();
-                        } catch (Exception e) {
-                            throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
-                        }
-                    }
-
-                    // If the predicate returns false, poll the element from the queue.
-                    if (!peek.getValue().test(wrappedBuffer)) {
-                        queue.pollLast();
-                    }
-
-                    if (wrappedBuffer.hasRemaining()) {
-                        int remaining = wrappedBuffer.remaining();
-                        byte[] decodedData = new byte[Math.min(key, 8)];
-                        wrappedBuffer.reset().get(decodedData);
-                        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
-                                remaining, decodedData);
-                    }
-
-                    buffer.position(wrappedBuffer.limit());
-
-                    while (!stack.isEmpty()) {
-                        queue.offerLast(stack.pop());
-                    }
-
-                    if ((peek = queue.peekLast()) == null) {
-                        queueIsEmpty = true;
-                        break;
+                if (shouldEncrypt) {
+                    try {
+                        raw = encryptionFunction.performCryptography(encryptionCipher, raw.flip());
+                    } catch (GeneralSecurityException e) {
+                        throw new IllegalStateException("An exception occurred whilst encrypting data!", e);
                     }
                 }
 
-                client.inCallback.set(false);
+                raw.flip();
 
-                // The buffer that was used must be returned to the pool.
-                DIRECT_BUFFER_POOL.give(buffer);
-
-                if (queueIsEmpty) {
-                    // Because the queue is empty, the client should not attempt to read more data until
-                    // more is requested by the user.
-                    client.readInProgress.set(false);
+                if (!writeInProgress.getAndSet(true)) {
+                    channel.write(raw, raw, packetHandler);
                 } else {
-                    // Because the queue is NOT empty and we don't have enough data to process the request,
-                    // we must read more data.
-                    var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
-                    client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
+                    packetsToFlush.offer(raw);
                 }
             }
-        }
-
-        @Override
-        public void failed(Throwable t, Pair<Client, ByteBuffer> pair) {
-            pair.getKey().close(false);
         }
     }
 
@@ -219,12 +147,6 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
 
             client.writeInProgress.set(false);
         }
-    };
-
-    private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
-        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
-        cipher.doFinal(data, output);
-        return output;
     };
 
     /**
@@ -541,43 +463,108 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     }
 
     /**
-     * Flushes any queued {@link Packet}s held within the internal {@link Queue}.
-     * <br><br>
-     * Any {@link Packet}s queued after the call to this method will not be flushed until this method is called again.
+     * The {@link CompletionHandler} used to process bytes when they are received by this {@link Client}.
      */
-    public final void flush() {
-        Packet packet;
+    static class Listener implements CompletionHandler<Integer, Pair<Client, ByteBuffer>> {
 
-        boolean shouldEncrypt = encryptionCipher != null;
+        /**
+         * A {@code static} instance of this class to be reused.
+         */
+        static final Listener INSTANCE = new Listener();
 
-        Deque<Consumer<ByteBuffer>> queue;
+        @Override
+        public void completed(Integer result, Pair<Client, ByteBuffer> pair) {
+            // A result of -1 normally means that the end-of-stream has been reached. In that case, close the
+            // client's connection.
+            int bytesReceived = result;
 
-        synchronized (outgoingPackets) {
-            while ((packet = outgoingPackets.poll()) != null) {
-                queue = packet.getQueue();
+            if (bytesReceived == -1) {
+                pair.getKey().close(false);
+                return;
+            }
 
-                ByteBuffer raw = DIRECT_BUFFER_POOL.take(packet.getSize(this));
+            var client = pair.getKey();
+            var buffer = pair.getValue().flip();
 
-                for (var input : queue) {
-                    input.accept(raw);
+            synchronized (client.queue) {
+                var queue = client.queue;
+
+                IntPair<Predicate<ByteBuffer>> peek;
+
+                if ((peek = queue.peekLast()) == null) {
+                    client.readInProgress.set(false);
+                    return;
                 }
 
-                if (shouldEncrypt) {
-                    try {
-                        raw = encryptionFunction.apply(encryptionCipher, raw.flip());
-                    } catch (GeneralSecurityException e) {
-                        throw new IllegalStateException("An exception occurred whilst encrypting data!", e);
+                var stack = client.stack;
+
+                boolean shouldDecrypt = client.decryptionCipher != null;
+                boolean queueIsEmpty = false;
+
+                int key;
+
+                client.inCallback.set(true);
+
+                while (buffer.remaining() >= (key = peek.getKey())) {
+                    var wrappedBuffer = buffer.duplicate().mark().limit(buffer.position() + key);
+
+                    if (shouldDecrypt) {
+                        try {
+                            wrappedBuffer = client.decryptionFunction.performCryptography(
+                                client.decryptionCipher,
+                                wrappedBuffer
+                            ).reset();
+                        } catch (Exception e) {
+                            throw new IllegalStateException("An exception occurred whilst encrypting data:", e);
+                        }
+                    }
+
+                    // If the predicate returns false, poll the element from the queue.
+                    if (!peek.getValue().test(wrappedBuffer)) {
+                        queue.pollLast();
+                    }
+
+                    if (wrappedBuffer.hasRemaining()) {
+                        int remaining = wrappedBuffer.remaining();
+                        byte[] decodedData = new byte[Math.min(key, 8)];
+                        wrappedBuffer.reset().get(decodedData);
+                        LOGGER.warn("A packet has not been read fully! {} byte(s) leftover! First 8 bytes of data: {}",
+                            remaining, decodedData);
+                    }
+
+                    buffer.position(wrappedBuffer.limit());
+
+                    while (!stack.isEmpty()) {
+                        queue.offerLast(stack.pop());
+                    }
+
+                    if ((peek = queue.peekLast()) == null) {
+                        queueIsEmpty = true;
+                        break;
                     }
                 }
 
-                raw.flip();
+                client.inCallback.set(false);
 
-                if (!writeInProgress.getAndSet(true)) {
-                    channel.write(raw, raw, packetHandler);
+                // The buffer that was used must be returned to the pool.
+                DIRECT_BUFFER_POOL.give(buffer);
+
+                if (queueIsEmpty) {
+                    // Because the queue is empty, the client should not attempt to read more data until
+                    // more is requested by the user.
+                    client.readInProgress.set(false);
                 } else {
-                    packetsToFlush.offer(raw);
+                    // Because the queue is NOT empty and we don't have enough data to process the request,
+                    // we must read more data.
+                    var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
+                    client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
                 }
             }
+        }
+
+        @Override
+        public void failed(Throwable t, Pair<Client, ByteBuffer> pair) {
+            pair.getKey().close(false);
         }
     }
 
