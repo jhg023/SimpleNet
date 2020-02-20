@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,19 @@ import java.security.GeneralSecurityException;
  */
 @FunctionalInterface
 public interface CryptographicFunction {
-    
+
+    CryptographicFunction DO_FINAL = (Cipher cipher, ByteBuffer data) -> {
+        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
+        cipher.doFinal(data, output);
+        return output;
+    };
+
+    CryptographicFunction UPDATE = (Cipher cipher, ByteBuffer data) -> {
+        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
+        cipher.update(data, output);
+        return output;
+    };
+
     /**
      * Performs encryption/decryption of a {@link ByteBuffer} given a {@link Cipher cipher}.
      *

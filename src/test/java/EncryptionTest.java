@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,18 +31,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.security.GeneralSecurityException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.simplenet.utility.exposed.cryptography.CryptographicFunction.DO_FINAL;
+import static com.github.simplenet.utility.exposed.cryptography.CryptographicFunction.UPDATE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -53,105 +51,72 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 final class EncryptionTest {
 
-    private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
-        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
-        cipher.doFinal(data, output);
-        return output;
-    };
-
-    private static final CryptographicFunction UPDATE = (cipher, data) -> {
-        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
-        cipher.update(data, output);
-        return output;
-    };
-
     private final ThreadLocalRandom random = ThreadLocalRandom.current();
-    
+
     private final byte[] sharedSecret = new byte[16];
-    
+
     private final byte[] encryptBytes = new byte[128];
-    
+
     private CountDownLatch latch;
-    
+
     @BeforeEach
     void beforeEach() {
         random.nextBytes(sharedSecret);
         random.nextBytes(encryptBytes);
         latch = new CountDownLatch(5);
     }
-    
+
     @AfterEach
     void afterEach() throws InterruptedException {
         if (!latch.await(1L, TimeUnit.SECONDS)) {
             Assertions.fail();
         }
     }
-    
+
     @Test
-    void testPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
-            InvalidKeyException {
-        var server = new Server();
-        server.bind("localhost", 9000);
-
-        String AES = "AES/CBC/PKCS5Padding";
-
-        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
-                d = Cipher.getInstance(AES);
-        initCiphers(a, b, c, d);
-
-        startTest(server, 9000, a, b, c, d, DO_FINAL, DO_FINAL);
+    void testPaddingAES() throws GeneralSecurityException {
+        startTest(9000, "AES/CBC/PKCS5Padding", DO_FINAL, DO_FINAL);
     }
-    
+
     @Test
-    void testNoPaddingAES() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
-            InvalidKeyException {
-        var server = new Server();
-
-        server.bind("localhost", 9001);
-
-        String AES = "AES/CFB8/NoPadding";
-
-        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
-                d = Cipher.getInstance(AES);
-        initCiphers(a, b, c, d);
-
-        startTest(server, 9001, a, b, c, d, UPDATE, UPDATE);
+    void testNoPaddingAES() throws GeneralSecurityException {
+        startTest(9001, "AES/CFB8/NoPadding", UPDATE, UPDATE);
     }
-    
+
     @Test
-    void testNoPaddingAESFinal() throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException {
-        var server = new Server();
-
-        server.bind("localhost", 9003);
-
-        String AES = "AES/CFB8/NoPadding";
-
-        Cipher a = Cipher.getInstance(AES), b = Cipher.getInstance(AES), c = Cipher.getInstance(AES),
-                d = Cipher.getInstance(AES);
-        initCiphers(a, b, c, d);
-
-        startTest(server, 9003, a, b, c, d, DO_FINAL, DO_FINAL);
+    void testNoPaddingAESFinal() throws GeneralSecurityException {
+        startTest(9002, "AES/CFB8/NoPadding", DO_FINAL, DO_FINAL);
     }
-    
-    private void initCiphers(Cipher serverEncryption, Cipher serverDecryption, Cipher clientEncryption,
-                             Cipher clientDecryption) throws InvalidAlgorithmParameterException, InvalidKeyException {
-        IvParameterSpec ivSpec = new IvParameterSpec(sharedSecret);
-        SecretKeySpec keySpec = new SecretKeySpec(sharedSecret, "AES");
+
+    private Cipher[] initCiphers(String cipher) throws GeneralSecurityException {
+        var ivSpec = new IvParameterSpec(sharedSecret);
+        var keySpec = new SecretKeySpec(sharedSecret, "AES");
+
+        var serverEncryption = Cipher.getInstance(cipher);
+        var serverDecryption = Cipher.getInstance(cipher);
+        var clientEncryption = Cipher.getInstance(cipher);
+        var clientDecryption = Cipher.getInstance(cipher);
 
         serverEncryption.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
         serverDecryption.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
 
         clientEncryption.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
         clientDecryption.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+
+        return new Cipher[] { serverEncryption, serverDecryption, clientEncryption, clientDecryption };
     }
-    
-    private void startTest(Server server, int port, Cipher serverEncryption, Cipher serverDecryption,
-                           Cipher clientEncryption, Cipher clientDecryption, CryptographicFunction encryption,
-                           CryptographicFunction decryption) {
+
+    private void startTest(int port, String algorithm, CryptographicFunction encryption,
+                           CryptographicFunction decryption) throws GeneralSecurityException {
+        var server = new Server();
+
+        server.bind("localhost", port);
+
+        var ciphers = initCiphers(algorithm);
+
         server.onConnect(client -> {
-            client.setEncryption(serverEncryption, encryption);
-            client.setDecryption(serverDecryption, decryption);
+            client.setEncryption(ciphers[0], encryption);
+            client.setDecryption(ciphers[1], decryption);
 
             client.read(128 + 14 + 8 + 8 + 1, buffer -> {
                 byte[] data = new byte[128];
@@ -175,16 +140,16 @@ final class EncryptionTest {
                 latch.countDown();
             });
         });
-        
+
         var client = new Client();
-        
+
         client.onConnect(() -> {
-            client.setEncryption(clientEncryption, encryption);
-            client.setDecryption(clientDecryption, decryption);
+            client.setEncryption(ciphers[2], encryption);
+            client.setDecryption(ciphers[3], decryption);
             Packet.builder().putBytes(encryptBytes).putString("Hello World!").putLong(54735436752L).putDouble(23.1231)
-                    .putByte(0x00).queueAndFlush(client);
+                .putByte(0x00).queueAndFlush(client);
         });
-        
+
         client.connect("localhost", port);
     }
 }

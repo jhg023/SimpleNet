@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -443,14 +443,16 @@ public final class Packet {
      * @return The current size of this {@link Packet packet} in bytes.
      */
     public int getSize(Client client) {
-        Cipher encryption;
+        Cipher encryptionCipher;
         
-        if (client == null || (encryption = client.getEncryptionCipher()) == null) {
+        if (client == null || (encryptionCipher = client.getEncryptionCipher()) == null) {
             return size;
         }
 
         if (!client.isEncryptionNoPadding()) {
-            return Utility.roundUpToNextMultiple(size, encryption.getBlockSize());
+            int blockSize = encryptionCipher.getBlockSize();
+            return Utility.roundUpToNextMultiple(size, blockSize == 0 ?
+                encryptionCipher.getOutputSize(size) : blockSize);
         }
         
         return size;

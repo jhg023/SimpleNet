@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Jacob Glickman
+ * Copyright (c) 2020 Jacob Glickman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -221,31 +221,25 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
         }
     };
 
-    private static final CryptographicFunction DO_FINAL = (cipher, data) -> {
-        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
-        cipher.doFinal(data, output);
-        return output;
-    };
-
     /**
      * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
      */
     private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
 
-	/**
-	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
-	 */
-	private final MutableBoolean inCallback;
+    /**
+     * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
+     */
+    private final MutableBoolean inCallback;
     
     /**
      * A thread-safe method of keeping track if this {@link Client} is in the process of shutting down.
      */
     private final AtomicBoolean closing;
     
-	/**
-	 * A thread-safe method of keeping track if this {@link Client} is currently waiting for bytes to arrive.
-	 */
-	private final AtomicBoolean readInProgress;
+    /**
+     * A thread-safe method of keeping track if this {@link Client} is currently waiting for bytes to arrive.
+     */
+    private final AtomicBoolean readInProgress;
     
     /**
      * A thread-safe method of keeping track whether this {@link Client} is currently writing data to the network.
@@ -264,7 +258,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
 
     /**
      * The {@link Deque} that keeps track of nested calls to {@link Client#readUntil(int, Predicate, ByteOrder)} and
-	 * assures that they will complete in the expected order.
+     * assures that they will complete in the expected order.
      */
     private final Deque<IntPair<Predicate<ByteBuffer>>> stack;
 
@@ -355,17 +349,17 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     protected Client(Client client) {
         super(client);
 
-		this.stack = client.stack;
-		this.queue = client.queue;
-		this.channel = client.channel;
+        this.stack = client.stack;
+        this.queue = client.queue;
+        this.channel = client.channel;
         this.closing = client.closing;
         this.inCallback = client.inCallback;
-		this.packetsToFlush = client.packetsToFlush;
+        this.packetsToFlush = client.packetsToFlush;
         this.readInProgress = client.readInProgress;
         this.writeInProgress = client.writeInProgress;
         this.outgoingPackets = client.outgoingPackets;
         this.encryptionCipher = client.encryptionCipher;
-		this.decryptionCipher = client.decryptionCipher;
+        this.decryptionCipher = client.decryptionCipher;
         this.encryptionFunction = client.encryptionFunction;
         this.decryptionFunction = client.decryptionFunction;
         this.decryptionNoPadding = client.decryptionNoPadding;
@@ -520,7 +514,8 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
         boolean shouldDecrypt = decryptionCipher != null;
     
         if (shouldDecrypt && !decryptionNoPadding) {
-            n = Utility.roundUpToNextMultiple(n, decryptionCipher.getBlockSize());
+            int blockSize = decryptionCipher.getBlockSize();
+            n = Utility.roundUpToNextMultiple(n, blockSize == 0 ? decryptionCipher.getOutputSize(n) : blockSize);
         }
 
         var pair = new IntPair<Predicate<ByteBuffer>>(n, buffer -> predicate.test(buffer.order(order)));
@@ -628,7 +623,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * @param encryptionCipher The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
      */
     public final void setEncryptionCipher(Cipher encryptionCipher) {
-        setEncryption(encryptionCipher, DO_FINAL);
+        setEncryption(encryptionCipher, CryptographicFunction.DO_FINAL);
     }
     
     /**
@@ -661,7 +656,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * @param decryptionCipher The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
      */
     public final void setDecryptionCipher(Cipher decryptionCipher) {
-        setDecryption(decryptionCipher, DO_FINAL);
+        setDecryption(decryptionCipher, CryptographicFunction.DO_FINAL);
     }
     
     /**
