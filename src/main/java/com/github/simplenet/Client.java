@@ -397,7 +397,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
             throw new IllegalArgumentException("The specified port must be between 0 and 65535!");
         }
 
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(), runnable -> {
             Thread thread = new Thread(runnable);
             thread.setDaemon(false);
