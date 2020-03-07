@@ -3,5 +3,4 @@ module com.github.simplenet {
     requires Pbbl;
 
     exports com.github.simplenet;
-    exports com.github.simplenet.cryptography;
 }

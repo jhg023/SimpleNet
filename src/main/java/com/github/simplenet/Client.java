@@ -23,15 +23,11 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.cryptography.CryptographicFunction;
-import com.github.simplenet.utility.MutableBoolean;
-import com.github.simplenet.utility.Utility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pbbl.ByteBufferPool;
 import pbbl.direct.DirectByteBufferPool;
 
-import javax.crypto.Cipher;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,7 +39,6 @@ import java.nio.channels.Channel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,71 +70,20 @@ public class Client implements Closeable {
     private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
 
     /**
-     * The default {@link CryptographicFunction} to use if one isn't specified when requesting encryption/decryption.
-     */
-    private static final CryptographicFunction DO_FINAL = (Cipher cipher, ByteBuffer data) -> {
-        ByteBuffer output = data.duplicate().limit(cipher.getOutputSize(data.limit()));
-        cipher.doFinal(data, output);
-        return output;
-    };
-
-    /**
      * A {@link Queue} to manage outgoing {@link Packet}s.
      */
     final Queue<Packet> outgoingPackets;
-
-	/**
-	 * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.
-	 */
-	private final MutableBoolean inCallback;
     
     /**
      * A thread-safe method of keeping track if this {@link Client} is in the process of shutting down.
      */
     private final AtomicBoolean closing;
-    
-	/**
-	 * A thread-safe method of keeping track if this {@link Client} is currently waiting for bytes to arrive.
-	 */
-	private final AtomicBoolean readInProgress;
 
     /**
      * A collection of listeners that are fired right after this {@link Client client} disconnects from a
      * {@link Server server}.
      */
-	private final Collection<Runnable> disconnectListeners;
-
-    /**
-     * Whether or not the decryption {@link Cipher} specifies {@code NoPadding} as part of its algorithm.
-     */
-    private boolean decryptionNoPadding;
-
-    /**
-     * Whether or not the encryption {@link Cipher} specifies {@code NoPadding} as part of its algorithm.
-     */
-    private boolean encryptionNoPadding;
-
-    /**
-     * The {@link Cipher} used for {@link Packet} decryptionCipher.
-     */
-    private Cipher decryptionCipher;
-
-    /**
-     * The {@link Cipher} used for {@link Packet} encryptionCipher.
-     */
-    private Cipher encryptionCipher;
-
-    /**
-     * The {@link CryptographicFunction} responsible for decrypting data sent to a {@link Client}, which defaults to
-     * {@link Cipher#doFinal(byte[])}.
-     */
-    private CryptographicFunction decryptionFunction;
-
-    /**
-     * The {@link CryptographicFunction} responsible for encrypting data sent to a {@link Client}, which defaults to
-     * {@link Cipher#doFinal(byte[])}.
-     */
-    private CryptographicFunction encryptionFunction;
+    private final Collection<Runnable> disconnectListeners;
     
     /**
      * The backing {@link Channel} of a {@link Client}.
@@ -160,8 +104,6 @@ public class Client implements Closeable {
      */
     Client(SocketChannel channel) {
         closing = new AtomicBoolean();
-        inCallback = new MutableBoolean();
-        readInProgress = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
         disconnectListeners = new ArrayList<>(1);
 
@@ -181,17 +123,9 @@ public class Client implements Closeable {
      * @param client An existing {@link Client} whose backing {@link AsynchronousSocketChannel} is already connected.
      */
     protected Client(Client client) {
-		this.channel = client.channel;
+        this.channel = client.channel;
         this.closing = client.closing;
-        this.inCallback = client.inCallback;
-        this.readInProgress = client.readInProgress;
         this.outgoingPackets = client.outgoingPackets;
-        this.encryptionCipher = client.encryptionCipher;
-		this.decryptionCipher = client.decryptionCipher;
-        this.encryptionFunction = client.encryptionFunction;
-        this.decryptionFunction = client.decryptionFunction;
-        this.encryptionNoPadding = client.encryptionNoPadding;
-        this.decryptionNoPadding = client.decryptionNoPadding;
         this.disconnectListeners = client.disconnectListeners;
     }
 
@@ -258,63 +192,53 @@ public class Client implements Closeable {
     public final void flush() {
         Packet packet;
 
-        boolean shouldEncrypt = encryptionCipher != null;
-
         Deque<Consumer<ByteBuffer>> queue;
 
         synchronized (outgoingPackets) {
             while ((packet = outgoingPackets.poll()) != null) {
                 queue = packet.getQueue();
 
-                ByteBuffer raw = DIRECT_BUFFER_POOL.take(packet.getSize(this));
+                ByteBuffer buffer = DIRECT_BUFFER_POOL.take(packet.getSize());
 
                 for (var input : queue) {
-                    input.accept(raw);
+                    input.accept(buffer);
                 }
 
-                if (shouldEncrypt) {
-                    try {
-                        raw = encryptionFunction.apply(encryptionCipher, raw.flip());
-                    } catch (GeneralSecurityException e) {
-                        throw new IllegalStateException("An exception occurred whilst encrypting data!", e);
-                    }
-                }
+                buffer.flip();
 
                 try {
-                    channel.write(raw.flip());
+                    while (buffer.hasRemaining()) {
+                        channel.write(buffer);
+                    }
                 } catch (IOException e) {
-                    LOGGER.error("An IOException occurred when attempting to send a packet!", e);
+                    LOGGER.error("An IOException occurred when attempting to flush a packet!", e);
+                } finally {
+                    DIRECT_BUFFER_POOL.give(buffer);
                 }
             }
         }
     }
 
+    /**
+     * Reads {@code numBytesToRead} from the network
+     *
+     * @param numBytesToRead The number of bytes to read.
+     * @param byteOrder      The {@link ByteOrder byte order} in which to represent the bytes.
+     * @return               A {@link ByteBuffer} containing the
+     */
     private ByteBuffer readHelper(int numBytesToRead, ByteOrder byteOrder) {
-        boolean shouldDecrypt = decryptionCipher != null;
-
-        if (shouldDecrypt && !decryptionNoPadding) {
-            numBytesToRead = Utility.roundUpToNextMultiple(numBytesToRead, decryptionCipher.getBlockSize());
-        }
-
         var buffer = DIRECT_BUFFER_POOL.take(numBytesToRead).order(byteOrder);
 
         try {
-            channel.read(buffer);
-        } catch (IOException e) {
-            throw new UncheckedIOException("An IOException occurred when reading a byte!", e);
-        }
-
-        if (shouldDecrypt) {
-            try {
-                buffer = decryptionFunction.apply(decryptionCipher, buffer.flip());
-            } catch (GeneralSecurityException e) {
-                LOGGER.error("A GeneralSecurityException occurred when decrypting a byte!", e);
+            while (buffer.hasRemaining()) {
+                channel.read(buffer);
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException("An IOException occurred when reading " + numBytesToRead + " bytes!", e);
         }
 
         return buffer.flip();
     }
-
 
     /**
      * Reads the specified amount of bytes into a temporary, big endian {@link ByteBuffer}, which is then passed to the
@@ -552,79 +476,5 @@ public class Client implements Closeable {
      */
     public final void onDisconnect(Runnable listener) {
         disconnectListeners.add(listener);
-    }
-
-    /**
-     * Gets the encryption {@link Cipher} used by this {@link Client}.
-     *
-     * @return This {@link Client}'s encryption {@link Cipher}; possibly {@code null} if not yet set.
-     */
-    public final Cipher getEncryptionCipher() {
-        return encryptionCipher;
-    }
-    
-    /**
-     * Gets the decryption {@link Cipher} used by this {@link Client}.
-     *
-     * @return This {@link Client}'s decryption {@link Cipher}; possibly {@code null} if not yet set.
-     */
-    public final Cipher getDecryptionCipher() {
-        return decryptionCipher;
-    }
-    
-    /**
-     * Sets the encryption {@link Cipher} used by this {@link Client}.
-     * <br><br>
-     * After calling this method, data being sent will automatically be encrypted using {@link Cipher#doFinal(byte[])}.
-     *
-     * @param encryptionCipher The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
-     */
-    public final void setEncryptionCipher(Cipher encryptionCipher) {
-        setEncryption(encryptionCipher, DO_FINAL);
-    }
-    
-    /**
-     * Sets the encryption {@link Cipher} and {@link CryptographicFunction} used by this {@link Client}.
-     *
-     * @param encryptionCipher   The {@link Cipher} to set this {@link Client}'s encryption {@link Cipher} to.
-     * @param encryptionFunction The {@link CryptographicFunction} responsible for the encryption of outgoing data.
-     */
-    public final void setEncryption(Cipher encryptionCipher, CryptographicFunction encryptionFunction) {
-        this.encryptionCipher = encryptionCipher;
-        this.encryptionFunction = encryptionFunction;
-        this.encryptionNoPadding = encryptionCipher.getAlgorithm().endsWith("NoPadding");
-    }
-
-    /**
-     * Gets whether or not this {@link Client}'s encryption {@link Cipher} specifies a {@code NoPadding} algorithm.
-     *
-     * @return {@code true} if the encryption algorithm being used specifies {@code NoPadding}, otherwise {@code false}.
-     */
-    public boolean isEncryptionNoPadding() {
-        return encryptionNoPadding;
-    }
-
-    /**
-     * Sets the decryption {@link Cipher} used by this {@link Client}.
-     * <br><br>
-     * After calling this method, data being received will automatically be decrypted using
-     * {@link Cipher#doFinal(byte[])}.
-     *
-     * @param decryptionCipher The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
-     */
-    public final void setDecryptionCipher(Cipher decryptionCipher) {
-        setDecryption(decryptionCipher, DO_FINAL);
-    }
-    
-    /**
-     * Sets the decryption {@link Cipher} and {@link CryptographicFunction} used by this {@link Client}.
-     *
-     * @param decryptionCipher   The {@link Cipher} to set this {@link Client}'s decryption {@link Cipher} to.
-     * @param decryptionFunction The {@link CryptographicFunction} responsible for the decryption of incoming data.
-     */
-    public final void setDecryption(Cipher decryptionCipher, CryptographicFunction decryptionFunction) {
-        this.decryptionCipher = decryptionCipher;
-        this.decryptionFunction = decryptionFunction;
-        this.decryptionNoPadding = decryptionCipher.getAlgorithm().endsWith("NoPadding");
     }
 }

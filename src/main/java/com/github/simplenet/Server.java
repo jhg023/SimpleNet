@@ -141,7 +141,7 @@ public class Server implements Closeable {
      */
     @Override
     public final void close() {
-        connectedClients.removeIf(client -> {
+        connectedClients.removeIf((Client client) -> {
             client.close();
             return true;
         });

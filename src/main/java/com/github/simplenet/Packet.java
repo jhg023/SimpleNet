@@ -23,9 +23,6 @@
  */
 package com.github.simplenet;
 
-import com.github.simplenet.utility.Utility;
-
-import javax.crypto.Cipher;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -40,7 +37,7 @@ import java.util.function.Consumer;
  * <br><br>
  * This class is <strong>NOT</strong> safe for concurrent use among multiple threads.
  */
-public final class Packet {
+public class Packet {
 
     /**
      * A {@code boolean} that designates whether data should be added to the front of the {@link Deque} rather than
@@ -107,7 +104,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putByte(int)
      */
-    public Packet putBoolean(boolean b) {
+    public final Packet putBoolean(boolean b) {
         return putByte(b ? 1 : 0);
     }
     
@@ -117,7 +114,7 @@ public final class Packet {
      * @param b An {@code int} for ease-of-use, but internally down-casted to a {@code byte}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putByte(int b) {
+    public final Packet putByte(int b) {
         size += Byte.BYTES;
         return enqueue(buffer -> buffer.order(ByteOrder.BIG_ENDIAN).put((byte) b));
     }
@@ -128,7 +125,7 @@ public final class Packet {
      * @param src A variable amount of {@code byte}s.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putBytes(byte... src) {
+    public final Packet putBytes(byte... src) {
         size += Byte.BYTES * src.length;
         return enqueue(buffer -> buffer.order(ByteOrder.BIG_ENDIAN).put(src));
     }
@@ -140,7 +137,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putChar(char, ByteOrder)
      */
-    public Packet putChar(char c) {
+    public final Packet putChar(char c) {
         return putChar(c, ByteOrder.BIG_ENDIAN);
     }
     
@@ -151,7 +148,7 @@ public final class Packet {
      * @param order The internal byte order of the {@code char}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putChar(char c, ByteOrder order) {
+    public final Packet putChar(char c, ByteOrder order) {
         size += Character.BYTES;
         return enqueue(buffer -> buffer.order(order).putChar(c));
     }
@@ -163,7 +160,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putDouble(double, ByteOrder)
      */
-    public Packet putDouble(double d) {
+    public final Packet putDouble(double d) {
         return putDouble(d, ByteOrder.BIG_ENDIAN);
     }
     
@@ -175,7 +172,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putLong(long, ByteOrder)
      */
-    public Packet putDouble(double d, ByteOrder order) {
+    public final Packet putDouble(double d, ByteOrder order) {
         return putLong(Double.doubleToRawLongBits(d), order);
     }
     
@@ -186,7 +183,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putFloat(float, ByteOrder)
      */
-    public Packet putFloat(float f) {
+    public final Packet putFloat(float f) {
         return putFloat(f, ByteOrder.BIG_ENDIAN);
     }
     
@@ -198,7 +195,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putInt(int, ByteOrder)
      */
-    public Packet putFloat(float f, ByteOrder order) {
+    public final Packet putFloat(float f, ByteOrder order) {
         return putInt(Float.floatToRawIntBits(f), order);
     }
     
@@ -209,7 +206,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putInt(int, ByteOrder)
      */
-    public Packet putInt(int i) {
+    public final Packet putInt(int i) {
         return putInt(i, ByteOrder.BIG_ENDIAN);
     }
     
@@ -220,7 +217,7 @@ public final class Packet {
      * @param order The internal byte order of the {@code int}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putInt(int i, ByteOrder order) {
+    public final Packet putInt(int i, ByteOrder order) {
         size += Integer.BYTES;
         return enqueue(buffer -> buffer.order(order).putInt(i));
     }
@@ -232,7 +229,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putLong(long, ByteOrder)
      */
-    public Packet putLong(long l) {
+    public final Packet putLong(long l) {
         return putLong(l, ByteOrder.BIG_ENDIAN);
     }
     
@@ -243,7 +240,7 @@ public final class Packet {
      * @param order The internal byte order of the {@code long}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putLong(long l, ByteOrder order) {
+    public final Packet putLong(long l, ByteOrder order) {
         size += Long.BYTES;
         return enqueue(buffer -> buffer.order(order).putLong(l));
     }
@@ -255,7 +252,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putShort(int, ByteOrder)
      */
-    public Packet putShort(int s) {
+    public final Packet putShort(int s) {
         return putShort(s, ByteOrder.BIG_ENDIAN);
     }
     
@@ -266,7 +263,7 @@ public final class Packet {
      * @param order The internal byte order of the {@code short}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putShort(int s, ByteOrder order) {
+    public final Packet putShort(int s, ByteOrder order) {
         size += Short.BYTES;
         short value = (short) s;
         return enqueue(buffer -> buffer.order(order).putShort(value));
@@ -282,7 +279,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putString(String, Charset, ByteOrder)
      */
-    public Packet putString(String s) {
+    public final Packet putString(String s) {
         return putString(s, StandardCharsets.UTF_8, ByteOrder.BIG_ENDIAN);
     }
     
@@ -299,7 +296,7 @@ public final class Packet {
      * @return The {@link Packet} to allow for chained writes.
      * @see #putString(String, Charset, ByteOrder)
      */
-    public Packet putString(String s, Charset charset) {
+    public final Packet putString(String s, Charset charset) {
         return putString(s, charset, ByteOrder.BIG_ENDIAN);
     }
     
@@ -316,7 +313,7 @@ public final class Packet {
      * @param order   The internal byte order of the {@link String}.
      * @return The {@link Packet} to allow for chained writes.
      */
-    public Packet putString(String s, Charset charset, ByteOrder order) {
+    public final Packet putString(String s, Charset charset, ByteOrder order) {
         var bytes = s.getBytes(charset);
         putShort(bytes.length, order);
         putBytes(bytes);
@@ -332,7 +329,7 @@ public final class Packet {
      * @param consumer The {@link Consumer} containing calls to add more data to this {@link Packet}.
      * @return This {@link Packet} to allow for chained writes.
      */
-    public Packet prepend(Consumer<Packet> consumer) {
+    public final Packet prepend(Consumer<Packet> consumer) {
         prepend = true;
         consumer.accept(this);
         
@@ -425,40 +422,16 @@ public final class Packet {
      *
      * @return The current size of this {@link Packet packet} in bytes.
      */
-    public int getSize() {
-        return getSize(null);
-    }
-    
-    /**
-     * Gets the size of this {@link Packet packet}'s payload in bytes, while taking the specified {@link Client
-     * client}'s encryption into account, as a {@link Cipher cipher}'s padding may increase the size of this
-     * {@link Packet packet}.
-     *
-     * @param client The {@link Client client} that this {@link Packet packet}'s size should be calculated for.
-     * @return The current size of this {@link Packet packet} in bytes.
-     */
-    public int getSize(Client client) {
-        Cipher encryption;
-        
-        if (client == null || (encryption = client.getEncryptionCipher()) == null) {
-            return size;
-        }
-
-        if (!client.isEncryptionNoPadding()) {
-            return Utility.roundUpToNextMultiple(size, encryption.getBlockSize());
-        }
-        
+    public final int getSize() {
         return size;
     }
 
     /**
      * Gets the backing {@link Deque} of this {@link Packet}.
-     * <br><br>
-     * This method should only be used internally; modifying this deque in any way can produce unintended results!
      *
      * @return A {@link Deque}.
      */
-    public Deque<Consumer<ByteBuffer>> getQueue() {
+    Deque<Consumer<ByteBuffer>> getQueue() {
         return queue;
     }
 }
