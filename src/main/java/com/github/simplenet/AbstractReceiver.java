@@ -23,8 +23,8 @@
  */
 package com.github.simplenet;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 abstract class AbstractReceiver<T> {
 
@@ -54,9 +54,9 @@ abstract class AbstractReceiver<T> {
      * Instantiates a new {@link AbstractReceiver} with a buffer capacity of {@code bufferSize}.
      */
     AbstractReceiver() {
-        this.connectListeners = new ArrayList<>(1);
-        this.preDisconnectListeners = new ArrayList<>(1);
-        this.postDisconnectListeners = new ArrayList<>(1);
+        this.connectListeners = new CopyOnWriteArrayList<>();
+        this.preDisconnectListeners = new CopyOnWriteArrayList<>();
+        this.postDisconnectListeners = new CopyOnWriteArrayList<>();
     }
     
     /**
