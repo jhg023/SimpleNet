@@ -40,12 +40,12 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -105,7 +105,7 @@ public class Client implements Closeable {
     Client(SocketChannel channel) {
         closing = new AtomicBoolean();
         outgoingPackets = new ArrayDeque<>();
-        disconnectListeners = new ArrayList<>(1);
+        disconnectListeners = new CopyOnWriteArrayList<>();
 
         if (channel != null) {
             this.channel = channel;

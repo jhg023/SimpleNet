@@ -33,11 +33,11 @@ import java.net.InetSocketAddress;
 import java.nio.channels.Channel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -75,7 +75,7 @@ public class Server implements Closeable {
      */
     public Server() {
         this.connectedClients = ConcurrentHashMap.newKeySet();
-        this.connectListeners = new ArrayList<>(1);
+        this.connectListeners = new CopyOnWriteArrayList<>();
     }
 
     /**
