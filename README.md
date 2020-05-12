@@ -4,7 +4,7 @@
 SimpleNet is a simplistic, client-server framework written in Java. One or more `Client` objects can connect to a `Server` and send data back-and-forth via TCP. Most methods that read data from the network are non-blocking and are invoked asynchronously when the requested data arrives. Not having to block a thread and wait for data is what makes SimpleNet scalable for different types of applications such as chat servers, multiplayer game servers, and so much more!
 # Maven/Gradle Dependency
  1. Add SimpleNet as a dependency using either Maven or Gradle:
-
+TEst 
 Maven:
 
 ```xml
