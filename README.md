@@ -2,7 +2,7 @@
 
 A version of SimpleNet that utilizes virtual threads, enabling efficient and scalable blocking I/O. For more information, please read the [v1 README](https://github.com/jhg023/SimpleNet/blob/master/README.md).
 
-The [latest (2020/02/22)](http://jdk.java.net/loom/) early access build of Project Loom is required to build this branch.
+The [latest (2020/05/11)](http://jdk.java.net/loom/) early access build of Project Loom is required to build this branch.
 
 ## Client Example
 ```java

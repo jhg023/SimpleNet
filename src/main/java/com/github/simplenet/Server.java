@@ -113,7 +113,7 @@ public class Server implements Closeable {
                 "specified address and port!", e);
         }
 
-        Thread.Builder builder = Thread.builder().daemon(false).virtual().name("SimpleNet-", 1);
+        var virtualThreadFactory = Thread.builder().daemon(false).virtual().name("SimpleNet-", 1).factory();
 
         // Use a kernel thread to accept connections, and virtual threads for everything else.
         Thread.builder().daemon(false).name("SimpleNet").task(() -> {
@@ -121,7 +121,7 @@ public class Server implements Closeable {
                 try {
                     SocketChannel connection = channel.accept();
 
-                    builder.task(() -> {
+                    virtualThreadFactory.newThread(() -> {
                         Client client = new Client(connection);
                         connectedClients.add(client);
                         client.onDisconnect(() -> connectedClients.remove(client));
