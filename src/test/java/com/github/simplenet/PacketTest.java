@@ -1,4 +1,4 @@
-/*
+package com.github.simplenet;/*
  * MIT License
  *
  * Copyright (c) 2020 Jacob Glickman

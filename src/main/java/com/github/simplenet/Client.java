@@ -23,6 +23,8 @@
  */
 package com.github.simplenet;
 
+import com.github.pbbl.AbstractBufferPool;
+import com.github.pbbl.direct.DirectByteBufferPool;
 import com.github.simplenet.packet.Packet;
 import com.github.simplenet.utility.IntPair;
 import com.github.simplenet.utility.MutableBoolean;
@@ -39,8 +41,6 @@ import com.github.simplenet.utility.exposed.data.LongReader;
 import com.github.simplenet.utility.exposed.data.StringReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pbbl.ByteBufferPool;
-import pbbl.direct.DirectByteBufferPool;
 
 import javax.crypto.Cipher;
 import java.io.IOException;
@@ -158,18 +158,24 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
 
                 client.inCallback.set(false);
 
-                // The buffer that was used must be returned to the pool.
-                DIRECT_BUFFER_POOL.give(buffer);
-
-                if (queueIsEmpty) {
-                    // Because the queue is empty, the client should not attempt to read more data until
-                    // more is requested by the user.
-                    client.readInProgress.set(false);
+                // If the queue is not empty and there exists remaining data in the buffer, then that means
+                // that we haven't received all of the requested data, and must re-use the same buffer.
+                if (!queueIsEmpty && buffer.hasRemaining()) {
+                    client.channel.read(buffer.position(buffer.limit()).limit(key), pair, this);
                 } else {
-                    // Because the queue is NOT empty and we don't have enough data to process the request,
-                    // we must read more data.
-                    var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
-                    client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
+                    // The buffer that was used must be returned to the pool.
+                    DIRECT_BUFFER_POOL.give(buffer);
+
+                    if (queueIsEmpty) {
+                        // Because the queue is empty, the client should not attempt to read more data until
+                        // more is requested by the user.
+                        client.readInProgress.set(false);
+                    } else {
+                        // Because the queue is NOT empty and we don't have enough data to process the request,
+                        // we must read more data.
+                        var newBuffer = DIRECT_BUFFER_POOL.take(peek.getKey());
+                        client.channel.read(newBuffer, new Pair<>(client, newBuffer), this);
+                    }
                 }
             }
         }
@@ -222,9 +228,9 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     };
 
     /**
-     * A {@link ByteBufferPool} that dispatches reusable {@code DirectByteBuffer}s.
+     * An {@link AbstractBufferPool<ByteBuffer>} that dispatches reusable, direct {@code ByteBuffer} objects.
      */
-    private static final ByteBufferPool DIRECT_BUFFER_POOL = new DirectByteBufferPool();
+    private static final AbstractBufferPool<ByteBuffer> DIRECT_BUFFER_POOL = new DirectByteBufferPool();
 
     /**
      * A {@link MutableBoolean} that keeps track of whether or not the executing code is inside a callback.

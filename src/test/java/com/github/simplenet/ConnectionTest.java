@@ -1,4 +1,4 @@
-/*
+package com.github.simplenet;/*
  * MIT License
  *
  * Copyright (c) 2020 Jacob Glickman
@@ -21,8 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-import com.github.simplenet.Client;
-import com.github.simplenet.Server;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
