@@ -29,6 +29,7 @@ package nio2.ssl;
 
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.net.SocketOption;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
@@ -705,6 +706,14 @@ public abstract class SSLAsynchronousSocketChannel implements AsynchronousChanne
         savedTrustMgr = trustMgr;
         savedSecureRand = secureRand;
     }
+
+    /**
+     * @throws  IllegalArgumentException                {@inheritDoc}
+     * @throws  ClosedChannelException                  {@inheritDoc}
+     * @throws  IOException                             {@inheritDoc}
+     */
+    public abstract <T> AsynchronousSocketChannel setOption(SocketOption<T> name, T value)
+            throws IOException;
 
 }
 

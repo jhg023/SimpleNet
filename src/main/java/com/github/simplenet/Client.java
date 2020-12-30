@@ -31,14 +31,12 @@ import com.github.simplenet.utility.MutableBoolean;
 import com.github.simplenet.utility.Pair;
 import com.github.simplenet.utility.Utility;
 import com.github.simplenet.utility.exposed.cryptography.CryptographicFunction;
-import com.github.simplenet.utility.exposed.data.BooleanReader;
-import com.github.simplenet.utility.exposed.data.ByteReader;
-import com.github.simplenet.utility.exposed.data.CharReader;
-import com.github.simplenet.utility.exposed.data.DoubleReader;
-import com.github.simplenet.utility.exposed.data.FloatReader;
-import com.github.simplenet.utility.exposed.data.IntReader;
-import com.github.simplenet.utility.exposed.data.LongReader;
-import com.github.simplenet.utility.exposed.data.StringReader;
+import com.github.simplenet.utility.exposed.data.*;
+//import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.Channel;
+import nio2.ssl.SSLAsynchronousChannelGroup;
+import nio2.ssl.SSLAsynchronousSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,12 +46,6 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-//import java.nio.channels.AlreadyConnectedException;
-//import java.nio.channels.*;
-
-import nio2.ssl.SSLAsynchronousSocketChannel;
-import nio2.ssl.SSLAsynchronousChannelGroup;
-
 import java.nio.channels.AlreadyConnectedException;
 import java.nio.channels.CompletionHandler;
 import java.security.GeneralSecurityException;
@@ -67,6 +59,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+//import java.nio.channels.AsynchronousChannelGroup;
+//import java.nio.channels.AsynchronousSocketChannel;
 
 /**
  * The entity that will connect to the {@link Server}.
@@ -428,7 +423,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<SSLA
         }
 
         try {
-            channel.connect(new InetSocketAddress(address, port)).get(timeout, unit);
+            channel.connect(new InetSocketAddress(address, port), null, null).get(timeout, unit);
         } catch (AlreadyConnectedException e) {
             throw new IllegalStateException("This client is already connected to a server!", e);
         } catch (Exception e) {
