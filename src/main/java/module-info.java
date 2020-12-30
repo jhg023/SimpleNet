@@ -1,6 +1,7 @@
 module com.github.simplenet {
     requires org.slf4j;
     requires com.github.pbbl;
+    requires java.naming;
 
     exports com.github.simplenet;
     exports com.github.simplenet.packet;

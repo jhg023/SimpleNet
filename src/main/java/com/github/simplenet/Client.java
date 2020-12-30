@@ -48,10 +48,13 @@ import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+//import java.nio.channels.AlreadyConnectedException;
+//import java.nio.channels.*;
+
+import nio2.ssl.SSLAsynchronousSocketChannel;
+import nio2.ssl.SSLAsynchronousChannelGroup;
+
 import java.nio.channels.AlreadyConnectedException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
@@ -71,7 +74,7 @@ import java.util.function.Predicate;
  * @author Jacob G.
  * @since November 1, 2017
  */
-public class Client extends AbstractReceiver<Runnable> implements Channeled<AsynchronousSocketChannel>, BooleanReader,
+public class Client extends AbstractReceiver<Runnable> implements Channeled<SSLAsynchronousSocketChannel>, BooleanReader,
         ByteReader, CharReader, IntReader, FloatReader, LongReader, DoubleReader, StringReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Client.class);
@@ -306,28 +309,28 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     private CryptographicFunction encryptionFunction;
 
     /**
-     * The backing {@link AsynchronousChannelGroup} of this {@link Client}.
+     * The backing {@link SSLAsynchronousChannelGroup} of this {@link Client}.
      */
-    private AsynchronousChannelGroup group;
+    private SSLAsynchronousChannelGroup group;
     
     /**
-     * The backing {@link Channel} of a {@link Client}.
+     * The backing {@link SSLAsynchronousSocketChannel} of a {@link Client}.
      */
-    private AsynchronousSocketChannel channel;
+    private SSLAsynchronousSocketChannel channel;
     
     /**
      * Instantiates a new {@link Client}.
      */
     public Client() {
-        this((AsynchronousSocketChannel) null);
+        this((SSLAsynchronousSocketChannel) null);
     }
 
     /**
-     * Instantiates a new {@link Client} with an existing {@link AsynchronousSocketChannel}.
+     * Instantiates a new {@link Client} with an existing {@link SSLAsynchronousSocketChannel}.
      *
      * @param channel The channel to back this {@link Client} with.
      */
-    Client(AsynchronousSocketChannel channel) {
+    Client(SSLAsynchronousSocketChannel channel) {
         closing = new AtomicBoolean();
         inCallback = new MutableBoolean();
         readInProgress = new AtomicBoolean();
@@ -350,7 +353,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * {@link Client}, allowing them to invoke {@code super(client)} inside their constructor. Doing so will allow
      * them to invoke {@code wrapper.readByte()} (for example) instead of {@code wrapper.getClient().readByte()}.
      *
-     * @param client An existing {@link Client} whose backing {@link AsynchronousSocketChannel} is already connected.
+     * @param client An existing {@link Client} whose backing {@link SSLAsynchronousSocketChannel} is already connected.
      */
     protected Client(Client client) {
         super(client);
@@ -378,7 +381,6 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
      * @param address The IP address to connect to.
      * @param port    The port to connect to {@code 0 <= port <= 65535}.
      * @throws IllegalArgumentException  If {@code port} is less than 0 or greater than 65535.
-     * @throws AlreadyConnectedException If a {@link Client} is already connected to any address/port.
      */
     public final void connect(String address, int port) {
         connect(address, port, 30L, TimeUnit.SECONDS, () ->
@@ -388,7 +390,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     /**
      * Attempts to connect to a {@link Server} with the specified {@code address} and {@code port} and a specified
      * timeout. If the timeout is reached, then the {@link Runnable} is run and the backing
-     * {@link AsynchronousSocketChannel} is closed.
+     * {@link SSLAsynchronousSocketChannel} is closed.
      *
      * @param address   The IP address to connect to.
      * @param port      The port to connect to {@code 0 <= port <= 65535}.
@@ -416,7 +418,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
         executor.prestartCoreThread();
 
         try {
-            this.channel = AsynchronousSocketChannel.open(group = AsynchronousChannelGroup.withThreadPool(executor));
+            this.channel = SSLAsynchronousSocketChannel.open(group = new SSLAsynchronousChannelGroup(executor));
             this.channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
             this.channel.setOption(StandardSocketOptions.SO_SNDBUF, BUFFER_SIZE);
             this.channel.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
@@ -478,7 +480,7 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     }
 
     /**
-     * Closes this {@link Client}'s backing {@link AsynchronousSocketChannel} after flushing any queued packets.
+     * Closes this {@link Client}'s backing {@link SSLAsynchronousSocketChannel} after flushing any queued packets.
      * <br><br>
      * Any registered pre-disconnect listeners are fired before remaining packets are flushed, and registered
      * post-disconnect listeners are fired after the backing channel has closed successfully.
@@ -583,7 +585,8 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     }
 
     /**
-     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the {@link Channel}.
+     * Gets the {@link Queue} that manages outgoing {@link Packet}s before writing them to the
+     * {@link SSLAsynchronousSocketChannel}.
      * <br><br>
      * This method should only be used internally; modifying this queue in any way can produce unintended results!
      *
@@ -594,12 +597,12 @@ public class Client extends AbstractReceiver<Runnable> implements Channeled<Asyn
     }
 
     /**
-     * Gets the backing {@link Channel} of this {@link Client}.
+     * Gets the backing {@link SSLAsynchronousSocketChannel} of this {@link Client}.
      *
      * @return This {@link Client}'s backing channel.
      */
     @Override
-    public final AsynchronousSocketChannel getChannel() {
+    public final SSLAsynchronousSocketChannel getChannel() {
         return channel;
     }
     
